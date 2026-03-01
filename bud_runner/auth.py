@@ -1,0 +1,233 @@
+"""
+AuthManager - Unified authentication management for bud_runner.
+
+Loads credentials from:
+1. Function arguments (highest priority)
+2. Environment variables
+3. app.properties file
+"""
+
+import os
+import configparser
+from pathlib import Path
+from typing import Optional
+
+
+class AuthManager:
+    """
+    Manages authentication credentials for bud_runner.
+    
+    Credentials are loaded from (in order of priority):
+    1. Constructor arguments
+    2. Environment variables
+    3. app.properties file
+    
+    Environment variables:
+        BUD_BACKEND_URL - Backend URL
+        BUD_TOKEN - API token
+        BUD_RUNNER_ACCOUNT - Runner account name
+        BUD_RUNNER_TOKEN - Runner-specific token
+        PM_URL - OpenProject URL
+        PM_TOKEN - OpenProject token
+    """
+
+    DEFAULT_BACKEND_URL = "https://bud.embedlabs.de/"
+    DEFAULT_PM_URL = "https://pm.embedlabs.de/"
+
+    def __init__(
+        self,
+        username: Optional[str] = None,
+        token: Optional[str] = None,
+        backend_url: Optional[str] = None,
+        runner_account: Optional[str] = None,
+        runner_token: Optional[str] = None,
+        pm_url: Optional[str] = None,
+        pm_token: Optional[str] = None,
+        properties_file: Optional[str] = None,
+    ):
+        """
+        Initialize authentication manager.
+        
+        Args:
+            username: Username for authentication.
+            token: API token.
+            backend_url: Backend URL.
+            runner_account: Runner account name.
+            runner_token: Runner-specific token.
+            pm_url: OpenProject URL.
+            pm_token: OpenProject API token.
+            properties_file: Path to app.properties file.
+        """
+        # Initialize with defaults
+        self._backend_url = self.DEFAULT_BACKEND_URL
+        self._pm_url = self.DEFAULT_PM_URL
+        self._token: Optional[str] = None
+        self._username: Optional[str] = None
+        self._runner_account: Optional[str] = None
+        self._runner_token: Optional[str] = None
+        self._pm_token: Optional[str] = None
+
+        # Load from properties file
+        if properties_file:
+            self._load_from_properties(properties_file)
+        else:
+            # Try to find app.properties
+            for path in [Path("app.properties"), Path("../app.properties")]:
+                if path.exists():
+                    self._load_from_properties(str(path))
+                    break
+
+        # Override with environment variables
+        self._load_from_env()
+
+        # Override with constructor arguments
+        if backend_url:
+            self._backend_url = backend_url
+        if token:
+            self._token = token
+        if username:
+            self._username = username
+        if runner_account:
+            self._runner_account = runner_account
+        if runner_token:
+            self._runner_token = runner_token
+        if pm_url:
+            self._pm_url = pm_url
+        if pm_token:
+            self._pm_token = pm_token
+
+    def _load_from_properties(self, filepath: str) -> None:
+        """Load credentials from a .properties file."""
+        try:
+            with open(filepath, "r") as f:
+                content = "[DEFAULT]\n" + f.read()
+            
+            config = configparser.ConfigParser()
+            config.read_string(content)
+            props = config["DEFAULT"]
+
+            mapping = {
+                "budBackend": "_backend_url",
+                "budToken": "_token",
+                "budRunnerAccount": "_runner_account",
+                "budRunnerToken": "_runner_token",
+                "pmUrl": "_pm_url",
+                "pmToken": "_pm_token",
+                "lastUser": "_username",
+            }
+
+            for prop_key, attr_name in mapping.items():
+                if prop_key in props and props[prop_key]:
+                    setattr(self, attr_name, props[prop_key])
+
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            print(f"Warning: Error loading properties: {e}")
+
+    def _load_from_env(self) -> None:
+        """Load credentials from environment variables."""
+        env_mapping = {
+            "BUD_BACKEND_URL": "_backend_url",
+            "BUD_TOKEN": "_token",
+            "BUD_USERNAME": "_username",
+            "BUD_RUNNER_ACCOUNT": "_runner_account",
+            "BUD_RUNNER_TOKEN": "_runner_token",
+            "PM_URL": "_pm_url",
+            "PM_TOKEN": "_pm_token",
+        }
+
+        for env_key, attr_name in env_mapping.items():
+            value = os.environ.get(env_key)
+            if value:
+                setattr(self, attr_name, value)
+
+    @property
+    def backend_url(self) -> str:
+        """Get the backend URL."""
+        return self._backend_url
+
+    @property
+    def token(self) -> Optional[str]:
+        """Get the API token."""
+        return self._token or self._runner_token
+
+    @property
+    def username(self) -> Optional[str]:
+        """Get the username."""
+        return self._username
+
+    @property
+    def runner_account(self) -> Optional[str]:
+        """Get the runner account name."""
+        return self._runner_account
+
+    @property
+    def runner_token(self) -> Optional[str]:
+        """Get the runner token."""
+        return self._runner_token
+
+    @property
+    def pm_url(self) -> str:
+        """Get the OpenProject URL."""
+        return self._pm_url
+
+    @property
+    def pm_token(self) -> Optional[str]:
+        """Get the OpenProject token."""
+        return self._pm_token
+
+    def save_to_properties(
+        self,
+        filepath: str = "app.properties",
+        runner_token: Optional[str] = None,
+    ) -> None:
+        """
+        Save credentials to app.properties file.
+        
+        Args:
+            filepath: Path to the properties file.
+            runner_token: New runner token to save.
+        """
+        properties = {}
+        
+        # Load existing properties
+        if Path(filepath).exists():
+            try:
+                with open(filepath, "r") as f:
+                    content = "[DEFAULT]\n" + f.read()
+                config = configparser.ConfigParser()
+                config.read_string(content)
+                properties = dict(config["DEFAULT"])
+            except Exception:
+                pass
+
+        # Update with current values
+        if self._backend_url != self.DEFAULT_BACKEND_URL:
+            properties["budBackend"] = self._backend_url
+        if self._runner_account:
+            properties["budRunnerAccount"] = self._runner_account
+        if runner_token:
+            properties["budRunnerToken"] = runner_token
+        elif self._runner_token:
+            properties["budRunnerToken"] = self._runner_token
+        if self._pm_url != self.DEFAULT_PM_URL:
+            properties["pmUrl"] = self._pm_url
+        if self._username:
+            properties["lastUser"] = self._username
+
+        # Write properties file
+        with open(filepath, "w") as f:
+            for key, value in properties.items():
+                f.write(f"{key}={value}\n")
+
+    def is_configured(self) -> bool:
+        """Check if authentication is configured."""
+        return bool(self._token or self._runner_token)
+
+    def __repr__(self) -> str:
+        return (
+            f"AuthManager(backend={self._backend_url}, "
+            f"runner={self._runner_account}, "
+            f"token={'***' if self.token else 'None'})"
+        )
