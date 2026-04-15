@@ -8,7 +8,7 @@ CLI tool for test execution and CI/CD integration with bud.embedlabs.de.
 - Creating and managing test runs
 - Executing test suites
 - Generating JUnit XML reports for CI/CD
-- Syncing test cases to OpenProject
+- Syncing test cases to Bloom ALM
 - Runner registration and management
 
 ## Installation
@@ -67,13 +67,22 @@ python -m bud_runner register \
     --socket-port 53035
 ```
 
-### Sync to OpenProject
+### Sync to Bloom ALM
 
 ```bash
 python -m bud_runner sync_test_cases \
     --project bms-project \
     --test-case-list Bud_Test_Suite.HIL_TEST_CASES \
-    --suite-name "HIL Tests"
+    --suite-name "HIL Tests" \
+    --bloom-token "your-jwt-token"
+
+# Or authenticate with email/password
+python -m bud_runner sync_test_cases \
+    --project bms-project \
+    --test-case-list Bud_Test_Suite.HIL_TEST_CASES \
+    --suite-name "HIL Tests" \
+    --bloom-email admin@embedlabs.de \
+    --bloom-password yourpassword
 ```
 
 ## Commands
@@ -129,17 +138,19 @@ Options:
 
 ### `sync_test_cases`
 
-Sync test cases to OpenProject Work Packages.
+Sync test cases to Bloom ALM.
 
 ```bash
 python -m bud_runner sync_test_cases [OPTIONS]
 
 Options:
-  -p, --project TEXT           OpenProject project ID (required)
+  -p, --project TEXT           Bloom project prefix or ID (required)
   -t, --test-case-list TEXT    Test case list module path (required)
-  -s, --suite-name TEXT        Test suite name (required)
-  --pm-url TEXT                OpenProject URL
-  --pm-token TEXT              OpenProject API token
+  -s, --suite-name TEXT        Test campaign name (required)
+  --bloom-url TEXT             Bloom ALM URL
+  --bloom-token TEXT           Bloom ALM JWT token
+  --bloom-email TEXT           Bloom ALM login email
+  --bloom-password TEXT        Bloom ALM login password
   --dry-run                    Preview without making changes
 ```
 
@@ -171,8 +182,10 @@ export BUD_BACKEND_URL="https://bud.embedlabs.de/"
 export BUD_TOKEN="your-api-token"
 export BUD_RUNNER_ACCOUNT="my-runner"
 export BUD_RUNNER_TOKEN="runner-token"
-export PM_URL="https://pm.embedlabs.de/"
-export PM_TOKEN="openproject-token"
+export BLOOM_URL="https://bloom.embedlabs.de/"
+export BLOOM_TOKEN="bloom-jwt-token"
+export BLOOM_EMAIL="user@embedlabs.de"
+export BLOOM_PASSWORD="your-password"
 ```
 
 ### app.properties
@@ -181,8 +194,9 @@ export PM_TOKEN="openproject-token"
 budBackend=https://bud.embedlabs.de/
 budRunnerAccount=my-runner
 budRunnerToken=xxx
-pmUrl=https://pm.embedlabs.de/
-pmToken=xxx
+bloomUrl=https://bloom.embedlabs.de/
+bloomToken=xxx
+bloomEmail=user@embedlabs.de
 runnerSocketPort=53035
 ```
 
