@@ -5,11 +5,11 @@ A command-line interface for:
 - Running test suites
 - Registering runners with bud.embedlabs.de
 - Creating test runs
-- Syncing test cases to OpenProject
+- Syncing test cases to Bloom ALM
 - Generating JUnit XML reports
 
 Backend: https://bud.embedlabs.de/
-Project Management: https://pm.embedlabs.de/ (OpenProject)
+ALM: https://bloom.embedlabs.de/ (Bloom)
 
 Usage:
     python -m bud_runner add_test_run --test-case-list MyTests.TEST_LIST

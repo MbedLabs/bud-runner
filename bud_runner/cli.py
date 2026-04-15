@@ -10,7 +10,7 @@ from pathlib import Path
 from enum import Enum
 
 from bud_runner.api_client import BudAPIClient
-from bud_runner.openproject_client import OpenProjectClient
+from bud_runner.bloom_client import BloomClient
 from bud_runner.runner_manager import RunnerManager
 from bud_runner.test_executor import TestExecutor
 from bud_runner.junit_reporter import JUnitReporter
@@ -262,7 +262,7 @@ def sync_test_cases(
         ...,
         "--project",
         "-p",
-        help="OpenProject project identifier",
+        help="Bloom project prefix or numeric ID",
     ),
     test_case_list: str = typer.Option(
         ...,
@@ -274,17 +274,28 @@ def sync_test_cases(
         ...,
         "--suite-name",
         "-s",
-        help="Test suite name (parent Work Package)",
+        help="Test campaign name (groups test cases in Bloom)",
     ),
-    pm_url: Optional[str] = typer.Option(
+    bloom_url: Optional[str] = typer.Option(
         None,
-        "--pm-url",
-        help="OpenProject URL (default: from config)",
+        "--bloom-url",
+        help="Bloom ALM URL (default: from config)",
     ),
-    pm_token: Optional[str] = typer.Option(
+    bloom_token: Optional[str] = typer.Option(
         None,
-        "--pm-token",
-        help="OpenProject API token",
+        "--bloom-token",
+        help="Bloom ALM JWT token",
+    ),
+    bloom_email: Optional[str] = typer.Option(
+        None,
+        "--bloom-email",
+        help="Bloom ALM login email (alternative to --bloom-token)",
+    ),
+    bloom_password: Optional[str] = typer.Option(
+        None,
+        "--bloom-password",
+        help="Bloom ALM login password (used with --bloom-email)",
+        hide_input=True,
     ),
     dry_run: bool = typer.Option(
         False,
@@ -293,23 +304,27 @@ def sync_test_cases(
     ),
 ):
     """
-    Sync test cases to OpenProject Work Packages.
+    Sync test cases to Bloom ALM.
     
-    Creates Test Suite and Test Case Work Packages in OpenProject
+    Creates test cases and a test campaign in Bloom
     for requirement traceability.
     """
-    client = OpenProjectClient(pm_url=pm_url, pm_token=pm_token)
+    client = BloomClient(
+        bloom_url=bloom_url,
+        bloom_token=bloom_token,
+        bloom_email=bloom_email,
+        bloom_password=bloom_password,
+    )
     
-    typer.echo(f"Syncing test cases to OpenProject")
+    typer.echo(f"Syncing test cases to Bloom ALM")
     typer.echo(f"  Project: {project}")
-    typer.echo(f"  Suite: {suite_name}")
+    typer.echo(f"  Campaign: {suite_name}")
     typer.echo(f"  Test list: {test_case_list}")
     
     if dry_run:
         typer.echo("\n[DRY RUN] Would sync the following:")
     
     try:
-        # Import test list
         from bud_runner.test_executor import TestExecutor
         executor = TestExecutor()
         test_classes = executor.load_test_list(test_case_list)
@@ -318,13 +333,13 @@ def sync_test_cases(
             if dry_run:
                 typer.echo(f"  - {test_class.__name__}")
             else:
-                wp = client.sync_test_case(
-                    project_id=project,
-                    suite_name=suite_name,
+                tc = client.sync_test_case(
+                    project_identifier=project,
+                    campaign_name=suite_name,
                     test_class=test_class,
                 )
-                if wp:
-                    typer.echo(f"✓ Synced: {test_class.__name__} -> WP-{wp.id}")
+                if tc:
+                    typer.echo(f"✓ Synced: {test_class.__name__} -> {tc.tc_id}")
                 else:
                     typer.echo(f"✗ Failed: {test_class.__name__}")
         
