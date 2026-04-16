@@ -1,7 +1,6 @@
-"""
-BloomClient - Client for Bloom ALM API integration.
+"""BloomClient - Client for Bloom ALM API integration.
 
-Syncs test cases and campaigns to Bloom for requirement traceability.
+Syncs test cases/suites/scopes to Bloom for requirement traceability.
 """
 
 import requests
@@ -210,8 +209,54 @@ class BloomClient:
             return False
 
     # ------------------------------------------------------------------
-    # Campaigns (replaces OpenProject "Test Suite" work packages)
+    # Suites and Campaign Scopes
     # ------------------------------------------------------------------
+
+    def find_suite(
+        self,
+        project_id: int,
+        name: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Find a test suite by project and name."""
+        try:
+            response = self._session.get(
+                f"{self._api_url}/test-suites",
+                params={"project_id": project_id},
+                timeout=30,
+            )
+            if response.status_code == 200:
+                for suite in response.json():
+                    if suite.get("name") == name:
+                        return suite
+        except requests.exceptions.RequestException:
+            pass
+        return None
+
+    def create_suite(
+        self,
+        project_id: int,
+        name: str,
+        description: str = "",
+        test_case_ids: Optional[List[int]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Create a new test suite."""
+        try:
+            payload: Dict[str, Any] = {
+                "project_id": project_id,
+                "name": name,
+                "description": description,
+                "test_case_ids": test_case_ids or [],
+            }
+            response = self._session.post(
+                f"{self._api_url}/test-suites",
+                json=payload,
+                timeout=30,
+            )
+            if response.status_code in (200, 201):
+                return response.json()
+        except requests.exceptions.RequestException:
+            pass
+        return None
 
     def find_campaign(
         self,
@@ -238,16 +283,29 @@ class BloomClient:
         project_id: int,
         name: str,
         description: str = "",
+        suite_id: Optional[int] = None,
+        bud_run_id: Optional[int] = None,
+        bud_run_url: Optional[str] = None,
+        bud_run_status: Optional[str] = None,
         test_case_ids: Optional[List[int]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Create a new test campaign."""
+        """Create a traceability campaign scope linked to Bud execution metadata."""
         try:
             payload: Dict[str, Any] = {
                 "project_id": project_id,
                 "name": name,
                 "description": description,
+                "status": "Scope",
                 "test_case_ids": test_case_ids or [],
             }
+            if suite_id is not None:
+                payload["suite_id"] = suite_id
+            if bud_run_id is not None:
+                payload["bud_run_id"] = bud_run_id
+            if bud_run_url is not None:
+                payload["bud_run_url"] = bud_run_url
+            if bud_run_status is not None:
+                payload["bud_run_status"] = bud_run_status
             response = self._session.post(
                 f"{self._api_url}/campaigns",
                 json=payload,
@@ -294,17 +352,11 @@ class BloomClient:
         self,
         campaign_id: int,
         item_id: int,
-        status: Optional[str] = None,
-        result: Optional[str] = None,
         comment: Optional[str] = None,
     ) -> bool:
-        """Update a campaign item (test execution result)."""
+        """Update a campaign item comment (traceability note only)."""
         try:
             payload: Dict[str, Any] = {}
-            if status is not None:
-                payload["status"] = status
-            if result is not None:
-                payload["result"] = result
             if comment is not None:
                 payload["comment"] = comment
 
@@ -375,18 +427,18 @@ class BloomClient:
         """
         project_id = self._resolve_project_id(project_identifier)
 
-        # Find or create campaign (equivalent to old "Test Suite" WP)
-        campaign = self.find_campaign(project_id, campaign_name)
-        if not campaign:
-            campaign = self.create_campaign(
+        # Find or create suite
+        suite = self.find_suite(project_id, campaign_name)
+        if not suite:
+            suite = self.create_suite(
                 project_id=project_id,
                 name=campaign_name,
                 description=f"Test suite: {campaign_name}",
             )
-        if not campaign:
+        if not suite:
             return None
 
-        campaign_id = campaign["id"]
+        suite_id = suite["id"]
 
         # Find or create test case
         test_name = test_class.__name__
@@ -418,14 +470,30 @@ class BloomClient:
         if not tc:
             return None
 
-        # Add to campaign if not already present
-        detail = self.get_campaign_detail(campaign_id)
-        if detail:
-            existing_tc_ids = {
-                item["test_case_id"] for item in detail.get("items", [])
-            }
+        # Add test case to suite if missing
+        suite_detail = self._session.get(f"{self._api_url}/test-suites/{suite_id}", timeout=30)
+        if suite_detail.status_code == 200:
+            existing_tc_ids = {item["test_case_id"] for item in suite_detail.json().get("items", [])}
             if tc["id"] not in existing_tc_ids:
-                self.add_to_campaign(campaign_id, tc["id"])
+                try:
+                    self._session.post(
+                        f"{self._api_url}/test-suites/{suite_id}/items",
+                        params={"test_case_id": tc["id"]},
+                        timeout=30,
+                    )
+                except requests.exceptions.RequestException:
+                    pass
+
+        # Ensure a campaign scope exists for this suite
+        campaign = self.find_campaign(project_id, campaign_name)
+        if not campaign:
+            campaign = self.create_campaign(
+                project_id=project_id,
+                name=campaign_name,
+                description=f"Traceability scope for suite: {campaign_name}",
+                suite_id=suite_id,
+            )
+        campaign_id = campaign["id"] if campaign else None
 
         return BloomTestCaseInfo(
             id=tc["id"],
@@ -439,41 +507,27 @@ class BloomClient:
             url=f"{self._base_url}/projects/{project_id}/test-cases/{tc['id']}",
         )
 
-    # ------------------------------------------------------------------
-    # Update test result via campaign item
-    # ------------------------------------------------------------------
-
-    def update_test_result(
+    def link_bud_run_to_campaign(
         self,
         campaign_id: int,
-        test_case_id: int,
-        passed: bool,
-        comment: str = "",
+        bud_run_id: int,
+        bud_run_url: Optional[str] = None,
+        bud_run_status: Optional[str] = None,
     ) -> bool:
-        """
-        Update a test case result within a campaign.
-
-        Args:
-            campaign_id: Campaign ID containing the test case.
-            test_case_id: Test case ID to update.
-            passed: Whether the test passed.
-            comment: Optional comment on the result.
-
-        Returns:
-            True if successful.
-        """
-        detail = self.get_campaign_detail(campaign_id)
-        if not detail:
+        """Attach Bud run metadata to a Bloom campaign scope."""
+        try:
+            payload: Dict[str, Any] = {
+                "bud_run_id": bud_run_id,
+            }
+            if bud_run_url is not None:
+                payload["bud_run_url"] = bud_run_url
+            if bud_run_status is not None:
+                payload["bud_run_status"] = bud_run_status
+            response = self._session.patch(
+                f"{self._api_url}/campaigns/{campaign_id}",
+                json=payload,
+                timeout=30,
+            )
+            return response.status_code == 200
+        except requests.exceptions.RequestException:
             return False
-
-        for item in detail.get("items", []):
-            if item["test_case_id"] == test_case_id:
-                return self.update_campaign_item(
-                    campaign_id=campaign_id,
-                    item_id=item["id"],
-                    status="Passed" if passed else "Failed",
-                    result="Pass" if passed else "Fail",
-                    comment=comment,
-                )
-
-        return False

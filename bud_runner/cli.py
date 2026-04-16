@@ -274,7 +274,7 @@ def sync_test_cases(
         ...,
         "--suite-name",
         "-s",
-        help="Test campaign name (groups test cases in Bloom)",
+        help="Suite/scope name in Bloom (groups test cases for traceability)",
     ),
     bloom_url: Optional[str] = typer.Option(
         None,
@@ -304,10 +304,10 @@ def sync_test_cases(
     ),
 ):
     """
-    Sync test cases to Bloom ALM.
-    
-    Creates test cases and a test campaign in Bloom
-    for requirement traceability.
+    Sync test cases to Bloom ALM traceability model.
+
+    Creates/updates test cases, keeps them in a Bloom suite,
+    and ensures a campaign scope exists for Bud linkage.
     """
     client = BloomClient(
         bloom_url=bloom_url,
