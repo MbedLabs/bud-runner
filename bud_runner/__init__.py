@@ -22,7 +22,7 @@ Copyright (c) 2025 EmbedLabs
 
 from bud_runner.cli import app
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "EmbedLabs"
 __email__ = "dev@embedlabs.de"
 

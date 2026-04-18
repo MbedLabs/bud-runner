@@ -4,6 +4,7 @@ CLI entry point for bud_runner.
 Provides commands for test execution, runner registration, and test case synchronization.
 """
 
+import json
 import typer
 from typing import Optional, List
 from pathlib import Path
@@ -86,6 +87,11 @@ def add_test_run(
         "--bud-token",
         help="API token for authentication",
     ),
+    output_format: OutputFormat = typer.Option(
+        OutputFormat.text,
+        "--output-format",
+        help="Output format for this command's response (text or json). Use json in CI to parse the returned run id.",
+    ),
 ):
     """
     Create a new test run on bud.embedlabs.de.
@@ -94,11 +100,19 @@ def add_test_run(
     be executed by a runner.
     """
     auth = AuthManager(username=username, token=bud_token, backend_url=backend_url)
+    if not auth.token:
+        typer.echo(
+            "✗ Missing BUD_TOKEN. Export BUD_TOKEN or pass --bud-token before creating a test run.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
     client = BudAPIClient(auth)
-    
-    typer.echo(f"Creating test run: {test_suite_name}")
-    typer.echo(f"Test case list: {test_case_list}")
-    
+
+    if output_format != OutputFormat.json:
+        typer.echo(f"Creating test run: {test_suite_name}")
+        typer.echo(f"Test case list: {test_case_list}")
+
     try:
         result = client.create_test_run(
             test_case_list=test_case_list,
@@ -109,10 +123,14 @@ def add_test_run(
             status=status,
             pipeline_software_under_test=pipeline_software_under_test,
         )
-        
-        typer.echo(f"✓ Test run created: ID={result.get('id')}")
-        typer.echo(f"  URL: {result.get('url')}")
-        
+
+        if output_format == OutputFormat.json:
+            # Emit ONLY JSON on stdout so CI can pipe it into `jq` safely.
+            typer.echo(json.dumps(result))
+        else:
+            typer.echo(f"✓ Test run created: ID={result.get('id')}")
+            typer.echo(f"  URL: {result.get('url')}")
+
     except Exception as e:
         typer.echo(f"✗ Error creating test run: {e}", err=True)
         raise typer.Exit(code=1)
@@ -129,6 +147,7 @@ def run_tests(
     output: Path = typer.Option(
         Path("report_junit.xml"),
         "--output",
+        "--junit-report",
         "-o",
         help="Output file for JUnit XML report",
     ),
@@ -148,6 +167,16 @@ def run_tests(
         "--backend-url",
         "-b",
         help="Backend URL for result upload",
+    ),
+    test_run_id: Optional[int] = typer.Option(
+        None,
+        "--test-run-id",
+        help="Existing TestRun id (from 'add_test_run --output-format json') to associate uploaded results with.",
+    ),
+    bud_token: Optional[str] = typer.Option(
+        None,
+        "--bud-token",
+        help="API token for authentication (otherwise read from BUD_TOKEN env).",
     ),
     upload_results: bool = typer.Option(
         True,
@@ -179,12 +208,24 @@ def run_tests(
             output.write_text(xml_content)
             typer.echo(f"✓ JUnit report written to: {output}")
         
-        # Upload results if requested
-        if upload_results and backend_url:
-            auth = AuthManager(backend_url=backend_url)
-            client = BudAPIClient(auth)
-            client.upload_results(results)
-            typer.echo("✓ Results uploaded to backend")
+        # Upload results if requested. Requires a backend URL AND an auth token;
+        # fail loudly rather than silently skipping the upload.
+        if upload_results:
+            auth = AuthManager(backend_url=backend_url, token=bud_token)
+            if not auth.token:
+                typer.echo(
+                    "⚠ Skipping result upload: no BUD_TOKEN (env) or --bud-token provided.",
+                    err=True,
+                )
+            else:
+                client = BudAPIClient(auth)
+                ok = client.upload_results(results, test_run_id=test_run_id)
+                if ok:
+                    suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
+                    typer.echo(f"✓ Results uploaded to backend{suffix}")
+                else:
+                    typer.echo("✗ Result upload failed", err=True)
+                    raise typer.Exit(code=1)
         
         # Print summary
         passed = sum(1 for r in results if r.passed)
@@ -226,16 +267,36 @@ def register(
         "--socket-port",
         help="Socket port for runner communication",
     ),
+    api_key: Optional[str] = typer.Option(
+        None,
+        "--api-key",
+        envvar="RUNNER_API_KEY",
+        help="Shared secret sent as X-API-Key for POST /api/runners/register (matches backend RUNNER_API_KEY). "
+             "Falls back to RUNNER_API_KEY env var or app.properties 'runnerApiKey'.",
+    ),
 ):
     """
     Register this machine as a test runner with bud.embedlabs.de.
-    
+
     Creates a runner account and stores credentials in app.properties.
+
+    Authentication: the backend protects this endpoint with a shared
+    secret (``X-API-Key``). Provide it via ``--api-key`` or the
+    ``RUNNER_API_KEY`` environment variable; it must match the backend's
+    ``RUNNER_API_KEY`` setting.
     """
     if password is None:
         password = typer.prompt("Password", hide_input=True)
-    
-    auth = AuthManager(backend_url=backend_url)
+
+    auth = AuthManager(backend_url=backend_url, runner_api_key=api_key)
+    if not auth.runner_api_key:
+        typer.echo(
+            "✗ RUNNER_API_KEY is not configured. Pass --api-key or export "
+            "RUNNER_API_KEY (the shared secret from the Bud backend).",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
     manager = RunnerManager(auth)
     
     typer.echo(f"Registering runner: {username}")
