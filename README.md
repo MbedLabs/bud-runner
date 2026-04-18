@@ -60,7 +60,14 @@ python -m bud_runner add_test_run \
 
 ### Register Runner
 
+The backend protects `POST /api/runners/register` with a shared secret
+(`X-API-Key`). Export `RUNNER_API_KEY` (must match the backend's
+`RUNNER_API_KEY` env var) before running `register`, or pass `--api-key`:
+
 ```bash
+export RUNNER_API_KEY=...  # shared secret from the Bud backend
+export BUD_BACKEND_URL=https://bud.embedlabs.de
+
 python -m bud_runner register \
     --username my-runner \
     --password mypassword \
@@ -115,10 +122,12 @@ python -m bud_runner run_tests [OPTIONS]
 
 Options:
   -t, --test-case-list TEXT    Test case list module path (required)
-  -o, --output PATH            JUnit XML output [default: report_junit.xml]
+  -o, --output, --junit-report PATH  JUnit XML output [default: report_junit.xml]
   -f, --format [json|text|junit]  Output format [default: junit]
   --continue-on-error/--stop-on-error  Continue after failure [default: continue]
   -b, --backend-url TEXT       Backend URL for upload
+  --test-run-id INT            Associate uploaded results with this TestRun id
+  --bud-token TEXT             User JWT (falls back to BUD_TOKEN env)
   --upload/--no-upload         Upload results [default: upload]
 ```
 
@@ -134,6 +143,8 @@ Options:
   -p, --password TEXT          Password (prompted if not provided)
   -b, --backend-url TEXT       Backend URL
   --socket-port INT            Socket port [default: 53035]
+  --api-key TEXT               Shared secret sent as X-API-Key.
+                               Falls back to RUNNER_API_KEY env var.
 ```
 
 ### `sync_test_cases`
@@ -186,6 +197,9 @@ export BLOOM_URL="https://bloom.embedlabs.de/"
 export BLOOM_TOKEN="bloom-jwt-token"
 export BLOOM_EMAIL="user@embedlabs.de"
 export BLOOM_PASSWORD="your-password"
+
+# Required for `bud_runner register` only — NOT needed for normal API calls.
+export RUNNER_API_KEY="shared-runner-registration-secret"
 ```
 
 ### app.properties

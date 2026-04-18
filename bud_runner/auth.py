@@ -24,9 +24,12 @@ class AuthManager:
     
     Environment variables:
         BUD_BACKEND_URL - Backend URL
-        BUD_TOKEN - API token
+        BUD_TOKEN - API token (user JWT) for most API calls
         BUD_RUNNER_ACCOUNT - Runner account name
         BUD_RUNNER_TOKEN - Runner-specific token
+        RUNNER_API_KEY - Shared secret required ONLY for runner registration
+                          (POST /api/runners/register sends it as X-API-Key).
+                          Must match the backend's RUNNER_API_KEY setting.
         BLOOM_URL - Bloom ALM URL
         BLOOM_TOKEN - Bloom ALM JWT token
         BLOOM_EMAIL - Bloom ALM login email
@@ -47,6 +50,7 @@ class AuthManager:
         bloom_token: Optional[str] = None,
         bloom_email: Optional[str] = None,
         bloom_password: Optional[str] = None,
+        runner_api_key: Optional[str] = None,
         properties_file: Optional[str] = None,
     ):
         """
@@ -74,6 +78,7 @@ class AuthManager:
         self._bloom_token: Optional[str] = None
         self._bloom_email: Optional[str] = None
         self._bloom_password: Optional[str] = None
+        self._runner_api_key: Optional[str] = None
 
         # Load from properties file
         if properties_file:
@@ -107,6 +112,8 @@ class AuthManager:
             self._bloom_email = bloom_email
         if bloom_password:
             self._bloom_password = bloom_password
+        if runner_api_key:
+            self._runner_api_key = runner_api_key
 
     def _load_from_properties(self, filepath: str) -> None:
         """Load credentials from a .properties file."""
@@ -128,6 +135,7 @@ class AuthManager:
                 "bloomEmail": "_bloom_email",
                 "bloomPassword": "_bloom_password",
                 "lastUser": "_username",
+                "runnerApiKey": "_runner_api_key",
             }
 
             for prop_key, attr_name in mapping.items():
@@ -151,6 +159,7 @@ class AuthManager:
             "BLOOM_TOKEN": "_bloom_token",
             "BLOOM_EMAIL": "_bloom_email",
             "BLOOM_PASSWORD": "_bloom_password",
+            "RUNNER_API_KEY": "_runner_api_key",
         }
 
         for env_key, attr_name in env_mapping.items():
@@ -202,6 +211,11 @@ class AuthManager:
     def bloom_password(self) -> Optional[str]:
         """Get the Bloom ALM login password."""
         return self._bloom_password
+
+    @property
+    def runner_api_key(self) -> Optional[str]:
+        """Get the runner-registration shared secret (X-API-Key)."""
+        return self._runner_api_key
 
     def save_to_properties(
         self,

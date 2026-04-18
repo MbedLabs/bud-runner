@@ -16,6 +16,128 @@ from datetime import datetime
 from bud_runner.auth import AuthManager
 
 
+def _method_result_to_row(
+    test_class: str,
+    method_result: Any,
+    test_run_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Map a budtestlibrary TestMethodResult (or dict) → TestResultCreate row.
+
+    The backend (app.schemas.TestResultCreate) expects the flat fields
+    ``test_class``, ``test_method``, ``passed``, ``duration_seconds``,
+    ``error_message``, ``traceback``, ``assertions``, ``metadata``.
+    """
+    if hasattr(method_result, "to_dict"):
+        m = method_result.to_dict()
+    elif isinstance(method_result, dict):
+        m = method_result
+    else:
+        m = {"method_name": str(method_result), "passed": False}
+
+    assertions = m.get("assertions")
+    if assertions is not None and not isinstance(assertions, list):
+        assertions = None
+
+    row: Dict[str, Any] = {
+        "test_class": test_class,
+        "test_method": m.get("method_name") or m.get("test_method") or "unknown",
+        "passed": bool(m.get("passed", False)),
+        "duration_seconds": float(m.get("duration_seconds", 0.0) or 0.0),
+        "error_message": m.get("error_message"),
+        "traceback": m.get("traceback"),
+        "assertions": assertions,
+        "metadata": m.get("metadata"),
+    }
+    # TestResultCreate has test_run_id at the envelope level; include it per
+    # row too so callers inspecting the payload see the association.
+    if test_run_id is not None:
+        row["test_run_id"] = test_run_id
+    return row
+
+
+def _flatten_results(
+    results: List[Any],
+    test_run_id: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Flatten TestRunResult / TestMethodResult / dict lists to TestResultCreate rows.
+
+    Handles three shapes:
+      * ``TestRunResult`` (per class, with nested ``method_results``)
+      * ``TestMethodResult`` (flat, per method — needs a synthesised class name)
+      * Already-flat dicts (passed through after light normalisation).
+    """
+    rows: List[Dict[str, Any]] = []
+
+    for r in results:
+        # 1) TestRunResult (class-level with nested method_results)
+        test_class = getattr(r, "test_class", None)
+        method_results = getattr(r, "method_results", None)
+
+        if test_class is None and isinstance(r, dict):
+            test_class = r.get("test_class")
+            method_results = r.get("method_results")
+
+        if test_class and method_results is not None:
+            if method_results:
+                for mr in method_results:
+                    rows.append(_method_result_to_row(test_class, mr, test_run_id))
+            else:
+                # Class ran but produced no method-level results (e.g. setup
+                # crash). Preserve the class-level failure signal.
+                cls_err = getattr(r, "error_message", None)
+                if isinstance(r, dict):
+                    cls_err = cls_err or r.get("error_message")
+                rows.append({
+                    "test_class": test_class,
+                    "test_method": "__class__",
+                    "passed": bool(
+                        getattr(r, "passed", None)
+                        if not isinstance(r, dict)
+                        else r.get("passed", False)
+                    ),
+                    "duration_seconds": float(
+                        getattr(r, "duration_seconds", 0.0)
+                        if not isinstance(r, dict)
+                        else r.get("duration_seconds", 0.0) or 0.0
+                    ),
+                    "error_message": cls_err,
+                    "traceback": None,
+                    "assertions": None,
+                    "metadata": None,
+                    **({"test_run_id": test_run_id} if test_run_id is not None else {}),
+                })
+            continue
+
+        # 2) Plain TestMethodResult (no enclosing class)
+        if hasattr(r, "method_name") or (isinstance(r, dict) and "method_name" in r):
+            rows.append(_method_result_to_row("UnknownTestClass", r, test_run_id))
+            continue
+
+        # 3) Already a TestResultCreate-shaped dict
+        if isinstance(r, dict) and "test_method" in r and "test_class" in r:
+            row = dict(r)
+            if test_run_id is not None and "test_run_id" not in row:
+                row["test_run_id"] = test_run_id
+            rows.append(row)
+            continue
+
+        # 4) Fallback: unknown shape → still emit a placeholder row so the
+        # upload does not silently drop data.
+        rows.append({
+            "test_class": "UnknownTestClass",
+            "test_method": "unknown",
+            "passed": False,
+            "duration_seconds": 0.0,
+            "error_message": f"Unrecognised result shape: {type(r).__name__}",
+            "traceback": None,
+            "assertions": None,
+            "metadata": None,
+            **({"test_run_id": test_run_id} if test_run_id is not None else {}),
+        })
+
+    return rows
+
+
 @dataclass
 class TestRunInfo:
     """Information about a test run."""
@@ -182,29 +304,32 @@ class BudAPIClient:
 
     # ==================== Results ====================
 
-    def upload_results(self, results: List[Any]) -> bool:
+    def upload_results(
+        self,
+        results: List[Any],
+        test_run_id: Optional[int] = None,
+    ) -> bool:
         """
         Upload test results to the backend.
-        
+
+        Flattens nested TestRunResult → TestMethodResult structures into a flat
+        list of TestResultCreate-compatible dicts expected by
+        ``POST /api/results`` (see backend schemas.ResultsUpload).
+
         Args:
-            results: List of test results (TestMethodResult or dicts).
-        
+            results: List of TestRunResult / TestMethodResult / dicts. Nested
+                method_results are expanded; top-level class-level failures
+                are included as well so class-level errors remain visible.
+            test_run_id: Optional TestRun id to associate every row with.
+
         Returns:
             True if upload was successful.
         """
-        # Convert results to dicts if needed
-        result_dicts = []
-        for r in results:
-            if hasattr(r, "to_dict"):
-                result_dicts.append(r.to_dict())
-            elif isinstance(r, dict):
-                result_dicts.append(r)
-            else:
-                result_dicts.append({"data": str(r)})
-        
+        flat_rows = _flatten_results(results, test_run_id=test_run_id)
+
         response = self._session.post(
             f"{self._api_url}/results",
-            json={"results": result_dicts},
+            json={"results": flat_rows, "test_run_id": test_run_id},
             timeout=60,
         )
         return response.status_code in (200, 201)
@@ -260,15 +385,35 @@ class BudAPIClient:
     ) -> Dict[str, Any]:
         """
         Register a new runner with the backend.
-        
+
+        The backend protects ``POST /api/runners/register`` with a shared
+        secret delivered in the ``X-API-Key`` header (see backend
+        ``core.deps.require_runner_api_key``). We read it from
+        ``RUNNER_API_KEY`` (env var or ``app.properties``). If it's not set
+        the request is still sent and will surface a clear 401 from the
+        backend instead of silently doing nothing.
+
         Args:
             username: Runner account name.
             password: Password for registration.
             socket_port: Socket port for runner communication.
-        
+
         Returns:
             Registration response with token.
+
+        Raises:
+            RuntimeError: If RUNNER_API_KEY is not configured.
+            requests.HTTPError: If the backend rejects the request.
         """
+        api_key = self._auth.runner_api_key
+        if not api_key:
+            raise RuntimeError(
+                "RUNNER_API_KEY is not set. Export RUNNER_API_KEY (the shared "
+                "secret from the Bud backend settings) or add runnerApiKey to "
+                "app.properties before running 'bud_runner register'."
+            )
+
+        headers = {"X-API-Key": api_key}
         response = self._session.post(
             f"{self._api_url}/runners/register",
             json={
@@ -276,6 +421,7 @@ class BudAPIClient:
                 "password": password,
                 "socket_port": socket_port,
             },
+            headers=headers,
             timeout=30,
         )
         response.raise_for_status()
