@@ -343,6 +343,11 @@ class BudAPIClient:
         """
         flat_rows = _flatten_results(results, test_run_id=test_run_id)
 
+        # Double-verify each row has test_run_id if provided
+        if test_run_id is not None:
+            for row in flat_rows:
+                row["test_run_id"] = test_run_id
+
         response = self._session.post(
             f"{self._api_url}/results",
             json={"results": flat_rows, "test_run_id": test_run_id},
