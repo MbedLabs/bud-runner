@@ -283,16 +283,29 @@ def _start_daemon_background(backend_url: Optional[str], interval: int, port: in
     # Ensure logs are persistent
     log_file = open("runner_daemon.log", "a")
     
+    # Capture current environment and ensure PYTHONPATH includes current directories
+    env = os.environ.copy()
+    current_pythonpath = env.get("PYTHONPATH", "")
+    # Add bud-runner and bud-test-library to path if not already there
+    workspace_root = os.getcwd()
+    paths_to_add = [
+        os.path.join(workspace_root, "bud-runner"),
+        os.path.join(workspace_root, "bud-test-library")
+    ]
+    for p in paths_to_add:
+        if p not in current_pythonpath:
+            current_pythonpath = f"{p}:{current_pythonpath}" if current_pythonpath else p
+    env["PYTHONPATH"] = current_pythonpath
+
     try:
         # Spawn background process detached from the current terminal session
-        # Use start_new_session=True (Python 3.2+) to ensure it survives CLI exit
         process = subprocess.Popen(
             cmd,
             stdout=log_file,
             stderr=subprocess.STDOUT,
             start_new_session=True,
             close_fds=True,
-            env=os.environ.copy()
+            env=env
         )
         # Record PID for management
         with open("runner_daemon.pid", "w") as f:
