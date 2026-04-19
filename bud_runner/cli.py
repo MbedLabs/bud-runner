@@ -270,6 +270,39 @@ def run_tests(
         raise typer.Exit(code=1)
 
 
+import subprocess
+import sys
+import os
+
+def _start_daemon_background(backend_url: Optional[str], interval: int, port: int):
+    """Helper to spawn the daemon in the background as a detached process."""
+    cmd = [sys.executable, "-m", "bud_runner", "daemon", "--interval", str(interval), "--port", str(port)]
+    if backend_url:
+        cmd.extend(["--backend-url", backend_url])
+    
+    # Ensure logs are persistent
+    log_file = open("runner_daemon.log", "a")
+    
+    try:
+        # Spawn background process detached from the current terminal session
+        # Use start_new_session=True (Python 3.2+) to ensure it survives CLI exit
+        process = subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+            env=os.environ.copy()
+        )
+        # Record PID for management
+        with open("runner_daemon.pid", "w") as f:
+            f.write(str(process.pid))
+        return process.pid
+    except Exception as e:
+        typer.echo(f"⚠ Could not start background daemon automatically: {e}", err=True)
+        return None
+
+
 @app.command()
 def register(
     username: str = typer.Option(
@@ -303,21 +336,17 @@ def register(
         help="Shared secret sent as X-API-Key for POST /api/runners/register (matches backend RUNNER_API_KEY). "
              "Falls back to RUNNER_API_KEY env var or app.properties 'runnerApiKey'.",
     ),
-    start_daemon: bool = typer.Option(
+    no_start: bool = typer.Option(
         False,
-        "--start",
-        help="Start the heartbeat daemon immediately after successful registration",
+        "--no-start",
+        help="Do NOT start the heartbeat daemon automatically after registration",
     ),
 ):
     """
     Register this machine as a test runner with bud.embedlabs.de.
 
-    Creates a runner account and stores credentials in app.properties.
-
-    Authentication: the backend protects this endpoint with a shared
-    secret (``X-API-Key``). Provide it via ``--api-key`` or the
-    ``RUNNER_API_KEY`` environment variable; it must match the backend's
-    ``RUNNER_API_KEY`` setting.
+    Creates a runner account, stores credentials in app.properties,
+    and automatically starts the heartbeat daemon in the background.
     """
     if password is None:
         password = typer.prompt("Password", hide_input=True)
@@ -346,9 +375,11 @@ def register(
         typer.echo(f"  Account: {result.get('account')}")
         typer.echo(f"  Token saved to: app.properties")
 
-        if start_daemon:
-            typer.echo("\nStarting heartbeat daemon...")
-            daemon(backend_url=backend_url, interval=60, port=socket_port)
+        if not no_start:
+            typer.echo("✓ Spawning heartbeat daemon in background...")
+            pid = _start_daemon_background(backend_url=backend_url, interval=60, port=socket_port)
+            if pid:
+                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: runner_daemon.log")
         
     except Exception as e:
         typer.echo(f"✗ Registration failed: {e}", err=True)

@@ -18,36 +18,31 @@ export RUNNER_API_KEY="<your-registration-secret>"
 ```
 
 ## 3. Register the Runner
-Execute the registration command to create a runner account. You can use the `--start` flag to launch the heartbeat daemon immediately after successful registration.
+Execute the registration command to create a runner account. **The heartbeat daemon will start automatically in the background** upon successful registration.
 
 ```bash
-# Register and start daemon in one go
-python -m bud_runner register \
-    --username <new-runner-name> \
-    --password <secure-password> \
-    --start
+# Register runner (daemon starts automatically)
+python -m bud_runner register --username <new-runner-name> --password <secure-password>
 
-# Or just register
-python -m bud_runner register \
-    --username <new-runner-name> \
-    --password <secure-password>
+# Register without starting the daemon
+python -m bud_runner register --username <new-runner-name> --no-start
 ```
 
 ## 4. Verification
-Registration will generate or update an `app.properties` file in your working directory. Ensure it contains the following:
+Registration will generate or update an `app.properties` file and a `runner_daemon.pid` file.
 ```properties
 budBackend=https://<your-bud-backend-domain>
 budRunnerAccount=<new-runner-name>
 budRunnerToken=eyJ...
 ```
 
-## 5. Stay Online (Daemon)
-The runner must remain active to appear as "Online" and receive commands. Use the `daemon` command to start the heartbeat and socket listener:
+## 5. Management
+The runner remains active in the background. You can manage it using the `daemon` command if needed:
 
 ```bash
-# Start the daemon
+# Start manually if stopped
 python -m bud_runner daemon
 
-# Start with custom interval or port
-python -m bud_runner daemon --interval 30 --port 54000
+# Check status
+python -m bud_runner status
 ```
