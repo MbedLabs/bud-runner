@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bud_runner"
-version = "0.3.0"
+version = "0.3.1"
 description = "CLI tool for test execution and CI/CD integration with bud.embedlabs.de"
 readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}
