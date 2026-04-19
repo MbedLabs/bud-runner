@@ -324,6 +324,7 @@ class BudAPIClient:
         self,
         results: List[Any],
         test_run_id: Optional[int] = None,
+        product_id: Optional[int] = None,
     ) -> bool:
         """
         Upload test results to the backend.
@@ -337,6 +338,7 @@ class BudAPIClient:
                 method_results are expanded; top-level class-level failures
                 are included as well so class-level errors remain visible.
             test_run_id: Optional TestRun id to associate every row with.
+            product_id: Optional Product id to associate results with.
 
         Returns:
             True if upload was successful.
@@ -348,9 +350,16 @@ class BudAPIClient:
             for row in flat_rows:
                 row["test_run_id"] = test_run_id
 
+        payload = {
+            "results": flat_rows,
+            "test_run_id": test_run_id,
+        }
+        if product_id is not None:
+            payload["product_id"] = product_id
+
         response = self._session.post(
             f"{self._api_url}/results",
-            json={"results": flat_rows, "test_run_id": test_run_id},
+            json=payload,
             timeout=60,
         )
         return response.status_code in (200, 201)
