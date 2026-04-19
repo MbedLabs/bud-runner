@@ -447,7 +447,7 @@ class BloomClient:
         if not tc:
             test_methods = [
                 m for m in dir(test_class)
-                if m.startswith("mate_") and callable(getattr(test_class, m, None))
+                if m.startswith("bud_") and callable(getattr(test_class, m, None))
             ]
 
             full_desc = description
