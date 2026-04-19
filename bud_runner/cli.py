@@ -223,6 +223,18 @@ def run_tests(
                 if ok:
                     suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
                     typer.echo(f"✓ Results uploaded to backend{suffix}")
+                    
+                    # FINAL STATUS UPDATE: Mark the run as finished in the backend
+                    if test_run_id:
+                        final_status = "Completed" if all(r.passed for r in results) else "Failed"
+                        client.update_test_run(
+                            test_run_id=test_run_id,
+                            status=final_status,
+                            total_tests=len(results),
+                            passed_tests=sum(1 for r in results if r.passed),
+                            failed_tests=len(results) - sum(1 for r in results if r.passed)
+                        )
+                        typer.echo(f"✓ Test run {test_run_id} marked as {final_status}")
                 else:
                     typer.echo("✗ Result upload failed", err=True)
                     raise typer.Exit(code=1)
