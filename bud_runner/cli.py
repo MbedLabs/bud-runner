@@ -303,6 +303,11 @@ def register(
         help="Shared secret sent as X-API-Key for POST /api/runners/register (matches backend RUNNER_API_KEY). "
              "Falls back to RUNNER_API_KEY env var or app.properties 'runnerApiKey'.",
     ),
+    start_daemon: bool = typer.Option(
+        False,
+        "--start",
+        help="Start the heartbeat daemon immediately after successful registration",
+    ),
 ):
     """
     Register this machine as a test runner with bud.embedlabs.de.
@@ -340,9 +345,81 @@ def register(
         typer.echo(f"✓ Runner registered successfully")
         typer.echo(f"  Account: {result.get('account')}")
         typer.echo(f"  Token saved to: app.properties")
+
+        if start_daemon:
+            typer.echo("\nStarting heartbeat daemon...")
+            daemon(backend_url=backend_url, interval=60, port=socket_port)
         
     except Exception as e:
         typer.echo(f"✗ Registration failed: {e}", err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def daemon(
+    backend_url: Optional[str] = typer.Option(
+        None,
+        "--backend-url",
+        "-b",
+        help="Backend URL",
+    ),
+    interval: int = typer.Option(
+        60,
+        "--interval",
+        "-i",
+        help="Heartbeat interval in seconds",
+    ),
+    port: int = typer.Option(
+        53035,
+        "--port",
+        "-p",
+        help="Socket listener port",
+    ),
+):
+    """
+    Start the runner daemon (heartbeat + socket listener).
+    
+    This process must remain running for the runner to appear 'Online' 
+    and receive remote commands.
+    """
+    import signal
+    import sys
+
+    auth = AuthManager(backend_url=backend_url)
+    if not auth.runner_account or not auth.token:
+        typer.echo(
+            "✗ Runner is not configured. Please run 'register' first or provide BUD_RUNNER_TOKEN.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    manager = RunnerManager(auth)
+    
+    typer.echo(f"Starting Bud Runner Daemon for: {auth.runner_account}")
+    typer.echo(f"  Backend: {auth.backend_url}")
+    typer.echo(f"  Heartbeat Interval: {interval}s")
+    typer.echo(f"  Socket Port: {port}")
+
+    def signal_handler(sig, frame):
+        typer.echo("\nStopping daemon...")
+        manager.stop_heartbeat()
+        manager.stop_listener()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # Start heartbeat in background thread
+    manager.start_heartbeat(interval=interval)
+    
+    # Start socket listener in foreground (blocks)
+    try:
+        manager.start_listener(port=port)
+    except KeyboardInterrupt:
+        signal_handler(None, None)
+    except Exception as e:
+        typer.echo(f"✗ Daemon error: {e}", err=True)
+        manager.stop_heartbeat()
         raise typer.Exit(code=1)
 
 
