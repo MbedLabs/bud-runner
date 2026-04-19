@@ -68,18 +68,20 @@ class RunnerManager:
             socket_port=socket_port,
         )
         
-        # Save credentials to app.properties
-        self._auth.save_to_properties(
-            runner_token=result.get("token"),
+        # Save secret identity to machine vault
+        self._auth.save_identity(
+            username=username,
+            token=result.get("token"),
+            port=socket_port,
         )
         
-        # Update auth with new values
-        self._auth._runner_account = username
-        self._auth._runner_token = result.get("token")
+        # Save public link to project app.properties
+        self._auth.save_to_properties()
         
         return {
             "account": username,
             "token_saved": True,
+            "vault_updated": True,
             "socket_port": socket_port,
         }
 

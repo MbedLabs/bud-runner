@@ -37,7 +37,7 @@ def add_test_run(
         ...,
         "--test-case-list",
         "-t",
-        help="Test case list module path (e.g., Bud_Test_Suite.HIL_TEST_CASES)",
+        help="Test case list module path (e.g., Bud_Test_Suite.CORE_TEST_CASES)",
     ),
     test_suite_name: str = typer.Option(
         ...,
@@ -94,12 +94,15 @@ def add_test_run(
     ),
 ):
     """
-    Create a new test run on bud.embedlabs.de.
+    Create a new test run on the Bud platform.
     
     This command registers a new test run with the backend, which can then
     be executed by a runner.
     """
     auth = AuthManager(username=username, token=bud_token, backend_url=backend_url)
+    if not auth.backend_url:
+        typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
+        raise typer.Exit(code=2)
     if not auth.token:
         typer.echo(
             "✗ Missing BUD_TOKEN. Export BUD_TOKEN or pass --bud-token before creating a test run.",
@@ -142,7 +145,7 @@ def run_tests(
         ...,
         "--test-case-list",
         "-t",
-        help="Test case list module path (e.g., Bud_Test_Suite.HIL_TEST_CASES)",
+        help="Test case list module path (e.g., Bud_Test_Suite.CORE_TEST_CASES)",
     ),
     output: Path = typer.Option(
         Path("report_junit.xml"),
@@ -212,6 +215,9 @@ def run_tests(
         # fail loudly rather than silently skipping the upload.
         if upload_results:
             auth = AuthManager(backend_url=backend_url, token=bud_token)
+            if not auth.backend_url:
+                typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
+                raise typer.Exit(code=2)
             if not auth.token:
                 typer.echo(
                     "⚠ Skipping result upload: no BUD_TOKEN (env) or --bud-token provided.",
@@ -276,12 +282,18 @@ import os
 
 def _start_daemon_background(username: str, backend_url: Optional[str], interval: int, port: int):
     """Helper to spawn the daemon in the background as a detached process."""
-    cmd = [sys.executable, "-m", "bud_runner", "daemon", "--interval", str(interval), "--port", str(port)]
+    cmd = [
+        sys.executable, "-m", "bud_runner", 
+        "daemon", 
+        "--username", username,
+        "--interval", str(interval), 
+        "--port", str(port)
+    ]
     if backend_url:
         cmd.extend(["--backend-url", backend_url])
     
     # Ensure logs are persistent and namespaced
-    log_file = open(f"runner_{username}.log", "a")
+    log_file = open(f"bud_{username}.log", "a")
     
     # Capture current environment and ensure PYTHONPATH includes sys.path
     env = os.environ.copy()
@@ -299,7 +311,7 @@ def _start_daemon_background(username: str, backend_url: Optional[str], interval
             env=env
         )
         # Record PID for management
-        with open(f"runner_{username}.pid", "w") as f:
+        with open(f"bud_{username}.pid", "w") as f:
             f.write(str(process.pid))
         return process.pid
     except Exception as e:
@@ -356,6 +368,9 @@ def register(
         password = typer.prompt("Password", hide_input=True)
 
     auth = AuthManager(backend_url=backend_url, runner_api_key=api_key)
+    if not auth.backend_url:
+        typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
+        raise typer.Exit(code=2)
     if not auth.runner_api_key:
         typer.echo(
             "✗ RUNNER_API_KEY is not configured. Pass --api-key or export "
@@ -383,7 +398,14 @@ def register(
             typer.echo(f"✓ Spawning heartbeat daemon in background for {username}...")
             pid = _start_daemon_background(username=username, backend_url=backend_url, interval=60, port=socket_port)
             if pid:
-                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: runner_{username}.log")
+                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: bud_{username}.log")
+
+        typer.echo("\nProject Link (copy to your repo app.properties):")
+        typer.echo("-" * 40)
+        typer.echo(f"budRunnerAccount={username}")
+        typer.echo(f"budBackend={auth.backend_url}")
+        typer.echo(f"runnerSocketPort={socket_port}")
+        typer.echo("-" * 40)
         
     except Exception as e:
         typer.echo(f"✗ Registration failed: {e}", err=True)
@@ -392,6 +414,12 @@ def register(
 
 @app.command()
 def daemon(
+    username: Optional[str] = typer.Option(
+        None,
+        "--username",
+        "-u",
+        help="Runner account to use (loads secret from vault)",
+    ),
     backend_url: Optional[str] = typer.Option(
         None,
         "--backend-url",
@@ -420,7 +448,7 @@ def daemon(
     import signal
     import sys
 
-    auth = AuthManager(backend_url=backend_url)
+    auth = AuthManager(username=username, backend_url=backend_url)
     if not auth.runner_account or not auth.token:
         typer.echo(
             "✗ Runner is not configured. Please run 'register' first or provide BUD_RUNNER_TOKEN.",

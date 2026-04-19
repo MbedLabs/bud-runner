@@ -10,7 +10,48 @@ Loads credentials from:
 import os
 import configparser
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
+import json
+
+class IdentityVault:
+    """Manages sensitive runner identities in the user's home directory."""
+    
+    def __init__(self):
+        self.vault_dir = Path.home() / ".bud"
+        self.config_file = self.vault_dir / "config.json"
+        self._ensure_dir()
+
+    def _ensure_dir(self):
+        self.vault_dir.mkdir(parents=True, exist_ok=True)
+        if not self.config_file.exists():
+            self.save_all({})
+
+    def load_all(self) -> Dict[str, Any]:
+        try:
+            if not self.config_file.exists():
+                return {}
+            with open(self.config_file, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+
+    def save_all(self, data: Dict[str, Any]):
+        self.vault_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.config_file, "w") as f:
+            json.dump(data, f, indent=2)
+        os.chmod(self.config_file, 0o600)
+
+    def get_runner(self, username: str) -> Optional[Dict[str, Any]]:
+        return self.load_all().get(username)
+
+    def save_runner(self, username: str, token: str, port: int, backend: str):
+        data = self.load_all()
+        data[username] = {
+            "token": token,
+            "port": port,
+            "backend": backend
+        }
+        self.save_all(data)
 
 
 class AuthManager:
@@ -36,8 +77,8 @@ class AuthManager:
         BLOOM_PASSWORD - Bloom ALM login password
     """
 
-    DEFAULT_BACKEND_URL = "https://bud.embedlabs.de/"
-    DEFAULT_BLOOM_URL = "https://bloom.embedlabs.de/"
+    DEFAULT_BACKEND_URL = ""
+    DEFAULT_BLOOM_URL = ""
 
     def __init__(
         self,
@@ -68,6 +109,7 @@ class AuthManager:
             bloom_password: Bloom ALM login password.
             properties_file: Path to app.properties file.
         """
+        self.vault = IdentityVault()
         # Initialize with defaults
         self._backend_url = self.DEFAULT_BACKEND_URL
         self._bloom_url = self.DEFAULT_BLOOM_URL
@@ -114,6 +156,15 @@ class AuthManager:
             self._bloom_password = bloom_password
         if runner_api_key:
             self._runner_api_key = runner_api_key
+
+        # 4. Fetch Secret from Vault (If account is known but token is missing)
+        if self._runner_account and not self._runner_token:
+            identity = self.vault.get_runner(self._runner_account)
+            if identity:
+                self._runner_token = identity.get("token")
+                # Only override backend if not explicitly provided
+                if not backend_url and not os.environ.get("BUD_BACKEND_URL"):
+                    self._backend_url = identity.get("backend", self._backend_url)
 
     def _load_from_properties(self, filepath: str) -> None:
         """Load credentials from a .properties file."""
@@ -218,13 +269,20 @@ class AuthManager:
         """Get the runner-registration shared secret (X-API-Key)."""
         return self._runner_api_key
 
+    def save_identity(self, username: str, token: str, port: int):
+        """Save secret identity to global machine vault."""
+        self.vault.save_runner(username, token, port, self._backend_url)
+        self._runner_account = username
+        self._runner_token = token
+
     def save_to_properties(
         self,
         filepath: str = "app.properties",
         runner_token: Optional[str] = None,
     ) -> None:
         """
-        Save credentials to app.properties file.
+        Save credentials to app.properties file. Overwrites existing file
+        to ensure no stale or duplicate keys (poisoning) remain.
         
         Args:
             filepath: Path to the properties file.
@@ -232,26 +290,17 @@ class AuthManager:
         """
         properties = {}
         
-        # Load existing properties
-        if Path(filepath).exists():
-            try:
-                with open(filepath, "r") as f:
-                    content = "[DEFAULT]\n" + f.read()
-                config = configparser.ConfigParser()
-                config.read_string(content)
-                properties = dict(config["DEFAULT"])
-            except Exception:
-                pass
-
-        # Update with current values
+        # Build clean properties set from current instance state
         if self._backend_url != self.DEFAULT_BACKEND_URL:
             properties["budBackend"] = self._backend_url
         if self._runner_account:
             properties["budRunnerAccount"] = self._runner_account
-        if runner_token:
-            properties["budRunnerToken"] = runner_token
-        elif self._runner_token:
-            properties["budRunnerToken"] = self._runner_token
+        
+        # Identity
+        token_to_save = runner_token or self._runner_token
+        if token_to_save:
+            properties["budRunnerToken"] = token_to_save
+            
         if self._bloom_url != self.DEFAULT_BLOOM_URL:
             properties["bloomUrl"] = self._bloom_url
         if self._bloom_token:
@@ -260,15 +309,17 @@ class AuthManager:
             properties["bloomEmail"] = self._bloom_email
         if self._username:
             properties["lastUser"] = self._username
+        if self._runner_api_key:
+            properties["runnerApiKey"] = self._runner_api_key
 
-        # Write properties file
+        # Write clean properties file
         with open(filepath, "w") as f:
             for key, value in properties.items():
                 f.write(f"{key}={value}\n")
 
     def is_configured(self) -> bool:
-        """Check if authentication is configured."""
-        return bool(self._token or self._runner_token)
+        """Check if authentication and backend URL are configured."""
+        return bool((self._token or self._runner_token) and self._backend_url)
 
     def __repr__(self) -> str:
         return (
