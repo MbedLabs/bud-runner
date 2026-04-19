@@ -219,22 +219,39 @@ def run_tests(
                 )
             else:
                 client = BudAPIClient(auth)
-                ok = client.upload_results(results, test_run_id=test_run_id)
+                
+                # If we don't have a product_id yet, try to get it from the run if we have a run_id
+                final_product_id = None
+                if test_run_id:
+                    try:
+                        run_info = client.get_test_run(test_run_id)
+                        final_product_id = run_info.get("product_id")
+                    except Exception:
+                        pass
+
+                ok = client.upload_results(results, test_run_id=test_run_id, product_id=final_product_id)
                 if ok:
                     suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
                     typer.echo(f"✓ Results uploaded to backend{suffix}")
                     
-                    # FINAL STATUS UPDATE: Mark the run as finished in the backend
+                    # FINAL STATUS UPDATE: Use flattened results for accurate method counts
                     if test_run_id:
-                        final_status = "Completed" if all(r.passed for r in results) else "Failed"
+                        from bud_runner.api_client import _flatten_results
+                        flat_results = _flatten_results(results)
+                        
+                        passed_count = sum(1 for r in flat_results if r.get("passed"))
+                        total_count = len(flat_results)
+                        
+                        final_status = "Completed" if passed_count == total_count else "Failed"
                         client.update_test_run(
                             run_id=test_run_id,
                             status=final_status,
-                            total_tests=len(results),
-                            passed_tests=sum(1 for r in results if r.passed),
-                            failed_tests=len(results) - sum(1 for r in results if r.passed)
+                            total_tests=total_count,
+                            passed_tests=passed_count,
+                            failed_tests=total_count - passed_count,
+                            product_id=final_product_id
                         )
-                        typer.echo(f"✓ Test run {test_run_id} marked as {final_status}")
+                        typer.echo(f"✓ Test run {test_run_id} marked as {final_status} ({passed_count}/{total_count} passed)")
                 else:
                     typer.echo("✗ Result upload failed", err=True)
                     raise typer.Exit(code=1)
