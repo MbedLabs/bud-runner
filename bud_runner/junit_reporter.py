@@ -8,7 +8,7 @@ Creates JUnit XML format compatible with:
 - Other CI/CD systems
 """
 
-from typing import List, Any
+from typing import List, Any, Optional, Dict
 from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
 from datetime import datetime
@@ -35,12 +35,13 @@ class JUnitReporter:
         """
         self._suite_name = suite_name
 
-    def generate(self, results: List[Any]) -> str:
+    def generate(self, results: List[Any], warnings: Optional[List[str]] = None) -> str:
         """
         Generate JUnit XML from test results.
         
         Args:
             results: List of TestRunResult or similar objects.
+            warnings: Optional list of strings (e.g. ALM sync issues) to include.
         
         Returns:
             JUnit XML string.
@@ -52,6 +53,11 @@ class JUnitReporter:
         testsuites.set("failures", str(self._count_failures(results)))
         testsuites.set("errors", "0")
         testsuites.set("time", str(self._total_time(results)))
+
+        # INJECT WARNINGS (ALM Sync Mismatches, etc)
+        if warnings:
+            system_err = SubElement(testsuites, "system-err")
+            system_err.text = "\n".join(warnings)
 
         for result in results:
             testsuite = self._create_testsuite(result)

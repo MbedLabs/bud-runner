@@ -44,12 +44,14 @@ class IdentityVault:
     def get_runner(self, username: str) -> Optional[Dict[str, Any]]:
         return self.load_all().get(username)
 
-    def save_runner(self, username: str, token: str, port: int, backend: str):
+    def save_runner(self, username: str, token: str, port: int, backend: str, bloom_token: Optional[str] = None, bloom_url: Optional[str] = None):
         data = self.load_all()
         data[username] = {
             "token": token,
             "port": port,
-            "backend": backend
+            "backend": backend,
+            "bloom_token": bloom_token,
+            "bloom_url": bloom_url
         }
         self.save_all(data)
 
@@ -162,6 +164,13 @@ class AuthManager:
             identity = self.vault.get_runner(self._runner_account)
             if identity:
                 self._runner_token = identity.get("token")
+                self._socket_port = identity.get("port", self._socket_port)
+                # Load Bloom secrets if available in vault
+                if not self._bloom_token:
+                    self._bloom_token = identity.get("bloom_token")
+                if not self._bloom_url or self._bloom_url == self.DEFAULT_BLOOM_URL:
+                    self._bloom_url = identity.get("bloom_url", self._bloom_url)
+
                 # Only override backend if not explicitly provided
                 if not backend_url and not os.environ.get("BUD_BACKEND_URL"):
                     self._backend_url = identity.get("backend", self._backend_url)
@@ -269,11 +278,16 @@ class AuthManager:
         """Get the runner-registration shared secret (X-API-Key)."""
         return self._runner_api_key
 
-    def save_identity(self, username: str, token: str, port: int):
+    def save_identity(self, username: str, token: str, port: int, bloom_token: Optional[str] = None, bloom_url: Optional[str] = None):
         """Save secret identity to global machine vault."""
-        self.vault.save_runner(username, token, port, self._backend_url)
+        self.vault.save_runner(username, token, port, self._backend_url, bloom_token=bloom_token, bloom_url=bloom_url)
         self._runner_account = username
         self._runner_token = token
+        self._socket_port = port
+        if bloom_token:
+            self._bloom_token = bloom_token
+        if bloom_url:
+            self._bloom_url = bloom_url
 
     def save_to_properties(
         self,

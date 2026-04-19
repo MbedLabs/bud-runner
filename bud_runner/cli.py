@@ -197,6 +197,32 @@ def run_tests(
     reporter = JUnitReporter()
     
     typer.echo(f"Running tests from: {test_case_list}")
+
+    # NEW: Perform a validation sync check if Bloom info is provided or available
+    sync_warnings = []
+    try:
+        # Check if we have enough info for a silent validation sync
+        auth_sync = AuthManager(backend_url=backend_url, token=bud_token)
+        if auth_sync.bloom_token:
+            from bud_runner.bloom_client import BloomClient
+            client_sync = BloomClient(auth=auth_sync)
+            test_classes = executor.load_test_list(test_case_list)
+            for test_class in test_classes:
+                # Resolve project ID (defaulting to first project or explicit one)
+                try:
+                    project_id = client_sync._resolve_project_id("MUFE")
+                    tc = client_sync.find_test_case(project_id, test_class.__name__)
+                    if not tc:
+                        sync_warnings.append(f"⚠ TestCase '{test_class.__name__}' not found in Bloom.")
+                    else:
+                        existing_steps = [s.get("action") for s in tc.get("steps", [])]
+                        local_methods = [m for m in dir(test_class) if m.startswith("bud_")]
+                        for m in local_methods:
+                            if m not in existing_steps:
+                                sync_warnings.append(f"⚠ Step '{m}' in code not found in Bloom TC {tc.get('tc_id')}")
+                except: pass
+    except Exception:
+        pass # Silent failure for background sync check
     
     try:
         # Import and run tests
@@ -207,7 +233,7 @@ def run_tests(
         
         # Generate report
         if format == OutputFormat.junit:
-            xml_content = reporter.generate(results)
+            xml_content = reporter.generate(results, warnings=sync_warnings)
             output.write_text(xml_content)
             typer.echo(f"✓ JUnit report written to: {output}")
         
@@ -345,6 +371,22 @@ def register(
         "--socket-port",
         help="Socket port for runner communication",
     ),
+    bloom_url: Optional[str] = typer.Option(
+        None,
+        "--bloom-url",
+        help="Bloom ALM URL",
+    ),
+    bloom_email: Optional[str] = typer.Option(
+        None,
+        "--bloom-email",
+        help="Bloom ALM login email",
+    ),
+    bloom_password: Optional[str] = typer.Option(
+        None,
+        "--bloom-password",
+        help="Bloom ALM login password",
+        hide_input=True,
+    ),
     api_key: Optional[str] = typer.Option(
         None,
         "--api-key",
@@ -359,9 +401,9 @@ def register(
     ),
 ):
     """
-    Register this machine as a test runner with bud.embedlabs.de.
+    Register this machine as a test runner.
 
-    Creates a runner account, stores credentials in app.properties,
+    Creates a runner account, stores credentials in your global machine vault,
     and automatically starts the heartbeat daemon in the background.
     """
     if password is None:
@@ -390,9 +432,29 @@ def register(
             socket_port=socket_port,
         )
         
-        typer.echo(f"✓ Runner registered successfully")
-        typer.echo(f"  Account: {result.get('account')}")
-        typer.echo(f"  Token saved to: app.properties")
+        # OPTIONAL BLOOM LOGIN
+        final_bloom_token = None
+        final_bloom_url = bloom_url
+        if bloom_url and bloom_email and bloom_password:
+            typer.echo(f"Connecting to Bloom ALM at {bloom_url}...")
+            from bud_runner.bloom_client import BloomClient
+            try:
+                client = BloomClient(bloom_url=bloom_url, bloom_email=bloom_email, bloom_password=bloom_password)
+                final_bloom_token = client._token
+                typer.echo("✓ Bloom ALM authenticated.")
+            except Exception as e:
+                typer.echo(f"⚠ Bloom ALM login failed: {e}. Runner will still be registered with Bud.")
+
+        # Save secret identity to global machine vault
+        auth.save_identity(
+            username=username, 
+            token=result.get("token"), 
+            port=socket_port,
+            bloom_token=final_bloom_token,
+            bloom_url=final_bloom_url
+        )
+
+        typer.echo(f"✓ Registered successfully. Identity saved to ~/.bud/config.json")
 
         if not no_start:
             typer.echo(f"✓ Spawning heartbeat daemon in background for {username}...")
@@ -554,6 +616,8 @@ def sync_test_cases(
     if dry_run:
         typer.echo("\n[DRY RUN] Would sync the following:")
     
+    sync_warnings = []
+    
     try:
         from bud_runner.test_executor import TestExecutor
         executor = TestExecutor()
@@ -563,18 +627,30 @@ def sync_test_cases(
             if dry_run:
                 typer.echo(f"  - {test_class.__name__}")
             else:
-                tc = client.sync_test_case(
-                    project_identifier=project,
-                    campaign_name=suite_name,
-                    test_class=test_class,
-                )
+                # REFACTOR: Validation only sync
+                tc = client.find_test_case(client._resolve_project_id(project), test_class.__name__)
+                
                 if tc:
-                    typer.echo(f"✓ Synced: {test_class.__name__} -> {tc.tc_id}")
+                    typer.echo(f"✓ Found: {test_class.__name__} -> {tc.get('tc_id')}")
+                    # Verify steps
+                    existing_steps = [s.get("action") for s in tc.get("steps", [])]
+                    local_methods = [
+                        m for m in dir(test_class)
+                        if m.startswith("bud_") and callable(getattr(test_class, m, None))
+                    ]
+                    
+                    for m in local_methods:
+                        if m not in existing_steps:
+                            warn = f"⚠ Step '{m}' in code not found in Bloom TC {tc.get('tc_id')}"
+                            typer.echo(warn)
+                            sync_warnings.append(warn)
                 else:
-                    typer.echo(f"✗ Failed: {test_class.__name__}")
+                    warn = f"✗ Not Found: {test_class.__name__} does not exist in Bloom project {project}."
+                    typer.echo(warn)
+                    sync_warnings.append(warn)
         
         if not dry_run:
-            typer.echo(f"\n✓ Synced {len(test_classes)} test cases")
+            typer.echo(f"\n✓ Validation sync complete. Found {len(sync_warnings)} discrepancies.")
             
     except Exception as e:
         typer.echo(f"✗ Sync failed: {e}", err=True)
