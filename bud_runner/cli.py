@@ -128,7 +128,7 @@ def add_test_run(
             # Emit ONLY JSON on stdout so CI can pipe it into `jq` safely.
             typer.echo(json.dumps(result))
         else:
-            typer.echo(f"✓ Test run created: ID={result.get('id')}")
+            typer.echo(f"✓ Test run created: ID={result.get('id')} ProductID={result.get('product_id')}")
             typer.echo(f"  URL: {result.get('url')}")
 
     except Exception as e:
@@ -228,7 +228,7 @@ def run_tests(
                     if test_run_id:
                         final_status = "Completed" if all(r.passed for r in results) else "Failed"
                         client.update_test_run(
-                            test_run_id=test_run_id,
+                            run_id=test_run_id,
                             status=final_status,
                             total_tests=len(results),
                             passed_tests=sum(1 for r in results if r.passed),

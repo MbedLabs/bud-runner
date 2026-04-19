@@ -250,6 +250,7 @@ class BudAPIClient:
         total_tests: Optional[int] = None,
         passed_tests: Optional[int] = None,
         failed_tests: Optional[int] = None,
+        product_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Update a test run with results or status.
@@ -261,6 +262,7 @@ class BudAPIClient:
             total_tests: Total number of tests.
             passed_tests: Number of passed tests.
             failed_tests: Number of failed tests.
+            product_id: Associated product ID.
         
         Returns:
             Updated test run details.
@@ -276,6 +278,8 @@ class BudAPIClient:
             payload["passed_tests"] = passed_tests
         if failed_tests is not None:
             payload["failed_tests"] = failed_tests
+        if product_id is not None:
+            payload["product_id"] = product_id
         
         response = self._session.patch(
             f"{self._api_url}/test-runs/{run_id}",
