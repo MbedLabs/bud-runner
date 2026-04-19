@@ -121,7 +121,8 @@ class AuthManager:
             with open(filepath, "r") as f:
                 content = "[DEFAULT]\n" + f.read()
             
-            config = configparser.ConfigParser()
+            # M1: Use strict=False to allow duplicate options if they occur
+            config = configparser.ConfigParser(strict=False)
             config.read_string(content)
             props = config["DEFAULT"]
 
