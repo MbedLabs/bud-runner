@@ -274,28 +274,19 @@ import subprocess
 import sys
 import os
 
-def _start_daemon_background(backend_url: Optional[str], interval: int, port: int):
+def _start_daemon_background(username: str, backend_url: Optional[str], interval: int, port: int):
     """Helper to spawn the daemon in the background as a detached process."""
     cmd = [sys.executable, "-m", "bud_runner", "daemon", "--interval", str(interval), "--port", str(port)]
     if backend_url:
         cmd.extend(["--backend-url", backend_url])
     
-    # Ensure logs are persistent
-    log_file = open("runner_daemon.log", "a")
+    # Ensure logs are persistent and namespaced
+    log_file = open(f"runner_{username}.log", "a")
     
-    # Capture current environment and ensure PYTHONPATH includes current directories
+    # Capture current environment and ensure PYTHONPATH includes sys.path
     env = os.environ.copy()
-    current_pythonpath = env.get("PYTHONPATH", "")
-    # Add bud-runner and bud-test-library to path if not already there
-    workspace_root = os.getcwd()
-    paths_to_add = [
-        os.path.join(workspace_root, "bud-runner"),
-        os.path.join(workspace_root, "bud-test-library")
-    ]
-    for p in paths_to_add:
-        if p not in current_pythonpath:
-            current_pythonpath = f"{p}:{current_pythonpath}" if current_pythonpath else p
-    env["PYTHONPATH"] = current_pythonpath
+    # Pass the current python sys.path to the subprocess so it has access to the exact same libraries
+    env["PYTHONPATH"] = os.pathsep.join(sys.path)
 
     try:
         # Spawn background process detached from the current terminal session
@@ -308,7 +299,7 @@ def _start_daemon_background(backend_url: Optional[str], interval: int, port: in
             env=env
         )
         # Record PID for management
-        with open("runner_daemon.pid", "w") as f:
+        with open(f"runner_{username}.pid", "w") as f:
             f.write(str(process.pid))
         return process.pid
     except Exception as e:
@@ -389,10 +380,10 @@ def register(
         typer.echo(f"  Token saved to: app.properties")
 
         if not no_start:
-            typer.echo("✓ Spawning heartbeat daemon in background...")
-            pid = _start_daemon_background(backend_url=backend_url, interval=60, port=socket_port)
+            typer.echo(f"✓ Spawning heartbeat daemon in background for {username}...")
+            pid = _start_daemon_background(username=username, backend_url=backend_url, interval=60, port=socket_port)
             if pid:
-                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: runner_daemon.log")
+                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: runner_{username}.log")
         
     except Exception as e:
         typer.echo(f"✗ Registration failed: {e}", err=True)
@@ -597,6 +588,32 @@ def status(
             typer.echo(f"  Backend Status: ✗ Unreachable")
     except Exception as e:
         typer.echo(f"  Backend Status: ✗ Error: {e}")
+
+
+@app.command(name="version")
+def version():
+    """Show bud_runner version."""
+    # 1. Prioritize local pyproject.toml (for development/source runs)
+    try:
+        cli_dir = Path(__file__).parent.parent
+        toml_path = cli_dir / "pyproject.toml"
+        if toml_path.exists():
+            for line in toml_path.read_text().splitlines():
+                if line.startswith("version = "):
+                    v = line.split("=")[1].strip().strip('"')
+                    typer.echo(f"bud_runner version {v}")
+                    return
+    except Exception:
+        pass
+
+    # 2. Fallback to installed package metadata
+    import pkg_resources
+    try:
+        v = pkg_resources.get_distribution("bud-runner").version
+        typer.echo(f"bud_runner version {v}")
+    except Exception:
+        # 3. Hardcoded fallback
+        typer.echo("bud_runner version 0.3.1")
 
 
 def main():
