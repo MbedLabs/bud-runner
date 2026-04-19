@@ -11,11 +11,14 @@ Handles:
 import socket
 import threading
 import time
+import logging
 from typing import Any, Dict, Optional
 from pathlib import Path
 
 from bud_runner.auth import AuthManager
 from bud_runner.api_client import BudAPIClient
+
+logger = logging.getLogger(__name__)
 
 
 class RunnerManager:
@@ -87,7 +90,7 @@ class RunnerManager:
         Args:
             port: Port to listen on.
         """
-        if self._running:
+        if self._running and self._socket_server:
             return
         
         self._running = True
@@ -96,7 +99,7 @@ class RunnerManager:
         self._socket_server.bind(("0.0.0.0", port))
         self._socket_server.listen(5)
         
-        print(f"Runner listening on port {port}")
+        logger.info(f"Runner listening on port {port}")
         
         while self._running:
             try:
@@ -104,11 +107,11 @@ class RunnerManager:
                 try:
                     client_socket, address = self._socket_server.accept()
                     self._handle_connection(client_socket, address)
-                except socket.timeout:
+                except (socket.timeout, OSError):
                     continue
             except Exception as e:
                 if self._running:
-                    print(f"Socket error: {e}")
+                    logger.error(f"Socket error: {e}")
                 break
 
     def stop_listener(self) -> None:
@@ -120,6 +123,7 @@ class RunnerManager:
             except Exception:
                 pass
             self._socket_server = None
+        logger.info("Socket listener stopped")
 
     def _handle_connection(
         self,
@@ -131,10 +135,11 @@ class RunnerManager:
             data = client_socket.recv(4096)
             if data:
                 message = data.decode("utf-8").strip()
+                logger.info(f"Received command from {address}: {message}")
                 response = self._process_command(message)
                 client_socket.sendall(response.encode("utf-8"))
         except Exception as e:
-            print(f"Error handling connection from {address}: {e}")
+            logger.error(f"Error handling connection from {address}: {e}")
         finally:
             client_socket.close()
 
@@ -150,8 +155,10 @@ class RunnerManager:
             return "PONG"
         elif cmd == "run":
             # Trigger a test run
+            logger.info(f"Triggering test run: {args}")
             return f"STARTED: {args}"
         elif cmd == "stop":
+            logger.info("Stop command received")
             self.stop_listener()
             return "STOPPING"
         else:
@@ -174,22 +181,26 @@ class RunnerManager:
             daemon=True,
         )
         self._heartbeat_thread.start()
+        logger.info(f"Heartbeat thread started (interval={interval}s)")
 
     def _heartbeat_loop(self, interval: int) -> None:
         """Background heartbeat loop."""
         while self._running:
             try:
                 success = self._client.heartbeat()
-                if not success:
-                    print("Warning: Heartbeat failed")
+                if success:
+                    logger.debug("✓ Heartbeat sent")
+                else:
+                    logger.warning("✗ Heartbeat failed")
             except Exception as e:
-                print(f"Heartbeat error: {e}")
+                logger.error(f"Heartbeat error: {e}")
             
             time.sleep(interval)
 
     def stop_heartbeat(self) -> None:
         """Stop the heartbeat loop."""
         self._running = False
+        logger.info("Heartbeat stopped")
 
     def get_status(self) -> Dict[str, Any]:
         """
@@ -207,3 +218,4 @@ class RunnerManager:
                 and self._heartbeat_thread.is_alive()
             ),
         }
+
