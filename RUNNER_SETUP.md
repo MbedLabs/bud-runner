@@ -29,11 +29,15 @@ python -m bud_runner register --username <new-runner-name> --no-start
 ```
 
 ## 4. Verification
-Registration will generate or update an `app.properties` file and a `runner_daemon.pid` file.
+Registration will update your global identity vault (`~/.bud/config.json`) and generate namespaced process files:
+- PID: `bud_<username>.pid`
+- Log: `bud_<username>.log`
+
 ```properties
-budBackend=https://<your-bud-backend-domain>
+# Repository app.properties
+budBackend=https://<your-bud-instance-url>
 budRunnerAccount=<new-runner-name>
-budRunnerToken=eyJ...
+runnerSocketPort=53035
 ```
 
 ## 5. Management
