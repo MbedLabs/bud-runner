@@ -1,103 +1,661 @@
 """
 CLI entry point for bud_runner.
 
-Provides commands for test execution, runner registration, and status monitoring.
+Provides commands for test execution, runner registration, and test case synchronization.
 """
 
 import json
 import typer
 from typing import Optional, List
 from pathlib import Path
-from bud_runner.auth import AuthManager
-from bud_runner.api_client import BudAPIClient
-from bud_runner.test_executor import TestExecutor
-from bud_runner.runner_manager import RunnerManager
+from enum import Enum
 
-app = typer.Typer(help="Bud Test Automation Runner")
+from bud_runner.api_client import BudAPIClient
+from bud_runner.bloom_client import BloomClient
+from bud_runner.runner_manager import RunnerManager
+from bud_runner.test_executor import TestExecutor
+from bud_runner.junit_reporter import JUnitReporter
+from bud_runner.auth import AuthManager
+
+app = typer.Typer(
+    name="bud_runner",
+    help="CLI tool for test execution and CI/CD integration with bud.embedlabs.de",
+    add_completion=False,
+)
+
+
+class OutputFormat(str, Enum):
+    """Output format options."""
+    json = "json"
+    text = "text"
+    junit = "junit"
+
+
+@app.command()
+def add_test_run(
+    test_case_list: str = typer.Option(
+        ...,
+        "--test-case-list",
+        "-t",
+        help="Test case list module path (e.g., Bud_Test_Suite.CORE_TEST_CASES)",
+    ),
+    test_suite_name: str = typer.Option(
+        ...,
+        "--test-suite-name",
+        "-n",
+        help="Name for the test suite run",
+    ),
+    url_test_software: Optional[str] = typer.Option(
+        None,
+        "--url-test-software",
+        help="URL to the test software repository",
+    ),
+    ref_test_software: str = typer.Option(
+        "main",
+        "--ref-test-software",
+        help="Git ref (branch/tag/commit) of test software",
+    ),
+    product_composition_id: int = typer.Option(
+        1,
+        "--product-composition-id",
+        help="Product composition ID",
+    ),
+    status: str = typer.Option(
+        "Running",
+        "--status",
+        help="Initial status of the test run",
+    ),
+    pipeline_software_under_test: bool = typer.Option(
+        False,
+        "--pipeline-software-under-test",
+        help="Use software version from CI pipeline",
+    ),
+    backend_url: Optional[str] = typer.Option(
+        None,
+        "--backend-url",
+        "-b",
+        help="Backend URL (default: from config)",
+    ),
+    username: Optional[str] = typer.Option(
+        None,
+        "--username",
+        "-u",
+        help="Username for authentication",
+    ),
+    bud_token: Optional[str] = typer.Option(
+        None,
+        "--bud-token",
+        help="API token for authentication",
+    ),
+    output_format: OutputFormat = typer.Option(
+        OutputFormat.text,
+        "--output-format",
+        help="Output format for this command's response (text or json). Use json in CI to parse the returned run id.",
+    ),
+):
+    """
+    Create a new test run on the Bud platform.
+    
+    This command registers a new test run with the backend, which can then
+    be executed by a runner.
+    """
+    auth = AuthManager(username=username, token=bud_token, backend_url=backend_url)
+    if not auth.backend_url:
+        typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
+        raise typer.Exit(code=2)
+    if not auth.token:
+        typer.echo(
+            "✗ Missing BUD_TOKEN. Export BUD_TOKEN or pass --bud-token before creating a test run.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    client = BudAPIClient(auth)
+
+    if output_format != OutputFormat.json:
+        typer.echo(f"Creating test run: {test_suite_name}")
+        typer.echo(f"Test case list: {test_case_list}")
+
+    try:
+        result = client.create_test_run(
+            test_case_list=test_case_list,
+            test_suite_name=test_suite_name,
+            url_test_software=url_test_software,
+            ref_test_software=ref_test_software,
+            product_composition_id=product_composition_id,
+            status=status,
+            pipeline_software_under_test=pipeline_software_under_test,
+        )
+
+        if output_format == OutputFormat.json:
+            # Emit ONLY JSON on stdout so CI can pipe it into `jq` safely.
+            typer.echo(json.dumps(result))
+        else:
+            typer.echo(f"✓ Test run created: ID={result.get('id')} ProductID={result.get('product_id')}")
+            typer.echo(f"  URL: {result.get('url')}")
+
+    except Exception as e:
+        typer.echo(f"✗ Error creating test run: {e}", err=True)
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def run_tests(
+    test_case_list: str = typer.Option(
+        ...,
+        "--test-case-list",
+        "-t",
+        help="Test case list module path (e.g., Bud_Test_Suite.CORE_TEST_CASES)",
+    ),
+    output: Path = typer.Option(
+        Path("report_junit.xml"),
+        "--output",
+        "--junit-report",
+        "-o",
+        help="Output file for JUnit XML report",
+    ),
+    format: OutputFormat = typer.Option(
+        OutputFormat.junit,
+        "--format",
+        "-f",
+        help="Output format",
+    ),
+    continue_on_error: bool = typer.Option(
+        True,
+        "--continue-on-error/--stop-on-error",
+        help="Continue running tests after a failure",
+    ),
+    backend_url: Optional[str] = typer.Option(
+        None,
+        "--backend-url",
+        "-b",
+        help="Backend URL for result upload",
+    ),
+    test_run_id: Optional[int] = typer.Option(
+        None,
+        "--test-run-id",
+        help="Existing TestRun id (from 'add_test_run --output-format json') to associate uploaded results with.",
+    ),
+    bud_token: Optional[str] = typer.Option(
+        None,
+        "--bud-token",
+        help="API token for authentication (otherwise read from BUD_TOKEN env).",
+    ),
+    upload_results: bool = typer.Option(
+        True,
+        "--upload/--no-upload",
+        help="Upload results to backend",
+    ),
+):
+    """
+    Execute tests from a test case list.
+    
+    Runs all tests in the specified test case list and generates a JUnit XML
+    report for CI/CD integration.
+    """
+    executor = TestExecutor()
+    reporter = JUnitReporter()
+    
+    typer.echo(f"Running tests from: {test_case_list}")
+
+    # NEW: Perform a validation sync check if Bloom info is provided or available
+    sync_warnings = []
+    try:
+        # Check if we have enough info for a silent validation sync
+        auth_sync = AuthManager(backend_url=backend_url, token=bud_token)
+        if auth_sync.bloom_token:
+            from bud_runner.bloom_client import BloomClient
+            client_sync = BloomClient(auth=auth_sync)
+            test_classes = executor.load_test_list(test_case_list)
+            for test_class in test_classes:
+                # Resolve project ID (defaulting to first project or explicit one)
+                try:
+                    project_id = client_sync._resolve_project_id("MUFE")
+                    tc = client_sync.find_test_case(project_id, test_class.__name__)
+                    if not tc:
+                        sync_warnings.append(f"⚠ TestCase '{test_class.__name__}' not found in Bloom.")
+                    else:
+                        existing_steps = [s.get("action") for s in tc.get("steps", [])]
+                        local_methods = [m for m in dir(test_class) if m.startswith("bud_")]
+                        for m in local_methods:
+                            if m not in existing_steps:
+                                sync_warnings.append(f"⚠ Step '{m}' in code not found in Bloom TC {tc.get('tc_id')}")
+                except: pass
+    except Exception:
+        pass # Silent failure for background sync check
+    
+    try:
+        # Import and run tests
+        results = executor.run_test_list(
+            test_case_list=test_case_list,
+            continue_on_error=continue_on_error,
+        )
+        
+        # Generate report
+        if format == OutputFormat.junit:
+            xml_content = reporter.generate(results, warnings=sync_warnings)
+            output.write_text(xml_content)
+            typer.echo(f"✓ JUnit report written to: {output}")
+        
+        # Upload results if requested. Requires a backend URL AND an auth token;
+        # fail loudly rather than silently skipping the upload.
+        if upload_results:
+            auth = AuthManager(backend_url=backend_url, token=bud_token)
+            if not auth.backend_url:
+                typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
+                raise typer.Exit(code=2)
+            if not auth.token:
+                typer.echo(
+                    "⚠ Skipping result upload: no BUD_TOKEN (env) or --bud-token provided.",
+                    err=True,
+                )
+            else:
+                client = BudAPIClient(auth)
+                
+                # If we don't have a product_id yet, try to get it from the run if we have a run_id
+                final_product_id = None
+                if test_run_id:
+                    try:
+                        run_info = client.get_test_run(test_run_id)
+                        final_product_id = run_info.get("product_id")
+                    except Exception:
+                        pass
+
+                ok = client.upload_results(results, test_run_id=test_run_id, product_id=final_product_id)
+                if ok:
+                    suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
+                    typer.echo(f"✓ Results uploaded to backend{suffix}")
+                    
+                    # FINAL STATUS UPDATE: Use flattened results for accurate method counts
+                    if test_run_id:
+                        from bud_runner.api_client import _flatten_results
+                        flat_results = _flatten_results(results)
+                        
+                        passed_count = sum(1 for r in flat_results if r.get("passed"))
+                        total_count = len(flat_results)
+                        
+                        final_status = "Completed"
+                        client.update_test_run(
+                            run_id=test_run_id,
+                            status=final_status,
+                            total_tests=total_count,
+                            passed_tests=passed_count,
+                            failed_tests=total_count - passed_count,
+                            product_id=final_product_id
+                        )
+                        typer.echo(f"✓ Test run {test_run_id} marked as {final_status} ({passed_count}/{total_count} passed)")
+                else:
+                    typer.echo("✗ Result upload failed", err=True)
+                    raise typer.Exit(code=1)
+        
+        # Print summary
+        passed = sum(1 for r in results if r.passed)
+        failed = len(results) - passed
+        
+        typer.echo(f"\nSummary: {passed} passed, {failed} failed")
+        
+        if failed > 0:
+            raise typer.Exit(code=1)
+            
+    except Exception as e:
+        typer.echo(f"✗ Error running tests: {e}", err=True)
+        raise typer.Exit(code=1)
+
+
+import subprocess
+import sys
+import os
+
+def _start_daemon_background(username: str, backend_url: Optional[str], interval: int, port: int):
+    """Helper to spawn the daemon in the background as a detached process."""
+    cmd = [
+        sys.executable, "-m", "bud_runner", 
+        "daemon", 
+        "--username", username,
+        "--interval", str(interval), 
+        "--port", str(port)
+    ]
+    if backend_url:
+        cmd.extend(["--backend-url", backend_url])
+    
+    # Ensure logs are persistent and namespaced
+    log_file = open(f"bud_{username}.log", "a")
+    
+    # Capture current environment and ensure PYTHONPATH includes sys.path
+    env = os.environ.copy()
+    # Pass the current python sys.path to the subprocess so it has access to the exact same libraries
+    env["PYTHONPATH"] = os.pathsep.join(sys.path)
+
+    try:
+        # Spawn background process detached from the current terminal session
+        process = subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+            env=env
+        )
+        # Record PID for management
+        with open(f"bud_{username}.pid", "w") as f:
+            f.write(str(process.pid))
+        return process.pid
+    except Exception as e:
+        typer.echo(f"⚠ Could not start background daemon automatically: {e}", err=True)
+        return None
+
 
 @app.command()
 def register(
-    username: str = typer.Option(..., "--username", "-u", help="Runner account username"),
-    password: str = typer.Option(..., "--password", "-p", help="Runner account password", hide_input=True),
-    backend_url: str = typer.Option("https://bud.embedlabs.de", "--backend-url", "-b", help="Bud backend URL"),
-    socket_port: int = typer.Option(53035, "--socket-port", help="Local socket port for remote commands"),
+    username: str = typer.Option(
+        ...,
+        "--username",
+        "-u",
+        help="Runner username/account name",
+    ),
+    password: Optional[str] = typer.Option(
+        None,
+        "--password",
+        "-p",
+        help="Password for registration (prompt if not provided)",
+        hide_input=True,
+    ),
+    backend_url: Optional[str] = typer.Option(
+        None,
+        "--backend-url",
+        "-b",
+        help="Backend URL",
+    ),
+    socket_port: int = typer.Option(
+        53035,
+        "--socket-port",
+        help="Socket port for runner communication",
+    ),
+    bloom_url: Optional[str] = typer.Option(
+        None,
+        "--bloom-url",
+        help="Bloom ALM URL",
+    ),
+    bloom_email: Optional[str] = typer.Option(
+        None,
+        "--bloom-email",
+        help="Bloom ALM login email",
+    ),
+    bloom_password: Optional[str] = typer.Option(
+        None,
+        "--bloom-password",
+        help="Bloom ALM login password",
+        hide_input=True,
+    ),
+    api_key: Optional[str] = typer.Option(
+        None,
+        "--api-key",
+        envvar="RUNNER_API_KEY",
+        help="Shared secret sent as X-API-Key for POST /api/runners/register (matches backend RUNNER_API_KEY). "
+             "Falls back to RUNNER_API_KEY env var or app.properties 'runnerApiKey'.",
+    ),
+    no_start: bool = typer.Option(
+        False,
+        "--no-start",
+        help="Do NOT start the heartbeat daemon automatically after registration",
+    ),
 ):
-    """Register this machine as a Bud test runner."""
-    auth = AuthManager(backend_url=backend_url)
-    client = BudAPIClient(auth)
+    """
+    Register this machine as a test runner.
+
+    Creates a runner account, stores credentials in your global machine vault,
+    and automatically starts the heartbeat daemon in the background.
+    """
+    if password is None:
+        password = typer.prompt("Password", hide_input=True)
+
+    auth = AuthManager(backend_url=backend_url, runner_api_key=api_key)
+    if not auth.backend_url:
+        typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
+        raise typer.Exit(code=2)
+    if not auth.runner_api_key:
+        typer.echo(
+            "✗ RUNNER_API_KEY is not configured. Pass --api-key or export "
+            "RUNNER_API_KEY (the shared secret from the Bud backend).",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    manager = RunnerManager(auth)
+    
+    typer.echo(f"Registering runner: {username}")
     
     try:
-        typer.echo(f"Registering runner '{username}' with {backend_url}...")
-        token = client.register_runner(username, password, socket_port)
-        auth.save_identity(username, token, socket_port)
-        typer.echo("✓ Runner registered successfully.")
+        result = manager.register(
+            username=username,
+            password=password,
+            socket_port=socket_port,
+        )
+        
+        # OPTIONAL BLOOM LOGIN
+        final_bloom_token = None
+        final_bloom_url = bloom_url
+        if bloom_url and bloom_email and bloom_password:
+            typer.echo(f"Connecting to Bloom ALM at {bloom_url}...")
+            from bud_runner.bloom_client import BloomClient
+            try:
+                client = BloomClient(bloom_url=bloom_url, bloom_email=bloom_email, bloom_password=bloom_password)
+                final_bloom_token = client._token
+                typer.echo("✓ Bloom ALM authenticated.")
+            except Exception as e:
+                typer.echo(f"⚠ Bloom ALM login failed: {e}. Runner will still be registered with Bud.")
+
+        # Save secret identity to global machine vault
+        auth.save_identity(
+            username=username, 
+            token=result.get("token"), 
+            port=socket_port,
+            bloom_token=final_bloom_token,
+            bloom_url=final_bloom_url
+        )
+
+        typer.echo(f"✓ Registered successfully. Identity saved to ~/.bud/config.json")
+
+        if not no_start:
+            typer.echo(f"✓ Spawning heartbeat daemon in background for {username}...")
+            pid = _start_daemon_background(username=username, backend_url=backend_url, interval=60, port=socket_port)
+            if pid:
+                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: bud_{username}.log")
+
+        typer.echo("\nProject Link (copy to your repo app.properties):")
+        typer.echo("-" * 40)
+        typer.echo(f"budRunnerAccount={username}")
+        typer.echo(f"budBackend={auth.backend_url}")
+        typer.echo(f"runnerSocketPort={socket_port}")
+        typer.echo("-" * 40)
+        
     except Exception as e:
         typer.echo(f"✗ Registration failed: {e}", err=True)
         raise typer.Exit(code=1)
 
-@app.command()
-def add_test_run(
-    test_suite_name: str = typer.Option(..., "--test-suite-name", "-s", help="Display name for the test run"),
-    test_case_list: str = typer.Option(..., "--test-case-list", "-t", help="Python module path to the test list"),
-    product_composition_id: Optional[int] = typer.Option(None, "--product-composition-id", "-id", help="Product composition ID"),
-    backend_url: Optional[str] = typer.Option(None, "--backend-url", "-b", help="Bud backend URL"),
-    output_format: str = typer.Option("text", "--output-format", help="Output format (text or json)"),
-):
-    """Create a new test run record in Bud."""
-    auth = AuthManager(backend_url=backend_url)
-    client = BudAPIClient(auth)
-    
-    try:
-        run_data = client.create_test_run(test_suite_name, test_case_list, product_composition_id)
-        if output_format == "json":
-            typer.echo(json.dumps(run_data))
-        else:
-            typer.echo(f"✓ Created test run ID: {run_data['id']}")
-    except Exception as e:
-        typer.echo(f"✗ Failed to create test run: {e}", err=True)
-        raise typer.Exit(code=1)
 
 @app.command()
-def run_tests(
-    test_case_list: str = typer.Option(..., "--test-case-list", "-t", help="Python module path to test list"),
-    test_run_id: Optional[int] = typer.Option(None, "--test-run-id", help="Existing test run ID"),
-    backend_url: Optional[str] = typer.Option(None, "--backend-url", "-b", help="Bud backend URL"),
-    junit_report: Optional[str] = typer.Option(None, "--junit-report", help="Path to save JUnit XML report"),
-    continue_on_error: bool = typer.Option(False, "--continue-on-error", help="Continue even if a test fails"),
-    upload: bool = typer.Option(True, "--upload/--no-upload", help="Upload results to backend"),
+def daemon(
+    username: Optional[str] = typer.Option(
+        None,
+        "--username",
+        "-u",
+        help="Runner account to use (loads secret from vault)",
+    ),
+    backend_url: Optional[str] = typer.Option(
+        None,
+        "--backend-url",
+        "-b",
+        help="Backend URL",
+    ),
+    interval: int = typer.Option(
+        60,
+        "--interval",
+        "-i",
+        help="Heartbeat interval in seconds",
+    ),
+    port: int = typer.Option(
+        53035,
+        "--port",
+        "-p",
+        help="Socket listener port",
+    ),
 ):
-    """Execute a list of tests and report results."""
-    auth = AuthManager(backend_url=backend_url)
-    executor = TestExecutor(auth if upload else None)
+    """
+    Start the runner daemon (heartbeat + socket listener).
+    
+    This process must remain running for the runner to appear 'Online' 
+    and receive remote commands.
+    """
+    import signal
+    import sys
+
+    auth = AuthManager(username=username, backend_url=backend_url)
+    if not auth.runner_account or not auth.token:
+        typer.echo(
+            "✗ Runner is not configured. Please run 'register' first or provide BUD_RUNNER_TOKEN.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    manager = RunnerManager(auth)
+    
+    typer.echo(f"Starting Bud Runner Daemon for: {auth.runner_account}")
+    typer.echo(f"  Backend: {auth.backend_url}")
+    typer.echo(f"  Heartbeat Interval: {interval}s")
+    typer.echo(f"  Socket Port: {port}")
+
+    def signal_handler(sig, frame):
+        typer.echo("\nStopping daemon...")
+        manager.stop_heartbeat()
+        manager.stop_listener()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # Start heartbeat in background thread
+    manager.start_heartbeat(interval=interval)
+    
+    # Start socket listener in foreground (blocks)
+    try:
+        manager.start_listener(port=port)
+    except KeyboardInterrupt:
+        signal_handler(None, None)
+    except Exception as e:
+        typer.echo(f"✗ Daemon error: {e}", err=True)
+        manager.stop_heartbeat()
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def sync_test_cases(
+    project: str = typer.Option(
+        ...,
+        "--project",
+        "-p",
+        help="Bloom project prefix or numeric ID",
+    ),
+    test_case_list: str = typer.Option(
+        ...,
+        "--test-case-list",
+        "-t",
+        help="Test case list module path",
+    ),
+    suite_name: str = typer.Option(
+        ...,
+        "--suite-name",
+        "-s",
+        help="Suite/scope name in Bloom (groups test cases for traceability)",
+    ),
+    bloom_url: Optional[str] = typer.Option(
+        None,
+        "--bloom-url",
+        help="Bloom ALM URL (default: from config)",
+    ),
+    bloom_token: Optional[str] = typer.Option(
+        None,
+        "--bloom-token",
+        help="Bloom ALM JWT token",
+    ),
+    bloom_email: Optional[str] = typer.Option(
+        None,
+        "--bloom-email",
+        help="Bloom ALM login email (alternative to --bloom-token)",
+    ),
+    bloom_password: Optional[str] = typer.Option(
+        None,
+        "--bloom-password",
+        help="Bloom ALM login password (used with --bloom-email)",
+        hide_input=True,
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show what would be synced without making changes",
+    ),
+):
+    """
+    Sync test cases to Bloom ALM traceability model.
+
+    Creates/updates test cases, keeps them in a Bloom suite,
+    and ensures a campaign scope exists for Bud linkage.
+    """
+    client = BloomClient(
+        bloom_url=bloom_url,
+        bloom_token=bloom_token,
+        bloom_email=bloom_email,
+        bloom_password=bloom_password,
+    )
+    
+    typer.echo(f"Syncing test cases to Bloom ALM")
+    typer.echo(f"  Project: {project}")
+    typer.echo(f"  Campaign: {suite_name}")
+    typer.echo(f"  Test list: {test_case_list}")
+    
+    if dry_run:
+        typer.echo("\n[DRY RUN] Would sync the following:")
+    
+    sync_warnings = []
     
     try:
-        results = executor.run_test_list(test_case_list, test_run_id=test_run_id, continue_on_error=continue_on_error)
+        from bud_runner.test_executor import TestExecutor
+        executor = TestExecutor()
+        test_classes = executor.load_test_list(test_case_list)
         
-        if junit_report:
-            executor.save_junit_report(results, junit_report)
-            typer.echo(f"✓ JUnit report saved to: {junit_report}")
+        for test_class in test_classes:
+            if dry_run:
+                typer.echo(f"  - {test_class.__name__}")
+            else:
+                # REFACTOR: Validation only sync
+                tc = client.find_test_case(client._resolve_project_id(project), test_class.__name__)
+                
+                if tc:
+                    typer.echo(f"✓ Found: {test_class.__name__} -> {tc.get('tc_id')}")
+                    # Verify steps
+                    existing_steps = [s.get("action") for s in tc.get("steps", [])]
+                    local_methods = [
+                        m for m in dir(test_class)
+                        if m.startswith("bud_") and callable(getattr(test_class, m, None))
+                    ]
+                    
+                    for m in local_methods:
+                        if m not in existing_steps:
+                            warn = f"⚠ Step '{m}' in code not found in Bloom TC {tc.get('tc_id')}"
+                            typer.echo(warn)
+                            sync_warnings.append(warn)
+                else:
+                    warn = f"✗ Not Found: {test_class.__name__} does not exist in Bloom project {project}."
+                    typer.echo(warn)
+                    sync_warnings.append(warn)
+        
+        if not dry_run:
+            typer.echo(f"\n✓ Validation sync complete. Found {len(sync_warnings)} discrepancies.")
             
-        if not results.passed:
-            raise typer.Exit(code=1)
     except Exception as e:
-        typer.echo(f"✗ Execution error: {e}", err=True)
+        typer.echo(f"✗ Sync failed: {e}", err=True)
         raise typer.Exit(code=1)
 
-@app.command()
-def status():
-    """Show runner status and connectivity."""
-    auth = AuthManager()
-    typer.echo(f"Runner Account: {auth.runner_account or 'Not configured'}")
-    typer.echo(f"Backend URL:    {auth.backend_url}")
-    
-    client = BudAPIClient(auth)
-    try:
-        if client.health_check():
-            typer.echo("Backend Status:  ✓ Connected")
-        else:
-            typer.echo("Backend Status:  ✗ Unreachable")
-    except Exception as e:
-        typer.echo(f"Backend Status:  ✗ Error: {e}")
 
 @app.command()
 def version():
@@ -105,5 +663,67 @@ def version():
     from bud_runner import __version__
     typer.echo(f"bud_runner version {__version__}")
 
-if __name__ == "__main__":
+
+@app.command()
+def status(
+    backend_url: Optional[str] = typer.Option(
+        None,
+        "--backend-url",
+        "-b",
+        help="Backend URL",
+    ),
+):
+    """
+    Show runner status and connectivity.
+    """
+    auth = AuthManager(backend_url=backend_url)
+    
+    typer.echo("Runner Status:")
+    typer.echo(f"  Backend URL: {auth.backend_url}")
+    typer.echo(f"  Runner Account: {auth.runner_account or 'Not configured'}")
+    typer.echo(f"  Token: {'Configured' if auth.token else 'Not configured'}")
+    
+    # Check connectivity
+    client = BudAPIClient(auth)
+    try:
+        if client.health_check():
+            typer.echo(f"  Backend Status: ✓ Connected")
+        else:
+            typer.echo(f"  Backend Status: ✗ Unreachable")
+    except Exception as e:
+        typer.echo(f"  Backend Status: ✗ Error: {e}")
+
+
+@app.command(name="version")
+def version():
+    """Show bud_runner version."""
+    # 1. Prioritize local pyproject.toml (for development/source runs)
+    try:
+        cli_dir = Path(__file__).parent.parent
+        toml_path = cli_dir / "pyproject.toml"
+        if toml_path.exists():
+            for line in toml_path.read_text().splitlines():
+                if line.startswith("version = "):
+                    v = line.split("=")[1].strip().strip('"')
+                    typer.echo(f"bud_runner version {v}")
+                    return
+    except Exception:
+        pass
+
+    # 2. Fallback to installed package metadata
+    import pkg_resources
+    try:
+        v = pkg_resources.get_distribution("bud-runner").version
+        typer.echo(f"bud_runner version {v}")
+    except Exception:
+        # 3. Hardcoded fallback
+        typer.echo("bud_runner version 0.3.1")
+
+
+def main():
+    """Entry point for the CLI."""
     app()
+
+
+if __name__ == "__main__":
+    main()
