@@ -41,7 +41,7 @@ class JUnitReporter:
         
         Args:
             results: List of TestRunResult or similar objects.
-            warnings: Optional list of strings (e.g. ALM sync issues) to include.
+            warnings: Optional list of strings (e.g. PLM sync issues) to include.
         
         Returns:
             JUnit XML string.
@@ -54,7 +54,7 @@ class JUnitReporter:
         testsuites.set("errors", "0")
         testsuites.set("time", str(self._total_time(results)))
 
-        # INJECT WARNINGS (ALM Sync Mismatches, etc)
+        # INJECT WARNINGS (PLM Sync Mismatches, etc)
         if warnings:
             system_err = SubElement(testsuites, "system-err")
             system_err.text = "\n".join(warnings)
