@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in improving EmbedLabs Bud projects in this repository.
+Thank you for your interest in improving EmbedLabs Bud and Bloom related projects in this repository.
 
 ## License
 

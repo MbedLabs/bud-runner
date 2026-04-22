@@ -1,65 +1,288 @@
 # bud_runner
 
-CLI tool for test execution and CI/CD integration with the **Bud Test Platform**.
+CLI tool for test execution and CI/CD integration with the Bud platform.
 
 ## Overview
 
 `bud_runner` provides a command-line interface for:
-- Registering machines as Bud test runners
 - Creating and managing test runs
-- Executing Python-based test suites and reporting results
+- Executing test suites
 - Generating JUnit XML reports for CI/CD
+- Syncing test cases to Bloom ALM
+- Runner registration and management
+
+## Identity & Security
+
+Bud Runner uses a **split-configuration** architecture to prevent secret tokens from being committed to your repositories.
+
+1.  **Global Identity Vault**: Secret tokens and daemon settings are stored locally on your machine in `~/.bud/config.json`.
+2.  **Project Context**: Non-sensitive project metadata (account name, backend URL) is stored in your repository's `app.properties`.
 
 ## Installation
 
-```bash
-pip install bud_runner
-```
-
-## Getting Started
-
-### 1. Register the Runner
-Register your machine with the Bud backend to obtain an identity token.
+To use `bud_runner` in your projects, add it as a submodule:
 
 ```bash
-python -m bud_runner register \
-    --username your-runner-name \
-    --password your-secret-password \
-    --backend-url https://<your-bud-instance-url>
+git submodule add https://github.com/MbedLabs/bud_runner.git
+pip install -e ./bud_runner
 ```
 
-### 2. Add a Test Run
-Before executing tests, create a run record to track results.
+## Prerequisites
+
+- `budtestlibrary` must be installed
+- Python 3.9+
+
+## Quick Start
+
+### Run Tests
+
+```bash
+# Run tests and generate JUnit report
+python -m bud_runner run-tests \
+    --test-case-list <Module.ClassName> \
+    --output report_junit.xml
+
+# With result upload
+python -m bud_runner run-tests \
+    --test-case-list <Module.ClassName> \
+    --backend-url "https://<your-bud-instance-url>/" \
+    --upload
+```
+
+### Create Test Run
 
 ```bash
 python -m bud_runner add-test-run \
-    --test-suite-name "Standard Test Suite" \
-    --test-case-list "YourModule.TEST_CASE_LIST"
+    --test-case-list <Module.ClassName> \
+    --test-suite-name "Nightly Automated Tests" \
+    --url-test-software https://github.com/org/repo.git \
+    --ref-test-software main
 ```
 
-### 3. Run Tests
-Execute the tests and upload results to the dashboard.
+### Register Runner (Machine Identity)
+
+The backend protects registration with a shared secret (`X-API-Key`). 
+Identity and tokens are saved to a global machine vault (`~/.bud/config.json`).
 
 ```bash
-python -m bud_runner run_tests \
-    --test-case-list "YourModule.TEST_CASE_LIST" \
-    --test-run-id <run-id> \
-    --junit-report report.xml
+export RUNNER_API_KEY="<your-backend-shared-secret>"
+export BUD_BACKEND_URL="https://<your-bud-instance-url>"
+
+python -m bud_runner register \
+    --username "my-runner" \
+    --password "mypassword" \
+    --socket-port 53035
+```
+
+### Project Linking
+
+To link a repository to a registered runner, add the following to its
+`app.properties`. No secret tokens are stored in the repo.
+
+```properties
+budRunnerAccount=my-runner
+budBackend=https://<your-bud-instance-url>
+runnerSocketPort=53035
+```
+
+### Sync to Bloom ALM
+
+```bash
+python -m bud_runner sync-test-cases \
+    --project bms-project \
+    --test-case-list Bud_Test_Suite.CORE_TEST_CASES \
+    --suite-name "Automated Tests" \
+    --bloom-token "your-jwt-token"
+
+# Or authenticate with email/password
+python -m bud_runner sync-test-cases \
+    --project bms-project \
+    --test-case-list Bud_Test_Suite.CORE_TEST_CASES \
+    --suite-name "Automated Tests" \
+    --bloom-email user@<your-domain>.de \
+    --bloom-password yourpassword
+```
+
+
+## Commands
+
+### `add-test-run`
+
+Create a new test run on the Bud platform.
+
+```bash
+python -m bud_runner add-test-run [OPTIONS]
+
+Options:
+  -t, --test-case-list TEXT    Test case list module path (required)
+  -n, --test-suite-name TEXT   Name for the test run (required)
+  --url-test-software TEXT     Repository URL
+  --ref-test-software TEXT     Git ref [default: main]
+  --product-composition-id INT Product ID [default: 1]
+  --status TEXT                Initial status [default: Running]
+  -b, --backend-url TEXT       Backend URL
+  -u, --username TEXT          Username
+  --bud-token TEXT             API token
+```
+
+### `run-tests`
+
+Execute tests from a test case list.
+
+```bash
+python -m bud_runner run-tests [OPTIONS]
+
+Options:
+  -t, --test-case-list TEXT    Test case list module path (required)
+  -o, --output, --junit-report PATH  JUnit XML output [default: report_junit.xml]
+  -f, --format [json|text|junit]  Output format [default: junit]
+  --continue-on-error/--stop-on-error  Continue after failure [default: continue]
+  -b, --backend-url TEXT       Backend URL for upload
+  --test-run-id INT            Associate uploaded results with this TestRun id
+  --bud-token TEXT             User JWT (falls back to BUD_TOKEN env)
+  --upload/--no-upload         Upload results [default: upload]
+```
+
+### `register`
+
+Register this machine as a test runner.
+
+```bash
+python -m bud_runner register [OPTIONS]
+
+Options:
+  -u, --username TEXT          Runner account (required)
+  -p, --password TEXT          Password (prompted if not provided)
+  -b, --backend-url TEXT       Backend URL
+  --socket-port INT            Socket port [default: 53035]
+  --api-key TEXT               Shared secret sent as X-API-Key.
+                               Falls back to RUNNER_API_KEY env var.
+```
+
+### `sync-test-cases`
+
+Sync test cases to Bloom ALM.
+
+```bash
+python -m bud_runner sync-test-cases [OPTIONS]
+
+Options:
+  -p, --project TEXT           Bloom project prefix or ID (required)
+  -t, --test-case-list TEXT    Test case list module path (required)
+  -s, --suite-name TEXT        Test campaign name (required)
+  --bloom-url TEXT             Bloom ALM URL
+  --bloom-token TEXT           Bloom ALM JWT token
+  --bloom-email TEXT           Bloom ALM login email
+  --bloom-password TEXT        Bloom ALM login password
+  --dry-run                    Preview without making changes
+```
+
+### `status`
+
+Show runner status and connectivity.
+
+```bash
+python -m bud_runner status [OPTIONS]
+
+Options:
+  -b, --backend-url TEXT       Backend URL
+```
+
+### `version`
+
+Show bud_runner version.
+
+```bash
+python -m bud_runner version
 ```
 
 ## Configuration
 
-`bud_runner` looks for configuration in:
-1. Command line options (e.g., `--backend-url`)
-2. Environment variables (e.g., `BUD_BACKEND_URL`, `BUD_TOKEN`)
-3. Local `app.properties` file
+### Environment Variables
 
-### Example `app.properties`
-```properties
-budBackend=https://<your-bud-instance-url>
-budRunnerAccount=your-runner-name
+```bash
+export BUD_BACKEND_URL="https://<your-bud-instance-url>/"
+export BUD_TOKEN="your-api-token"
+export BUD_RUNNER_ACCOUNT="my-runner"
+export BUD_RUNNER_TOKEN="runner-token"
+export BLOOM_URL="https://<your-bloom-instance-url>/"
+export BLOOM_TOKEN="bloom-jwt-token"
+export BLOOM_EMAIL="user@<your-domain>.de"
+export BLOOM_PASSWORD="your-password"
+
+# Required for `bud_runner register` only — NOT needed for normal API calls.
+export RUNNER_API_KEY="shared-runner-registration-secret"
 ```
+
+### app.properties
+
+```properties
+budBackend=https://<your-bud-instance-url>/
+budRunnerAccount=my-runner
+runnerSocketPort=53035
+```
+
+## GitHub Actions Integration
+
+```yaml
+name: Run Tests
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * *'  # Nightly at 2 AM
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          pip install -e ./budtestlibrary
+          pip install -e ./bud_runner
+      
+      - name: Run tests
+        env:
+          BUD_BACKEND_URL: ${{ secrets.BUD_BACKEND_URL }}
+          BUD_TOKEN: ${{ secrets.BUD_TOKEN }}
+        run: |
+          python -m bud_runner run-tests \
+            --test-case-list <Module.ClassName> \
+            --output report_junit.xml
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: report_junit.xml
+      
+      - name: Publish test report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: 'report_junit.xml'
+```
+
+## Multi-Runner Support
+
+You can run multiple runners on the same machine by using unique usernames and ports:
+
+```bash
+# Runner 01
+python -m bud_runner register --username "runner-01" --socket-port 53035
+# Runner 02
+python -m bud_runner register --username "runner-02" --socket-port 53036
+```
+
+Each runner will have its own independent logs and PID file in the current directory, prefixed with `bud_<username>`.
 
 ## License
 
-Copyright (c) 2026 EmbedLabs. All rights reserved.
+This project is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**. See the [LICENSE](LICENSE) file for the full text.
+
+Copyright (C) 2024-2026 EmbedLabs.
+
+For commercial licensing options that do not require AGPL compliance, contact dev@embedlabs.de. Contributions are accepted under the [CLA](CLA.md) — see [CONTRIBUTING.md](CONTRIBUTING.md).
