@@ -1,28 +1,38 @@
 """
-bud_runner - CLI tool for test execution and CI/CD integration.
+bud_runner
 
 A command-line interface for:
 - Running test suites
-- Registering runners with bud.embedlabs.de
+- Registering runners with your Bud instance
 - Creating test runs
-- Syncing test cases to Bloom ALM
 - Generating JUnit XML reports
 
-Backend: https://bud.embedlabs.de/
-ALM: https://bloom.embedlabs.de/ (Bloom)
+Backend: https://<your-bud-instance-url>/
 
 Usage:
-    python -m bud_runner add_test_run --test-case-list MyTests.TEST_LIST
-    python -m bud_runner run_tests --test-suite-name "HIL Tests"
-    python -m bud_runner register --username runner1 --token xxx
-    python -m bud_runner sync_test_cases --project bms-project
+    python -m bud_runner add-test-run --test-case-list MyTests.TEST_LIST
+    python -m bud_runner run_tests --test-suite-name "Standard Test Suite"
+    python -m bud_runner register --username runner1 --password secret
 
-Copyright (c) 2025 EmbedLabs
+Copyright (c) 2026 EmbedLabs
 """
 
+from pathlib import Path
 from bud_runner.cli import app
 
-__version__ = "0.2.0"
+def _get_version():
+    """Reads version from pyproject.toml."""
+    try:
+        pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
+        if pyproject_path.exists():
+            for line in pyproject_path.read_text().splitlines():
+                if line.startswith("version = "):
+                    return line.split("=")[1].strip().strip('"')
+    except Exception:
+        pass
+    return "0.3.4"
+
+__version__ = _get_version()
 __author__ = "EmbedLabs"
 __email__ = "dev@embedlabs.de"
 

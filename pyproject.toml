@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bud_runner"
-version = "0.3.3"
-description = "CLI tool for test execution and platform integration"
+version = "0.3.4"
+description = "Bud Platform Test Runner and Integration CLI"
 readme = "README.md"
 license = {text = "AGPL-3.0-or-later"}
 authors = [
@@ -18,8 +18,8 @@ keywords = [
     "testing",
     "automation",
     "ci-cd",
-    "runner",
-    "embedded",
+    "bud-platform",
+    "test-runner",
     "junit",
 ]
 classifiers = [
