@@ -8,7 +8,6 @@ CLI tool for test execution and CI/CD integration with the Bud platform.
 - Creating and managing test runs
 - Executing test suites
 - Generating JUnit XML reports for CI/CD
-- Syncing test cases to Bloom ALM
 - Runner registration and management
 
 ## Identity & Security
@@ -85,24 +84,6 @@ budBackend=https://<your-bud-instance-url>
 runnerSocketPort=53035
 ```
 
-### Sync to Bloom ALM
-
-```bash
-python -m bud_runner sync-test-cases \
-    --project bms-project \
-    --test-case-list Bud_Test_Suite.CORE_TEST_CASES \
-    --suite-name "Automated Tests" \
-    --bloom-token "your-jwt-token"
-
-# Or authenticate with email/password
-python -m bud_runner sync-test-cases \
-    --project bms-project \
-    --test-case-list Bud_Test_Suite.CORE_TEST_CASES \
-    --suite-name "Automated Tests" \
-    --bloom-email user@<your-domain>.de \
-    --bloom-password yourpassword
-```
-
 
 ## Commands
 
@@ -159,23 +140,6 @@ Options:
                                Falls back to RUNNER_API_KEY env var.
 ```
 
-### `sync-test-cases`
-
-Sync test cases to Bloom ALM.
-
-```bash
-python -m bud_runner sync-test-cases [OPTIONS]
-
-Options:
-  -p, --project TEXT           Bloom project prefix or ID (required)
-  -t, --test-case-list TEXT    Test case list module path (required)
-  -s, --suite-name TEXT        Test campaign name (required)
-  --bloom-url TEXT             Bloom ALM URL
-  --bloom-token TEXT           Bloom ALM JWT token
-  --bloom-email TEXT           Bloom ALM login email
-  --bloom-password TEXT        Bloom ALM login password
-  --dry-run                    Preview without making changes
-```
 
 ### `status`
 
@@ -205,10 +169,6 @@ export BUD_BACKEND_URL="https://<your-bud-instance-url>/"
 export BUD_TOKEN="your-api-token"
 export BUD_RUNNER_ACCOUNT="my-runner"
 export BUD_RUNNER_TOKEN="runner-token"
-export BLOOM_URL="https://<your-bloom-instance-url>/"
-export BLOOM_TOKEN="bloom-jwt-token"
-export BLOOM_EMAIL="user@<your-domain>.de"
-export BLOOM_PASSWORD="your-password"
 
 # Required for `bud_runner register` only — NOT needed for normal API calls.
 export RUNNER_API_KEY="shared-runner-registration-secret"
