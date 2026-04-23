@@ -25,7 +25,6 @@ class TestRunResult:
     error_message: Optional[str] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
-    bloom_tc_id: Optional[str] = None
 
     def to_dict(self):
         return {
@@ -39,7 +38,6 @@ class TestRunResult:
             "error_message": self.error_message,
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,
-            "bloom_tc_id": self.bloom_tc_id,
         }
 
 
@@ -179,12 +177,6 @@ class TestExecutor:
             passed=True,
             start_time=datetime.now(),
         )
-        
-        bloom_tc_id = None
-        bloom_meta = getattr(test_class, "bloom_metadata", None)
-        if bloom_meta and hasattr(bloom_meta, "get_full_tc_id"):
-            bloom_tc_id = bloom_meta.get_full_tc_id()
-        result.bloom_tc_id = bloom_tc_id
         
         start_time = time.time()
         
