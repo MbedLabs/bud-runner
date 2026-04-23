@@ -20,6 +20,7 @@ def _method_result_to_row(
     test_class: str,
     method_result: Any,
     test_run_id: Optional[int] = None,
+    bloom_tc_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Map a budtestlibrary TestMethodResult (or dict) → TestResultCreate row.
 
@@ -38,6 +39,10 @@ def _method_result_to_row(
     if assertions is not None and not isinstance(assertions, list):
         assertions = None
 
+    metadata = m.get("metadata") or {}
+    if bloom_tc_id:
+        metadata["tc_id"] = bloom_tc_id
+
     row: Dict[str, Any] = {
         "test_class": test_class,
         "test_method": m.get("method_name") or m.get("test_method") or "unknown",
@@ -46,7 +51,7 @@ def _method_result_to_row(
         "error_message": m.get("error_message"),
         "traceback": m.get("traceback"),
         "assertions": assertions,
-        "metadata": m.get("metadata"),
+        "metadata": metadata if metadata else None,
     }
     # TestResultCreate has test_run_id at the envelope level; include it per
     # row too so callers inspecting the payload see the association.
@@ -72,21 +77,24 @@ def _flatten_results(
         # 1) TestRunResult (class-level with nested method_results)
         test_class = getattr(r, "test_class", None)
         method_results = getattr(r, "method_results", None)
+        bloom_tc_id = getattr(r, "bloom_tc_id", None)
 
         if test_class is None and isinstance(r, dict):
             test_class = r.get("test_class")
             method_results = r.get("method_results")
+            bloom_tc_id = r.get("bloom_tc_id")
 
         if test_class and method_results is not None:
             if method_results:
                 for mr in method_results:
-                    rows.append(_method_result_to_row(test_class, mr, test_run_id))
+                    rows.append(_method_result_to_row(test_class, mr, test_run_id, bloom_tc_id=bloom_tc_id))
             else:
                 # Class ran but produced no method-level results (e.g. setup
                 # crash). Preserve the class-level failure signal.
                 cls_err = getattr(r, "error_message", None)
                 if isinstance(r, dict):
                     cls_err = cls_err or r.get("error_message")
+                metadata = {"tc_id": bloom_tc_id} if bloom_tc_id else None
                 rows.append({
                     "test_class": test_class,
                     "test_method": "__class__",
@@ -103,7 +111,7 @@ def _flatten_results(
                     "error_message": cls_err,
                     "traceback": None,
                     "assertions": None,
-                    "metadata": None,
+                    "metadata": metadata,
                     **({"test_run_id": test_run_id} if test_run_id is not None else {}),
                 })
             continue
