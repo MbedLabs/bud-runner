@@ -9,11 +9,63 @@ Handles:
 
 import importlib
 import sys
+import multiprocessing
+import traceback
 from pathlib import Path
-from typing import Any, List, Type, Optional
+from typing import Any, List, Type, Optional, Dict
 from dataclasses import dataclass, field
 from datetime import datetime
+import time
 
+def _worker_run_test(test_class: Type, result_queue: multiprocessing.Queue):
+    """Worker function to run a test class in an isolated process."""
+    result_dict = {
+        "test_class": test_class.__name__,
+        "passed": True,
+        "start_time": datetime.now().isoformat(),
+        "method_results": [],
+        "duration_seconds": 0.0,
+        "error_message": None,
+        "end_time": None
+    }
+    
+    start_time = time.time()
+    
+    try:
+        # Instantiate and run the test
+        test_instance = test_class()
+        
+        # Set up logging if available
+        import logging
+        if hasattr(test_instance, "set_loglevel"):
+            test_instance.set_loglevel(logging.INFO)
+        
+        # Run the test
+        passed = test_instance.run()
+        result_dict["passed"] = passed
+        
+        # Collect method results
+        if hasattr(test_instance, "get_results"):
+            # Ensure method_results are serialized safely
+            raw_results = test_instance.get_results()
+            serialized_results = []
+            for mr in raw_results:
+                if hasattr(mr, "to_dict"):
+                    serialized_results.append(mr.to_dict())
+                else:
+                    serialized_results.append(mr)
+            result_dict["method_results"] = serialized_results
+        
+    except Exception as e:
+        result_dict["passed"] = False
+        result_dict["error_message"] = str(e)
+        print(f"Error running {test_class.__name__}: {e}")
+        traceback.print_exc()
+    
+    result_dict["end_time"] = datetime.now().isoformat()
+    result_dict["duration_seconds"] = time.time() - start_time
+    
+    result_queue.put(result_dict)
 
 @dataclass
 class TestRunResult:
@@ -39,6 +91,23 @@ class TestRunResult:
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        # Convert iso strings back to datetime
+        start = data.get("start_time")
+        end = data.get("end_time")
+        if start:
+            try:
+                data["start_time"] = datetime.fromisoformat(start)
+            except ValueError:
+                data["start_time"] = None
+        if end:
+            try:
+                data["end_time"] = datetime.fromisoformat(end)
+            except ValueError:
+                data["end_time"] = None
+        return cls(**data)
 
 
 class TestExecutor:
@@ -162,7 +231,7 @@ class TestExecutor:
 
     def run_test_class(self, test_class: Type) -> TestRunResult:
         """
-        Run a single test class.
+        Run a single test class in an isolated process.
         
         Args:
             test_class: The test class to run.
@@ -170,44 +239,33 @@ class TestExecutor:
         Returns:
             TestRunResult with execution details.
         """
-        import time
+        ctx = multiprocessing.get_context("spawn")
+        queue = ctx.Queue()
         
-        result = TestRunResult(
-            test_class=test_class.__name__,
-            passed=True,
-            start_time=datetime.now(),
-        )
+        p = ctx.Process(target=_worker_run_test, args=(test_class, queue))
+        p.start()
+        p.join()
         
-        start_time = time.time()
+        if p.exitcode != 0:
+            return TestRunResult(
+                test_class=test_class.__name__,
+                passed=False,
+                error_message=f"Process crashed with exit code {p.exitcode}",
+                start_time=datetime.now(),
+                end_time=datetime.now()
+            )
         
         try:
-            # Instantiate and run the test
-            test_instance = test_class()
-            
-            # Set up logging if available
-            import logging
-            if hasattr(test_instance, "set_loglevel"):
-                test_instance.set_loglevel(logging.INFO)
-            
-            # Run the test
-            passed = test_instance.run()
-            result.passed = passed
-            
-            # Collect method results
-            if hasattr(test_instance, "get_results"):
-                result.method_results = test_instance.get_results()
-            
+            result_dict = queue.get(timeout=5)
+            return TestRunResult.from_dict(result_dict)
         except Exception as e:
-            result.passed = False
-            result.error_message = str(e)
-            import traceback
-            print(f"Error running {test_class.__name__}: {e}")
-            traceback.print_exc()
-        
-        result.end_time = datetime.now()
-        result.duration_seconds = time.time() - start_time
-        
-        return result
+            return TestRunResult(
+                test_class=test_class.__name__,
+                passed=False,
+                error_message=f"Failed to retrieve results from process: {e}",
+                start_time=datetime.now(),
+                end_time=datetime.now()
+            )
 
     def run_single_test(
         self,

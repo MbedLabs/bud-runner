@@ -18,7 +18,7 @@ from bud_runner.auth import AuthManager
 
 app = typer.Typer(
     name="bud_runner",
-    help="CLI tool for test execution and CI/CD integration with bud.embedlabs.de",
+    help="CLI tool for test execution and CI/CD integration with the Bud backend",
     add_completion=False,
 )
 
@@ -451,6 +451,7 @@ def daemon(
     """
     import signal
     import sys
+    import asyncio
 
     auth = AuthManager(username=username, backend_url=backend_url)
     if not auth.runner_account or not auth.token:
@@ -476,17 +477,12 @@ def daemon(
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    # Start heartbeat in background thread
-    manager.start_heartbeat(interval=interval)
-    
-    # Start socket listener in foreground (blocks)
     try:
-        manager.start_listener(port=port)
+        asyncio.run(manager.run_daemon(port=port, interval=interval))
     except KeyboardInterrupt:
         signal_handler(None, None)
     except Exception as e:
         typer.echo(f"✗ Daemon error: {e}", err=True)
-        manager.stop_heartbeat()
         raise typer.Exit(code=1)
 
 
