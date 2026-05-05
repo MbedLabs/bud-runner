@@ -1,5 +1,5 @@
 """
-BudAPIClient - REST client for bud.embedlabs.de API.
+BudAPIClient - REST client for Bud API.
 
 Provides methods for:
 - Creating test runs
@@ -153,7 +153,7 @@ class TestRunInfo:
 
 class BudAPIClient:
     """
-    REST client for the bud.embedlabs.de API.
+    REST client for the Bud Test Management API.
     
     Handles authentication and provides methods for all API endpoints.
     """
@@ -168,7 +168,22 @@ class BudAPIClient:
         self._auth = auth
         self._base_url = auth.backend_url.rstrip("/")
         self._api_url = f"{self._base_url}/api"
+        
         self._session = requests.Session()
+        
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        
+        retry_strategy = Retry(
+            total=5,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self._session.mount("http://", adapter)
+        self._session.mount("https://", adapter)
+
         self._session.headers["Content-Type"] = "application/json"
         
         if auth.token:

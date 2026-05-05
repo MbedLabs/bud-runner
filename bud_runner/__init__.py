@@ -3,7 +3,7 @@ bud_runner - CLI tool for test execution and CI/CD integration.
 
 A command-line interface for:
 - Running test suites
-- Registering runners with bud.embedlabs.de
+- Registering runners with the Bud backend
 - Creating test runs
 - Generating JUnit XML reports
 

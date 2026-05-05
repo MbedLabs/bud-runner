@@ -2,15 +2,14 @@
 RunnerManager - Manages runner registration and status.
 
 Handles:
-- Runner registration with bud.embedlabs.de
+- Runner registration with the backend
 - Token management
 - Socket communication for runner status
 - Heartbeat functionality
 """
 
 import socket
-import threading
-import time
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 from pathlib import Path
@@ -40,8 +39,8 @@ class RunnerManager:
         """
         self._auth = auth
         self._client = BudAPIClient(auth)
-        self._socket_server: Optional[socket.socket] = None
-        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._socket_server: Optional[asyncio.Server] = None
+        self._heartbeat_task: Optional[asyncio.Task] = None
         self._running = False
 
     def register(
@@ -85,65 +84,27 @@ class RunnerManager:
             "socket_port": socket_port,
         }
 
-    def start_listener(self, port: int = 53035) -> None:
-        """
-        Start listening for runner commands on a socket.
-        
-        Args:
-            port: Port to listen on.
-        """
-        if self._running and self._socket_server:
-            return
-        
-        self._running = True
-        self._socket_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._socket_server.bind(("0.0.0.0", port))
-        self._socket_server.listen(5)
-        
-        logger.info(f"Runner listening on port {port}")
-        
-        while self._running:
-            try:
-                self._socket_server.settimeout(1.0)
-                try:
-                    client_socket, address = self._socket_server.accept()
-                    self._handle_connection(client_socket, address)
-                except (socket.timeout, OSError):
-                    continue
-            except Exception as e:
-                if self._running:
-                    logger.error(f"Socket error: {e}")
-                break
-
-    def stop_listener(self) -> None:
-        """Stop the socket listener."""
-        self._running = False
-        if self._socket_server:
-            try:
-                self._socket_server.close()
-            except Exception:
-                pass
-            self._socket_server = None
-        logger.info("Socket listener stopped")
-
-    def _handle_connection(
-        self,
-        client_socket: socket.socket,
-        address: tuple,
-    ) -> None:
+    async def _handle_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """Handle an incoming socket connection."""
+        address = writer.get_extra_info('peername')
         try:
-            data = client_socket.recv(4096)
+            data = await asyncio.wait_for(reader.read(4096), timeout=5.0)
             if data:
                 message = data.decode("utf-8").strip()
                 logger.info(f"Received command from {address}: {message}")
                 response = self._process_command(message)
-                client_socket.sendall(response.encode("utf-8"))
+                writer.write(response.encode("utf-8"))
+                await writer.drain()
+        except asyncio.TimeoutError:
+            logger.warning(f"Connection timeout from {address}")
         except Exception as e:
             logger.error(f"Error handling connection from {address}: {e}")
         finally:
-            client_socket.close()
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
 
     def _process_command(self, command: str) -> str:
         """Process a command received via socket."""
@@ -161,35 +122,17 @@ class RunnerManager:
             return f"STARTED: {args}"
         elif cmd == "stop":
             logger.info("Stop command received")
-            self.stop_listener()
+            self._running = False
             return "STOPPING"
         else:
             return f"UNKNOWN: {cmd}"
 
-    def start_heartbeat(self, interval: int = 60) -> None:
-        """
-        Start sending periodic heartbeats to the backend.
-        
-        Args:
-            interval: Seconds between heartbeats.
-        """
-        if self._heartbeat_thread and self._heartbeat_thread.is_alive():
-            return
-        
-        self._running = True
-        self._heartbeat_thread = threading.Thread(
-            target=self._heartbeat_loop,
-            args=(interval,),
-            daemon=True,
-        )
-        self._heartbeat_thread.start()
-        logger.info(f"Heartbeat thread started (interval={interval}s)")
-
-    def _heartbeat_loop(self, interval: int) -> None:
+    async def _heartbeat_loop(self, interval: int) -> None:
         """Background heartbeat loop."""
         while self._running:
             try:
-                success = self._client.heartbeat()
+                # Use to_thread since requests is synchronous
+                success = await asyncio.to_thread(self._client.heartbeat)
                 if success:
                     logger.debug("✓ Heartbeat sent")
                 else:
@@ -197,13 +140,44 @@ class RunnerManager:
             except Exception as e:
                 logger.error(f"Heartbeat error: {e}")
             
-            time.sleep(interval)
+            await asyncio.sleep(interval)
+
+    async def run_daemon(self, port: int = 53035, interval: int = 60) -> None:
+        """Run the daemon (socket server and heartbeat) concurrently."""
+        self._running = True
+        
+        self._socket_server = await asyncio.start_server(
+            self._handle_connection, '0.0.0.0', port
+        )
+        logger.info(f"Runner listening on port {port}")
+
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(interval))
+        logger.info(f"Heartbeat task started (interval={interval}s)")
+
+        async with self._socket_server:
+            # Run until self._running becomes False
+            while self._running:
+                await asyncio.sleep(1)
+            
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+
+    def start_heartbeat(self, interval: int = 60) -> None:
+        """Deprecated: Use run_daemon instead."""
+        pass
+
+    def start_listener(self, port: int = 53035) -> None:
+        """Deprecated: Use run_daemon instead."""
+        pass
 
     def stop_heartbeat(self) -> None:
         """Stop the heartbeat loop."""
         self._running = False
-        logger.info("Heartbeat stopped")
 
+    def stop_listener(self) -> None:
+        """Stop the socket listener."""
+        self._running = False
+        
     def get_status(self) -> Dict[str, Any]:
         """
         Get current runner status.
@@ -216,8 +190,8 @@ class RunnerManager:
             "backend_url": self._auth.backend_url,
             "socket_active": self._socket_server is not None,
             "heartbeat_active": (
-                self._heartbeat_thread is not None
-                and self._heartbeat_thread.is_alive()
+                self._heartbeat_task is not None
+                and not self._heartbeat_task.done()
             ),
         }
 
