@@ -20,6 +20,7 @@ def _method_result_to_row(
     test_class: str,
     method_result: Any,
     test_run_id: Optional[int] = None,
+    class_metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Map a budtestlibrary TestMethodResult (or dict) → TestResultCreate row.
 
@@ -38,6 +39,12 @@ def _method_result_to_row(
     if assertions is not None and not isinstance(assertions, list):
         assertions = None
 
+    metadata = {}
+    if class_metadata:
+        metadata.update(class_metadata)
+    if isinstance(m.get("metadata"), dict):
+        metadata.update(m.get("metadata") or {})
+
     row: Dict[str, Any] = {
         "test_class": test_class,
         "test_method": m.get("method_name") or m.get("test_method") or "unknown",
@@ -46,7 +53,7 @@ def _method_result_to_row(
         "error_message": m.get("error_message"),
         "traceback": m.get("traceback"),
         "assertions": assertions,
-        "metadata": m.get("metadata"),
+        "metadata": metadata or None,
     }
     # TestResultCreate has test_run_id at the envelope level; include it per
     # row too so callers inspecting the payload see the association.
@@ -78,34 +85,53 @@ def _flatten_results(
             method_results = r.get("method_results")
 
         if test_class and method_results is not None:
+            class_metadata = getattr(r, "metadata", None)
+            if isinstance(r, dict):
+                class_metadata = r.get("metadata")
+            if not isinstance(class_metadata, dict):
+                class_metadata = None
+
             if method_results:
                 for mr in method_results:
-                    rows.append(_method_result_to_row(test_class, mr, test_run_id))
+                    rows.append(
+                        _method_result_to_row(
+                            test_class,
+                            mr,
+                            test_run_id,
+                            class_metadata=class_metadata,
+                        )
+                    )
             else:
                 # Class ran but produced no method-level results (e.g. setup
                 # crash). Preserve the class-level failure signal.
                 cls_err = getattr(r, "error_message", None)
                 if isinstance(r, dict):
                     cls_err = cls_err or r.get("error_message")
-                rows.append({
-                    "test_class": test_class,
-                    "test_method": "__class__",
-                    "passed": bool(
-                        getattr(r, "passed", None)
-                        if not isinstance(r, dict)
-                        else r.get("passed", False)
-                    ),
-                    "duration_seconds": float(
-                        getattr(r, "duration_seconds", 0.0)
-                        if not isinstance(r, dict)
-                        else r.get("duration_seconds", 0.0) or 0.0
-                    ),
-                    "error_message": cls_err,
-                    "traceback": None,
-                    "assertions": None,
-                    "metadata": None,
-                    **({"test_run_id": test_run_id} if test_run_id is not None else {}),
-                })
+                rows.append(
+                    {
+                        "test_class": test_class,
+                        "test_method": "__class__",
+                        "passed": bool(
+                            getattr(r, "passed", None)
+                            if not isinstance(r, dict)
+                            else r.get("passed", False)
+                        ),
+                        "duration_seconds": float(
+                            getattr(r, "duration_seconds", 0.0)
+                            if not isinstance(r, dict)
+                            else r.get("duration_seconds", 0.0) or 0.0
+                        ),
+                        "error_message": cls_err,
+                        "traceback": None,
+                        "assertions": None,
+                        "metadata": class_metadata,
+                        **(
+                            {"test_run_id": test_run_id}
+                            if test_run_id is not None
+                            else {}
+                        ),
+                    }
+                )
             continue
 
         # 2) Plain TestMethodResult (no enclosing class)
@@ -123,17 +149,19 @@ def _flatten_results(
 
         # 4) Fallback: unknown shape → still emit a placeholder row so the
         # upload does not silently drop data.
-        rows.append({
-            "test_class": "UnknownTestClass",
-            "test_method": "unknown",
-            "passed": False,
-            "duration_seconds": 0.0,
-            "error_message": f"Unrecognised result shape: {type(r).__name__}",
-            "traceback": None,
-            "assertions": None,
-            "metadata": None,
-            **({"test_run_id": test_run_id} if test_run_id is not None else {}),
-        })
+        rows.append(
+            {
+                "test_class": "UnknownTestClass",
+                "test_method": "unknown",
+                "passed": False,
+                "duration_seconds": 0.0,
+                "error_message": f"Unrecognised result shape: {type(r).__name__}",
+                "traceback": None,
+                "assertions": None,
+                "metadata": None,
+                **({"test_run_id": test_run_id} if test_run_id is not None else {}),
+            }
+        )
 
     return rows
 
@@ -141,6 +169,7 @@ def _flatten_results(
 @dataclass
 class TestRunInfo:
     """Information about a test run."""
+
     id: int
     name: str
     status: str
@@ -154,38 +183,46 @@ class TestRunInfo:
 class BudAPIClient:
     """
     REST client for the Bud Test Management API.
-    
+
     Handles authentication and provides methods for all API endpoints.
     """
 
     def __init__(self, auth: AuthManager):
         """
         Initialize the API client.
-        
+
         Args:
             auth: AuthManager instance with credentials.
         """
         self._auth = auth
         self._base_url = auth.backend_url.rstrip("/")
         self._api_url = f"{self._base_url}/api"
-        
+
         self._session = requests.Session()
-        
+
         from requests.adapters import HTTPAdapter
         from urllib3.util.retry import Retry
-        
+
         retry_strategy = Retry(
             total=5,
             backoff_factor=1,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"]
+            allowed_methods=[
+                "HEAD",
+                "GET",
+                "PUT",
+                "DELETE",
+                "OPTIONS",
+                "TRACE",
+                "POST",
+            ],
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
         self._session.headers["Content-Type"] = "application/json"
-        
+
         if auth.token:
             self._session.headers["Authorization"] = f"Bearer {auth.token}"
 
@@ -203,7 +240,7 @@ class BudAPIClient:
     ) -> Dict[str, Any]:
         """
         Create a new test run.
-        
+
         Args:
             test_case_list: Module path to the test case list.
             test_suite_name: Name for this test run.
@@ -212,7 +249,7 @@ class BudAPIClient:
             product_composition_id: ID of the product composition.
             status: Initial status (Running, Pending, etc.).
             pipeline_software_under_test: Use SW version from CI pipeline.
-        
+
         Returns:
             Dictionary with test run details including ID and URL.
         """
@@ -225,17 +262,17 @@ class BudAPIClient:
             "pipeline_software_under_test": pipeline_software_under_test,
             "runner_account": self._auth.runner_account,
         }
-        
+
         if url_test_software:
             payload["url_test_software"] = url_test_software
-        
+
         response = self._session.post(
             f"{self._api_url}/test-runs",
             json=payload,
             timeout=30,
         )
         response.raise_for_status()
-        
+
         data = response.json()
         data["url"] = f"{self._base_url}/runs/{data.get('id')}"
         return data
@@ -243,10 +280,10 @@ class BudAPIClient:
     def get_test_run(self, run_id: int) -> Dict[str, Any]:
         """
         Get test run details by ID.
-        
+
         Args:
             run_id: Test run ID.
-        
+
         Returns:
             Test run details.
         """
@@ -269,7 +306,7 @@ class BudAPIClient:
     ) -> Dict[str, Any]:
         """
         Update a test run with results or status.
-        
+
         Args:
             run_id: Test run ID.
             status: New status (Completed, Failed, etc.).
@@ -278,7 +315,7 @@ class BudAPIClient:
             passed_tests: Number of passed tests.
             failed_tests: Number of failed tests.
             product_id: Associated product ID.
-        
+
         Returns:
             Updated test run details.
         """
@@ -295,7 +332,7 @@ class BudAPIClient:
             payload["failed_tests"] = failed_tests
         if product_id is not None:
             payload["product_id"] = product_id
-        
+
         response = self._session.patch(
             f"{self._api_url}/test-runs/{run_id}",
             json=payload,
@@ -312,19 +349,19 @@ class BudAPIClient:
     ) -> List[Dict[str, Any]]:
         """
         List test runs with optional filtering.
-        
+
         Args:
             status: Filter by status.
             limit: Maximum number of results.
             offset: Offset for pagination.
-        
+
         Returns:
             List of test run summaries.
         """
         params = {"limit": limit, "offset": offset}
         if status:
             params["status"] = status
-        
+
         response = self._session.get(
             f"{self._api_url}/test-runs",
             params=params,
@@ -387,12 +424,12 @@ class BudAPIClient:
     ) -> Dict[str, Any]:
         """
         Upload an artifact (trace file, log, etc.) to the backend.
-        
+
         Args:
             file_path: Path to the file to upload.
             run_id: Optional test run ID to associate.
             test_case: Optional test case name to associate.
-        
+
         Returns:
             Upload response with artifact ID and URL.
         """
@@ -403,12 +440,14 @@ class BudAPIClient:
                 data["run_id"] = run_id
             if test_case:
                 data["test_case"] = test_case
-            
+
             # Remove Content-Type header for multipart upload
-            headers = {k: v for k, v in self._session.headers.items() if k != "Content-Type"}
+            headers = {
+                k: v for k, v in self._session.headers.items() if k != "Content-Type"
+            }
             if self._auth.token:
                 headers["Authorization"] = f"Bearer {self._auth.token}"
-            
+
             response = requests.post(
                 f"{self._api_url}/uploads",
                 files=files,
@@ -416,7 +455,7 @@ class BudAPIClient:
                 headers=headers,
                 timeout=120,
             )
-        
+
         response.raise_for_status()
         return response.json()
 
@@ -475,7 +514,7 @@ class BudAPIClient:
     def get_runner_status(self) -> Dict[str, Any]:
         """
         Get current runner status.
-        
+
         Returns:
             Runner status information.
         """
@@ -489,7 +528,7 @@ class BudAPIClient:
     def heartbeat(self) -> bool:
         """
         Send a heartbeat to indicate runner is alive.
-        
+
         Returns:
             True if heartbeat was acknowledged.
         """
@@ -508,7 +547,7 @@ class BudAPIClient:
     def health_check(self) -> bool:
         """
         Check if the backend is reachable.
-        
+
         Returns:
             True if backend is healthy.
         """
@@ -524,7 +563,7 @@ class BudAPIClient:
     def get_version(self) -> str:
         """
         Get backend version.
-        
+
         Returns:
             Version string.
         """
