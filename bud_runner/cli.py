@@ -546,7 +546,7 @@ def version():
         typer.echo(f"bud_runner version {v}")
     except Exception:
         # 3. Hardcoded fallback
-        typer.echo("bud_runner version 0.3.1")
+        typer.echo("bud_runner version 0.3.6")
 
 
 def main():

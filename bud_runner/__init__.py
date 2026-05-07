@@ -29,7 +29,7 @@ def _get_version():
                     return line.split("=")[1].strip().strip('"')
     except Exception:
         pass
-    return "0.3.5"
+    return "0.3.6"
 
 __version__ = _get_version()
 __author__ = "EmbedLabs"
