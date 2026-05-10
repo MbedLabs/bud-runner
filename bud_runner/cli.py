@@ -213,22 +213,16 @@ def run_tests(
             output.write_text(xml_content)
             typer.echo(f"✓ JUnit report written to: {output}")
         
-        # Upload results if requested. Requires a backend URL AND an auth token;
-        # fail loudly rather than silently skipping the upload.
+        # Upload results if requested. Requires a backend URL.
         if upload_results:
-            auth = AuthManager(backend_url=backend_url, token=bud_token)
+            auth = AuthManager(backend_url=backend_url, bud_token=bud_token)
             if not auth.backend_url:
                 typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
                 raise typer.Exit(code=2)
-            if not auth.token:
-                typer.echo(
-                    "⚠ Skipping result upload: no BUD_TOKEN (env) or --bud-token provided.",
-                    err=True,
-                )
-            else:
-                client = BudAPIClient(auth)
-                
-                # If we don't have a product_id yet, try to get it from the run if we have a run_id
+            
+            client = BudAPIClient(auth)
+            
+            # If we don't have a product_id yet, try to get it from the run if we have a run_id
                 final_product_id = None
                 if test_run_id:
                     try:
