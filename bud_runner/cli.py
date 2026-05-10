@@ -6,6 +6,7 @@ Provides commands for test execution, runner registration, and test case synchro
 
 import json
 import typer
+import time
 from typing import Optional, List
 from pathlib import Path
 from enum import Enum
@@ -454,6 +455,12 @@ def daemon(
         "-p",
         help="Socket listener port",
     ),
+    location: Optional[str] = typer.Option(
+        None,
+        "--location",
+        "-l",
+        help="Human-readable location of the test station",
+    ),
 ):
     """
     Start the runner daemon (heartbeat + socket listener).
@@ -479,6 +486,8 @@ def daemon(
     typer.echo(f"  Backend: {auth.backend_url}")
     typer.echo(f"  Heartbeat Interval: {interval}s")
     typer.echo(f"  Socket Port: {port}")
+    if location:
+        typer.echo(f"  Location: {location}")
 
     def signal_handler(sig, frame):
         typer.echo("\nStopping daemon...")
@@ -490,7 +499,7 @@ def daemon(
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
-        asyncio.run(manager.run_daemon(port=port, interval=interval))
+        asyncio.run(manager.run_daemon(port=port, interval=interval, location=location))
     except KeyboardInterrupt:
         signal_handler(None, None)
     except Exception as e:
