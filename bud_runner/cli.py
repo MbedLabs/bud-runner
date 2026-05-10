@@ -223,13 +223,13 @@ def run_tests(
             client = BudAPIClient(auth)
             
             # If we don't have a product_id yet, try to get it from the run if we have a run_id
-                final_product_id = None
-                if test_run_id:
-                    try:
-                        run_info = client.get_test_run(test_run_id)
-                        final_product_id = run_info.get("product_id")
-                    except Exception:
-                        pass
+            final_product_id = None
+            if test_run_id:
+                try:
+                    run_info = client.get_test_run(test_run_id)
+                    final_product_id = run_info.get("product_id")
+                except Exception:
+                    pass
 
                 ok = client.upload_results(
                     results, 
