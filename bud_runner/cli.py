@@ -197,12 +197,14 @@ def run_tests(
     
     typer.echo(f"Running tests from: {test_case_list}")
     
+    start_time = time.time()
     try:
         # Import and run tests
         results = executor.run_test_list(
             test_case_list=test_case_list,
             continue_on_error=continue_on_error,
         )
+        duration = time.time() - start_time
         
         # Generate report
         if format == OutputFormat.junit:
@@ -234,7 +236,12 @@ def run_tests(
                     except Exception:
                         pass
 
-                ok = client.upload_results(results, test_run_id=test_run_id, product_id=final_product_id)
+                ok = client.upload_results(
+                    results, 
+                    test_run_id=test_run_id, 
+                    product_id=final_product_id or auth.product_id,
+                    test_suite_name=test_case_list
+                )
                 if ok:
                     suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
                     typer.echo(f"✓ Results uploaded to backend{suffix}")
@@ -254,6 +261,7 @@ def run_tests(
                             total_tests=total_count,
                             passed_tests=passed_count,
                             failed_tests=total_count - passed_count,
+                            duration_seconds=duration,
                             product_id=final_product_id
                         )
                         typer.echo(f"✓ Test run {test_run_id} marked as {final_status} ({passed_count}/{total_count} passed)")
@@ -261,15 +269,19 @@ def run_tests(
                     typer.echo("✗ Result upload failed", err=True)
                     raise typer.Exit(code=1)
         
-        # Print summary
-        passed = sum(1 for r in results if r.passed)
-        failed = len(results) - passed
+        # Print final Test Case level summary
+        passed_tcs = sum(1 for r in results if r.passed)
+        failed_tcs = len(results) - passed_tcs
         
-        typer.echo(f"\nSummary: {passed} passed, {failed} failed")
+        typer.echo(f"\nFinal Suite Result: {passed_tcs} TC(s) passed, {failed_tcs} TC(s) failed")
         
-        if failed > 0:
+        # Exit with error if any test case failed
+        if failed_tcs > 0:
             raise typer.Exit(code=1)
-            
+
+    except typer.Exit:
+        # Re-raise Typer's clean exit exception
+        raise
     except Exception as e:
         typer.echo(f"✗ Error running tests: {e}", err=True)
         raise typer.Exit(code=1)

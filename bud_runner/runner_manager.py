@@ -128,17 +128,30 @@ class RunnerManager:
             return f"UNKNOWN: {cmd}"
 
     async def _heartbeat_loop(self, interval: int) -> None:
-        """Background heartbeat loop."""
+        """Background heartbeat loop with automatic token rotation."""
         while self._running:
             try:
                 # Use to_thread since requests is synchronous
-                success = await asyncio.to_thread(self._client.heartbeat)
-                if success:
+                result = await asyncio.to_thread(self._client.heartbeat)
+                
+                if result.get("status") == "ok":
                     logger.debug("✓ Heartbeat sent")
+                    
+                    # SYSTEM ALIGNMENT: Auto-rotate token if provided
+                    new_token = result.get("token")
+                    if new_token:
+                        logger.info("Rotating runner token automatically...")
+                        self._auth.save_identity(
+                            username=self._auth.runner_account,
+                            token=new_token,
+                            port=self._auth._socket_port
+                        )
+                        # Also sync to local properties
+                        self._auth.save_to_properties()
                 else:
-                    logger.warning("✗ Heartbeat failed")
+                    logger.warning(f"✗ Heartbeat failed: {result.get('message')}")
             except Exception as e:
-                logger.error(f"Heartbeat error: {e}")
+                logger.error(f"Heartbeat loop error: {e}")
             
             await asyncio.sleep(interval)
 

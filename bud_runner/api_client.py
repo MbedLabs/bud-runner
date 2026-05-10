@@ -9,7 +9,7 @@ Provides methods for:
 """
 
 import requests
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -44,6 +44,10 @@ def _method_result_to_row(
         metadata.update(class_metadata)
     if isinstance(m.get("metadata"), dict):
         metadata.update(m.get("metadata") or {})
+
+    summary_msg = m.get("summary_message")
+    if summary_msg is not None:
+        metadata["summary_message"] = summary_msg
 
     row: Dict[str, Any] = {
         "test_class": test_class,
@@ -107,6 +111,7 @@ def _flatten_results(
                 cls_err = getattr(r, "error_message", None)
                 if isinstance(r, dict):
                     cls_err = cls_err or r.get("error_message")
+
                 rows.append(
                     {
                         "test_class": test_class,
@@ -239,7 +244,7 @@ class BudAPIClient:
         pipeline_software_under_test: bool = False,
     ) -> Dict[str, Any]:
         """
-        Create a new test run.
+        Create a new test run on the backend.
 
         Args:
             test_case_list: Module path to the test case list.
@@ -302,6 +307,7 @@ class BudAPIClient:
         total_tests: Optional[int] = None,
         passed_tests: Optional[int] = None,
         failed_tests: Optional[int] = None,
+        duration_seconds: Optional[float] = None,
         product_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
@@ -314,6 +320,7 @@ class BudAPIClient:
             total_tests: Total number of tests.
             passed_tests: Number of passed tests.
             failed_tests: Number of failed tests.
+            duration_seconds: Total suite duration.
             product_id: Associated product ID.
 
         Returns:
@@ -330,6 +337,8 @@ class BudAPIClient:
             payload["passed_tests"] = passed_tests
         if failed_tests is not None:
             payload["failed_tests"] = failed_tests
+        if duration_seconds is not None:
+            payload["duration_seconds"] = duration_seconds
         if product_id is not None:
             payload["product_id"] = product_id
 
@@ -377,44 +386,53 @@ class BudAPIClient:
         results: List[Any],
         test_run_id: Optional[int] = None,
         product_id: Optional[int] = None,
+        test_suite_name: Optional[str] = None,
     ) -> bool:
         """
-        Upload test results to the backend.
+        Upload multiple test results to the backend.
 
-        Flattens nested TestRunResult → TestMethodResult structures into a flat
-        list of TestResultCreate-compatible dicts expected by
-        ``POST /api/results`` (see backend schemas.ResultsUpload).
+        This method accepts raw result objects, flattens them into a list of
+        dictionaries, and sends them to the ``POST /api/results`` (see backend
+        schemas.ResultsUpload).
 
         Args:
             results: List of TestRunResult / TestMethodResult / dicts. Nested
                 method_results are expanded; top-level class-level failures
-                are included as well so class-level errors remain visible.
-            test_run_id: Optional TestRun id to associate every row with.
-            product_id: Optional Product id to associate results with.
+                are converted into a virtual method result.
+            test_run_id: Optional ID of the test run to associate results with.
+            product_id: Optional ID of the product/project.
+            test_suite_name: Optional name of the test suite (for auto-run creation).
 
         Returns:
             True if upload was successful.
         """
         flat_rows = _flatten_results(results, test_run_id=test_run_id)
-
-        # Double-verify each row has test_run_id if provided
-        if test_run_id is not None:
-            for row in flat_rows:
-                row["test_run_id"] = test_run_id
+        if not flat_rows:
+            return True
 
         payload = {
             "results": flat_rows,
             "test_run_id": test_run_id,
+            "runner_account": self._auth.runner_account,
+            "test_suite_name": test_suite_name,
         }
         if product_id is not None:
             payload["product_id"] = product_id
 
+        headers = {}
+        if self._auth.runner_api_key:
+            headers["X-API-Key"] = self._auth.runner_api_key
+
         response = self._session.post(
             f"{self._api_url}/results",
             json=payload,
+            headers=headers,
             timeout=60,
         )
-        return response.status_code in (200, 201)
+        if response.status_code not in (200, 201):
+            print(f"\033[91m✗ Upload failed ({response.status_code}): {response.text}\033[0m")
+            return False
+        return True
 
     def upload_artifact(
         self,
@@ -426,7 +444,7 @@ class BudAPIClient:
         Upload an artifact (trace file, log, etc.) to the backend.
 
         Args:
-            file_path: Path to the file to upload.
+            file_path: Path to the local file to upload.
             run_id: Optional test run ID to associate.
             test_case: Optional test case name to associate.
 
@@ -525,12 +543,12 @@ class BudAPIClient:
         response.raise_for_status()
         return response.json()
 
-    def heartbeat(self) -> bool:
+    def heartbeat(self) -> Dict[str, Any]:
         """
         Send a heartbeat to indicate runner is alive.
 
         Returns:
-            True if heartbeat was acknowledged.
+            Dictionary with heartbeat response (status, token, etc.)
         """
         try:
             response = self._session.post(
@@ -538,9 +556,12 @@ class BudAPIClient:
                 json={"runner_account": self._auth.runner_account},
                 timeout=10,
             )
-            return response.status_code == 200
-        except requests.exceptions.RequestException:
-            return False
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            from bud_runner.api_client import logger
+            logger.error(f"Heartbeat network error: {e}")
+            return {"status": "error", "message": str(e)}
 
     # ==================== Health ====================
 

@@ -21,13 +21,14 @@ class _FakeAssertion:
 
 
 class _FakeMethodResult:
-    def __init__(self, method_name, passed, assertions, duration=0.5, err=None, tb=None):
+    def __init__(self, method_name, passed, assertions, duration=0.5, err=None, tb=None, summary_message=None):
         self.method_name = method_name
         self.passed = passed
         self.assertions = assertions
         self.duration_seconds = duration
         self.error_message = err
         self.traceback = tb
+        self.summary_message = summary_message
 
     def to_dict(self):
         return {
@@ -37,6 +38,7 @@ class _FakeMethodResult:
             "duration_seconds": self.duration_seconds,
             "error_message": self.error_message,
             "traceback": self.traceback,
+            "summary_message": self.summary_message,
         }
 
 
@@ -59,6 +61,7 @@ def test_flattens_nested_run_result_into_per_method_rows():
                 [_FakeAssertion(True, "ok"), _FakeAssertion(False, "too low")],
                 err="cell 3 out of range",
                 tb="Traceback...",
+                summary_message="Failed: cell 3 out of range",
             ),
             _FakeMethodResult("bud_check_pack", True, [_FakeAssertion(True, "ok")]),
         ],
@@ -79,6 +82,7 @@ def test_flattens_nested_run_result_into_per_method_rows():
         {"passed": True, "message": "ok"},
         {"passed": False, "message": "too low"},
     ]
+    assert failing["metadata"]["summary_message"] == "Failed: cell 3 out of range"
 
 
 def test_class_level_failure_with_no_methods_produces_placeholder_row():

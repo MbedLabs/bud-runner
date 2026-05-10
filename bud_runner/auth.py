@@ -1,7 +1,7 @@
 """
 AuthManager - Unified authentication management for bud_runner.
 
-Loads credentials from:
+Loads credentials from (in order of priority):
 1. Function arguments (highest priority)
 2. Environment variables
 3. app.properties file
@@ -10,7 +10,7 @@ Loads credentials from:
 import os
 import configparser
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import json
 
 class IdentityVault:
@@ -57,20 +57,6 @@ class IdentityVault:
 class AuthManager:
     """
     Manages authentication credentials for bud_runner.
-    
-    Credentials are loaded from (in order of priority):
-    1. Constructor arguments
-    2. Environment variables
-    3. app.properties file
-    
-    Environment variables:
-        BUD_BACKEND_URL - Backend URL
-        BUD_TOKEN - API token (user JWT) for most API calls
-        BUD_RUNNER_ACCOUNT - Runner account name
-        BUD_RUNNER_TOKEN - Runner-specific token
-        RUNNER_API_KEY - Shared secret required ONLY for runner registration
-                          (POST /api/runners/register sends it as X-API-Key).
-                          Must match the backend's RUNNER_API_KEY setting.
     """
 
     DEFAULT_BACKEND_URL = ""
@@ -85,17 +71,6 @@ class AuthManager:
         runner_api_key: Optional[str] = None,
         properties_file: Optional[str] = None,
     ):
-        """
-        Initialize authentication manager.
-        
-        Args:
-            username: Username for authentication.
-            token: API token.
-            backend_url: Backend URL.
-            runner_account: Runner account name.
-            runner_token: Runner-specific token.
-            properties_file: Path to app.properties file.
-        """
         self.vault = IdentityVault()
         self._backend_url = self.DEFAULT_BACKEND_URL
         self._token: Optional[str] = None
@@ -103,20 +78,32 @@ class AuthManager:
         self._runner_account: Optional[str] = None
         self._runner_token: Optional[str] = None
         self._runner_api_key: Optional[str] = None
+        self._product_id: Optional[int] = None
+        self._socket_port: int = 53035
 
-        # Load from properties file
+        # 1. Load from properties file
         if properties_file:
             self._load_from_properties(properties_file)
         else:
-            for path in [Path("app.properties"), Path("../app.properties")]:
-                if path.exists():
-                    self._load_from_properties(str(path))
+            # System Alignment: Search up parent directories for properties
+            prop_files = []
+            curr = Path.cwd().resolve()
+            for _ in range(5):
+                pf = curr / "app.properties"
+                if pf.exists():
+                    prop_files.append(pf)
+                if curr == curr.parent:
                     break
+                curr = curr.parent
+            
+            # Load in reverse (root first) so local files override
+            for pf in reversed(prop_files):
+                self._load_from_properties(str(pf))
 
-        # Override with environment variables
+        # 2. Override with environment variables
         self._load_from_env()
 
-        # Override with constructor arguments
+        # 3. Override with constructor arguments
         if backend_url:
             self._backend_url = backend_url
         if token:
@@ -136,8 +123,6 @@ class AuthManager:
             if identity:
                 self._runner_token = identity.get("token")
                 self._socket_port = identity.get("port", self._socket_port)
-
-                # Only override backend if not explicitly provided
                 if not backend_url and not os.environ.get("BUD_BACKEND_URL"):
                     self._backend_url = identity.get("backend", self._backend_url)
 
@@ -145,10 +130,18 @@ class AuthManager:
         """Load credentials from a .properties file."""
         try:
             with open(filepath, "r") as f:
-                content = "[DEFAULT]\n" + f.read()
+                content = f.read()
             
-            # M1: Use strict=False to allow duplicate options if they occur
-            config = configparser.ConfigParser(strict=False)
+            # configparser requires a section header
+            if "[DEFAULT]" not in content:
+                content = "[DEFAULT]\n" + content
+
+            # Disable interpolation and inline comments to support complex keys
+            config = configparser.ConfigParser(
+                strict=False, 
+                interpolation=None, 
+                inline_comment_prefixes=None
+            )
             config.read_string(content)
             props = config["DEFAULT"]
 
@@ -159,92 +152,83 @@ class AuthManager:
                 "budRunnerToken": "_runner_token",
                 "lastUser": "_username",
                 "runnerApiKey": "_runner_api_key",
+                "runnerSocketPort": "_socket_port",
+                "productId": "_product_id",
             }
 
             for prop_key, attr_name in mapping.items():
                 if prop_key in props and props[prop_key]:
-                    setattr(self, attr_name, props[prop_key])
+                    val = props[prop_key]
+                    if attr_name in ("_socket_port", "_product_id"):
+                        try:
+                            val = int(val)
+                        except ValueError:
+                            continue
+                    setattr(self, attr_name, val)
 
-        except FileNotFoundError:
-            pass
         except Exception as e:
             print(f"Warning: Error loading properties: {e}")
 
     def _load_from_env(self) -> None:
-        """Load credentials from environment variables."""
+        """Load credentials from environment variables ONLY if not already set."""
         env_mapping = {
             "BUD_BACKEND_URL": "_backend_url",
             "BUD_TOKEN": "_token",
             "BUD_USERNAME": "_username",
             "BUD_RUNNER_ACCOUNT": "_runner_account",
             "BUD_RUNNER_TOKEN": "_runner_token",
-            "RUNNER_API_KEY": "_runner_api_key",
+            "BUD_RUNNER_API_KEY": "_runner_api_key",
         }
 
         for env_key, attr_name in env_mapping.items():
             value = os.environ.get(env_key)
             if value:
-                setattr(self, attr_name, value)
+                # Priority Fix: Only use ENV if the property is still missing
+                if not getattr(self, attr_name):
+                    setattr(self, attr_name, value)
 
     @property
     def backend_url(self) -> str:
-        """Get the backend URL."""
         return self._backend_url
 
     @property
     def token(self) -> Optional[str]:
-        """Get the API token."""
         return self._token or self._runner_token
 
     @property
     def username(self) -> Optional[str]:
-        """Get the username."""
         return self._username
 
     @property
     def runner_account(self) -> Optional[str]:
-        """Get the runner account name."""
         return self._runner_account
 
     @property
     def runner_token(self) -> Optional[str]:
-        """Get the runner token."""
         return self._runner_token
 
     @property
     def runner_api_key(self) -> Optional[str]:
-        """Get the runner-registration shared secret (X-API-Key)."""
         return self._runner_api_key
 
+    @property
+    def product_id(self) -> Optional[int]:
+        """Get the associated product ID."""
+        return self._product_id
+
     def save_identity(self, username: str, token: str, port: int):
-        """Save secret identity to global machine vault."""
         self.vault.save_runner(username, token, port, self._backend_url)
         self._runner_account = username
         self._runner_token = token
         self._socket_port = port
 
-    def save_to_properties(
-        self,
-        filepath: str = "app.properties",
-        runner_token: Optional[str] = None,
-    ) -> None:
-        """
-        Save credentials to app.properties file. Overwrites existing file
-        to ensure no stale or duplicate keys (poisoning) remain.
-        
-        Args:
-            filepath: Path to the properties file.
-            runner_token: New runner token to save.
-        """
+    def save_to_properties(self, filepath: str = "app.properties", runner_token: Optional[str] = None) -> None:
         properties = {}
-        
-        # Build clean properties set from current instance state
         if self._backend_url != self.DEFAULT_BACKEND_URL:
             properties["budBackend"] = self._backend_url
         if self._runner_account:
             properties["budRunnerAccount"] = self._runner_account
         
-        # Identity
         token_to_save = runner_token or self._runner_token
         if token_to_save:
             properties["budRunnerToken"] = token_to_save
@@ -253,14 +237,14 @@ class AuthManager:
             properties["lastUser"] = self._username
         if self._runner_api_key:
             properties["runnerApiKey"] = self._runner_api_key
+        if self._socket_port:
+            properties["runnerSocketPort"] = self._socket_port
 
-        # Write clean properties file
         with open(filepath, "w") as f:
             for key, value in properties.items():
                 f.write(f"{key}={value}\n")
 
     def is_configured(self) -> bool:
-        """Check if authentication and backend URL are configured."""
         return bool((self._token or self._runner_token) and self._backend_url)
 
     def __repr__(self) -> str:
