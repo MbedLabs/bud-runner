@@ -70,10 +70,11 @@ class AuthManager:
         runner_token: Optional[str] = None,
         runner_api_key: Optional[str] = None,
         properties_file: Optional[str] = None,
+        bud_token: Optional[str] = None,
     ):
         self.vault = IdentityVault()
         self._backend_url = self.DEFAULT_BACKEND_URL
-        self._token: Optional[str] = None
+        self._token: Optional[str] = token or bud_token
         self._username: Optional[str] = None
         self._runner_account: Optional[str] = None
         self._runner_token: Optional[str] = None
