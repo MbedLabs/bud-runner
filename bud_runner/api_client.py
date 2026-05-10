@@ -484,6 +484,7 @@ class BudAPIClient:
         username: str,
         password: str,
         socket_port: int = 53035,
+        location: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Register a new runner with the backend.
@@ -499,6 +500,7 @@ class BudAPIClient:
             username: Runner account name.
             password: Password for registration.
             socket_port: Socket port for runner communication.
+            location: Human-readable location of the test station.
 
         Returns:
             Registration response with token.
@@ -522,6 +524,7 @@ class BudAPIClient:
                 "username": username,
                 "password": password,
                 "socket_port": socket_port,
+                "location": location,
             },
             headers=headers,
             timeout=30,
@@ -543,17 +546,24 @@ class BudAPIClient:
         response.raise_for_status()
         return response.json()
 
-    def heartbeat(self) -> Dict[str, Any]:
+    def heartbeat(self, location: Optional[str] = None) -> Dict[str, Any]:
         """
         Send a heartbeat to indicate runner is alive.
+
+        Args:
+            location: Optional human-readable location to update.
 
         Returns:
             Dictionary with heartbeat response (status, token, etc.)
         """
         try:
+            payload = {"runner_account": self._auth.runner_account}
+            if location:
+                payload["location"] = location
+
             response = self._session.post(
                 f"{self._api_url}/runners/heartbeat",
-                json={"runner_account": self._auth.runner_account},
+                json=payload,
                 timeout=10,
             )
             response.raise_for_status()

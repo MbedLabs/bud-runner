@@ -239,6 +239,8 @@ class AuthManager:
             properties["runnerApiKey"] = self._runner_api_key
         if self._socket_port:
             properties["runnerSocketPort"] = self._socket_port
+        if getattr(self, "_location", None):
+            properties["location"] = self._location
 
         with open(filepath, "w") as f:
             for key, value in properties.items():

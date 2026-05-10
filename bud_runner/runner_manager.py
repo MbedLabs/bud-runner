@@ -127,12 +127,12 @@ class RunnerManager:
         else:
             return f"UNKNOWN: {cmd}"
 
-    async def _heartbeat_loop(self, interval: int) -> None:
+    async def _heartbeat_loop(self, interval: int, location: Optional[str] = None) -> None:
         """Background heartbeat loop with automatic token rotation."""
         while self._running:
             try:
                 # Use to_thread since requests is synchronous
-                result = await asyncio.to_thread(self._client.heartbeat)
+                result = await asyncio.to_thread(self._client.heartbeat, location=location)
                 
                 if result.get("status") == "ok":
                     logger.debug("✓ Heartbeat sent")
@@ -155,16 +155,17 @@ class RunnerManager:
             
             await asyncio.sleep(interval)
 
-    async def run_daemon(self, port: int = 53035, interval: int = 60) -> None:
+    async def run_daemon(self, port: int = 53035, interval: int = 60, location: Optional[str] = None) -> None:
         """Run the daemon (socket server and heartbeat) concurrently."""
         self._running = True
-        
+
         self._socket_server = await asyncio.start_server(
             self._handle_connection, '0.0.0.0', port
         )
         logger.info(f"Runner listening on port {port}")
 
-        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(interval))
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(interval, location=location))
+
         logger.info(f"Heartbeat task started (interval={interval}s)")
 
         async with self._socket_server:
