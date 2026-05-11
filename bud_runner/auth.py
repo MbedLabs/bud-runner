@@ -81,6 +81,7 @@ class AuthManager:
         self._runner_api_key: Optional[str] = None
         self._product_id: Optional[int] = None
         self._socket_port: int = 53035
+        self._location: Optional[str] = None
 
         # 1. Load from properties file
         if properties_file:
@@ -155,6 +156,7 @@ class AuthManager:
                 "runnerApiKey": "_runner_api_key",
                 "runnerSocketPort": "_socket_port",
                 "productId": "_product_id",
+                "location": "_location",
             }
 
             for prop_key, attr_name in mapping.items():
@@ -211,6 +213,11 @@ class AuthManager:
     @property
     def runner_api_key(self) -> Optional[str]:
         return self._runner_api_key
+
+    @property
+    def location(self) -> Optional[str]:
+        """Get the runner location."""
+        return self._location
 
     @property
     def product_id(self) -> Optional[int]:
