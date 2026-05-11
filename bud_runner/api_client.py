@@ -558,8 +558,9 @@ class BudAPIClient:
         """
         try:
             payload = {"runner_account": self._auth.runner_account}
-            if location:
-                payload["location"] = location
+            loc = location or self._auth.location
+            if loc:
+                payload["location"] = loc
 
             response = self._session.post(
                 f"{self._api_url}/runners/heartbeat",
