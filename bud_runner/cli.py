@@ -26,6 +26,7 @@ app = typer.Typer(
 
 class OutputFormat(str, Enum):
     """Output format options."""
+
     json = "json"
     text = "text"
     junit = "junit"
@@ -95,13 +96,15 @@ def add_test_run(
 ):
     """
     Create a new test run on the Bud platform.
-    
+
     This command registers a new test run with the backend, which can then
     be executed by a runner.
     """
     auth = AuthManager(username=username, token=bud_token, backend_url=backend_url)
     if not auth.backend_url:
-        typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
+        typer.echo(
+            "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True
+        )
         raise typer.Exit(code=2)
     if not auth.token:
         typer.echo(
@@ -131,7 +134,9 @@ def add_test_run(
             # Emit ONLY JSON on stdout so CI can pipe it into `jq` safely.
             typer.echo(json.dumps(result))
         else:
-            typer.echo(f"✓ Test run created: ID={result.get('id')} ProductID={result.get('product_id')}")
+            typer.echo(
+                f"✓ Test run created: ID={result.get('id')} ProductID={result.get('product_id')}"
+            )
             typer.echo(f"  URL: {result.get('url')}")
 
     except Exception as e:
@@ -189,15 +194,15 @@ def run_tests(
 ):
     """
     Execute tests from a test case list.
-    
+
     Runs all tests in the specified test case list and generates a JUnit XML
     report for CI/CD integration.
     """
     executor = TestExecutor()
     reporter = JUnitReporter()
-    
+
     typer.echo(f"Running tests from: {test_case_list}")
-    
+
     start_time = time.time()
     try:
         # Import and run tests
@@ -206,22 +211,25 @@ def run_tests(
             continue_on_error=continue_on_error,
         )
         duration = time.time() - start_time
-        
+
         # Generate report
         if format == OutputFormat.junit:
             xml_content = reporter.generate(results)
             output.write_text(xml_content)
             typer.echo(f"✓ JUnit report written to: {output}")
-        
+
         # Upload results if requested. Requires a backend URL.
         if upload_results:
             auth = AuthManager(backend_url=backend_url, bud_token=bud_token)
             if not auth.backend_url:
-                typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
+                typer.echo(
+                    "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+                    err=True,
+                )
                 raise typer.Exit(code=2)
-            
+
             client = BudAPIClient(auth)
-            
+
             # If we don't have a product_id yet, try to get it from the run if we have a run_id
             final_product_id = None
             if test_run_id:
@@ -232,44 +240,42 @@ def run_tests(
                     pass
 
             ok = client.upload_results(
-                results, 
-                test_run_id=test_run_id, 
+                results,
+                test_run_id=test_run_id,
                 product_id=final_product_id or auth.product_id,
-                test_suite_name=test_case_list
+                test_suite_name=test_case_list,
             )
             if ok:
                 suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
                 typer.echo(f"✓ Results uploaded to backend{suffix}")
-                
-                # FINAL STATUS UPDATE: Use flattened results for accurate method counts
+
+                # Final status only: POST /api/results already rolls up total_tests /
+                # passed_tests / failed_tests by test_class on the server. Do not PATCH
+                # method-row totals here — they would overwrite the TC-class contract.
                 if test_run_id:
-                    from bud_runner.api_client import _flatten_results
-                    flat_results = _flatten_results(results)
-                    
-                    passed_count = sum(1 for r in flat_results if r.get("passed"))
-                    total_count = len(flat_results)
-                    
                     final_status = "Completed"
                     client.update_test_run(
                         run_id=test_run_id,
                         status=final_status,
-                        total_tests=total_count,
-                        passed_tests=passed_count,
-                        failed_tests=total_count - passed_count,
                         duration_seconds=duration,
-                        product_id=final_product_id
+                        product_id=final_product_id,
                     )
-                    typer.echo(f"✓ Test run {test_run_id} marked as {final_status} ({passed_count}/{total_count} passed)")
+                    passed_tcs = sum(1 for r in results if r.passed)
+                    total_tcs = len(results)
+                    typer.echo(
+                        f"✓ Test run {test_run_id} marked as {final_status} "
+                        f"({passed_tcs} out of {total_tcs} TC passed)."
+                    )
             else:
                 typer.echo("✗ Result upload failed", err=True)
                 raise typer.Exit(code=1)
-        
+
         # Print final Test Case level summary
         passed_tcs = sum(1 for r in results if r.passed)
         failed_tcs = len(results) - passed_tcs
-        
+
         typer.echo(f"\nFinal Suite Result: {passed_tcs} TC(s) passed, {failed_tcs} TC(s) failed")
-        
+
         # Exit with error if any test case failed
         if failed_tcs > 0:
             raise typer.Exit(code=1)
@@ -286,21 +292,27 @@ import subprocess
 import sys
 import os
 
+
 def _start_daemon_background(username: str, backend_url: Optional[str], interval: int, port: int):
     """Helper to spawn the daemon in the background as a detached process."""
     cmd = [
-        sys.executable, "-m", "bud_runner", 
-        "daemon", 
-        "--username", username,
-        "--interval", str(interval), 
-        "--port", str(port)
+        sys.executable,
+        "-m",
+        "bud_runner",
+        "daemon",
+        "--username",
+        username,
+        "--interval",
+        str(interval),
+        "--port",
+        str(port),
     ]
     if backend_url:
         cmd.extend(["--backend-url", backend_url])
-    
+
     # Ensure logs are persistent and namespaced
     log_file = open(f"bud_{username}.log", "a")
-    
+
     # Capture current environment and ensure PYTHONPATH includes sys.path
     env = os.environ.copy()
     # Pass the current python sys.path to the subprocess so it has access to the exact same libraries
@@ -314,7 +326,7 @@ def _start_daemon_background(username: str, backend_url: Optional[str], interval
             stderr=subprocess.STDOUT,
             start_new_session=True,
             close_fds=True,
-            env=env
+            env=env,
         )
         # Record PID for management
         with open(f"bud_{username}.pid", "w") as f:
@@ -356,7 +368,7 @@ def register(
         "--api-key",
         envvar="RUNNER_API_KEY",
         help="Shared secret sent as X-API-Key for POST /api/runners/register (matches backend RUNNER_API_KEY). "
-             "Falls back to RUNNER_API_KEY env var or app.properties 'runnerApiKey'.",
+        "Falls back to RUNNER_API_KEY env var or app.properties 'runnerApiKey'.",
     ),
     no_start: bool = typer.Option(
         False,
@@ -375,7 +387,9 @@ def register(
 
     auth = AuthManager(backend_url=backend_url, runner_api_key=api_key)
     if not auth.backend_url:
-        typer.echo("✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True)
+        typer.echo(
+            "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True
+        )
         raise typer.Exit(code=2)
     if not auth.runner_api_key:
         typer.echo(
@@ -386,20 +400,20 @@ def register(
         raise typer.Exit(code=2)
 
     manager = RunnerManager(auth)
-    
+
     typer.echo(f"Registering runner: {username}")
-    
+
     try:
         result = manager.register(
             username=username,
             password=password,
             socket_port=socket_port,
         )
-        
+
         # Save secret identity to global machine vault
         auth.save_identity(
-            username=username, 
-            token=result.get("token"), 
+            username=username,
+            token=result.get("token"),
             port=socket_port,
         )
 
@@ -407,7 +421,9 @@ def register(
 
         if not no_start:
             typer.echo(f"✓ Spawning heartbeat daemon in background for {username}...")
-            pid = _start_daemon_background(username=username, backend_url=backend_url, interval=60, port=socket_port)
+            pid = _start_daemon_background(
+                username=username, backend_url=backend_url, interval=60, port=socket_port
+            )
             if pid:
                 typer.echo(f"  Daemon started (PID: {pid}). Monitoring: bud_{username}.log")
 
@@ -417,7 +433,7 @@ def register(
         typer.echo(f"budBackend={auth.backend_url}")
         typer.echo(f"runnerSocketPort={socket_port}")
         typer.echo("-" * 40)
-        
+
     except Exception as e:
         typer.echo(f"✗ Registration failed: {e}", err=True)
         raise typer.Exit(code=1)
@@ -458,8 +474,8 @@ def daemon(
 ):
     """
     Start the runner daemon (heartbeat + socket listener).
-    
-    This process must remain running for the runner to appear 'Online' 
+
+    This process must remain running for the runner to appear 'Online'
     and receive remote commands.
     """
     import signal
@@ -475,7 +491,7 @@ def daemon(
         raise typer.Exit(code=2)
 
     manager = RunnerManager(auth)
-    
+
     typer.echo(f"Starting Bud Runner Daemon for: {auth.runner_account}")
     typer.echo(f"  Backend: {auth.backend_url}")
     typer.echo(f"  Heartbeat Interval: {interval}s")
@@ -505,6 +521,7 @@ def daemon(
 def version():
     """Show bud_runner version."""
     from bud_runner import __version__
+
     typer.echo(f"bud_runner version {__version__}")
 
 
@@ -521,12 +538,12 @@ def status(
     Show runner status and connectivity.
     """
     auth = AuthManager(backend_url=backend_url)
-    
+
     typer.echo("Runner Status:")
     typer.echo(f"  Backend URL: {auth.backend_url}")
     typer.echo(f"  Runner Account: {auth.runner_account or 'Not configured'}")
     typer.echo(f"  Token: {'Configured' if auth.token else 'Not configured'}")
-    
+
     # Check connectivity
     client = BudAPIClient(auth)
     try:
@@ -556,12 +573,13 @@ def version():
 
     # 2. Fallback to installed package metadata
     import pkg_resources
+
     try:
         v = pkg_resources.get_distribution("bud-runner").version
         typer.echo(f"bud_runner version {v}")
     except Exception:
         # 3. Hardcoded fallback
-        typer.echo("bud_runner version 0.4.2")
+        typer.echo("bud_runner version 0.4.3")
 
 
 def main():
