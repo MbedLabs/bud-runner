@@ -231,38 +231,38 @@ def run_tests(
                 except Exception:
                     pass
 
-                ok = client.upload_results(
-                    results, 
-                    test_run_id=test_run_id, 
-                    product_id=final_product_id or auth.product_id,
-                    test_suite_name=test_case_list
-                )
-                if ok:
-                    suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
-                    typer.echo(f"✓ Results uploaded to backend{suffix}")
+            ok = client.upload_results(
+                results, 
+                test_run_id=test_run_id, 
+                product_id=final_product_id or auth.product_id,
+                test_suite_name=test_case_list
+            )
+            if ok:
+                suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
+                typer.echo(f"✓ Results uploaded to backend{suffix}")
+                
+                # FINAL STATUS UPDATE: Use flattened results for accurate method counts
+                if test_run_id:
+                    from bud_runner.api_client import _flatten_results
+                    flat_results = _flatten_results(results)
                     
-                    # FINAL STATUS UPDATE: Use flattened results for accurate method counts
-                    if test_run_id:
-                        from bud_runner.api_client import _flatten_results
-                        flat_results = _flatten_results(results)
-                        
-                        passed_count = sum(1 for r in flat_results if r.get("passed"))
-                        total_count = len(flat_results)
-                        
-                        final_status = "Completed"
-                        client.update_test_run(
-                            run_id=test_run_id,
-                            status=final_status,
-                            total_tests=total_count,
-                            passed_tests=passed_count,
-                            failed_tests=total_count - passed_count,
-                            duration_seconds=duration,
-                            product_id=final_product_id
-                        )
-                        typer.echo(f"✓ Test run {test_run_id} marked as {final_status} ({passed_count}/{total_count} passed)")
-                else:
-                    typer.echo("✗ Result upload failed", err=True)
-                    raise typer.Exit(code=1)
+                    passed_count = sum(1 for r in flat_results if r.get("passed"))
+                    total_count = len(flat_results)
+                    
+                    final_status = "Completed"
+                    client.update_test_run(
+                        run_id=test_run_id,
+                        status=final_status,
+                        total_tests=total_count,
+                        passed_tests=passed_count,
+                        failed_tests=total_count - passed_count,
+                        duration_seconds=duration,
+                        product_id=final_product_id
+                    )
+                    typer.echo(f"✓ Test run {test_run_id} marked as {final_status} ({passed_count}/{total_count} passed)")
+            else:
+                typer.echo("✗ Result upload failed", err=True)
+                raise typer.Exit(code=1)
         
         # Print final Test Case level summary
         passed_tcs = sum(1 for r in results if r.passed)
