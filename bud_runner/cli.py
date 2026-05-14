@@ -410,13 +410,6 @@ def register(
             socket_port=socket_port,
         )
 
-        # Save secret identity to global machine vault
-        auth.save_identity(
-            username=username,
-            token=result.get("token"),
-            port=socket_port,
-        )
-
         typer.echo(f"✓ Registered successfully. Identity saved to ~/.bud/config.json")
 
         if not no_start:
