@@ -570,7 +570,8 @@ class BudAPIClient:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            from bud_runner.api_client import logger
+            import logging
+            logger = logging.getLogger(__name__)
             logger.error(f"Heartbeat network error: {e}")
             return {"status": "error", "message": str(e)}
 
