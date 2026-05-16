@@ -565,14 +565,14 @@ def version():
         pass
 
     # 2. Fallback to installed package metadata
-    import pkg_resources
+    from importlib.metadata import version as _pkg_version
 
     try:
-        v = pkg_resources.get_distribution("bud-runner").version
+        v = _pkg_version("bud-runner")
         typer.echo(f"bud_runner version {v}")
     except Exception:
         # 3. Hardcoded fallback
-        typer.echo("bud_runner version 0.4.5")
+        typer.echo("bud_runner version 0.4.6")
 
 
 def main():
