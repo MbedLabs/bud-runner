@@ -63,6 +63,9 @@ python -m bud_runner add-test-run \
 The backend protects registration with a shared secret (`X-API-Key`). 
 Identity and tokens are saved to a global machine vault (`~/.bud/config.json`).
 
+> **⚠️ Important: Registration Path & Reregistration**
+> Always run the `register` command from the directory where the daemon runs (typically your user's `$HOME` directory or the designated `$WORKSPACE_DIR`). Running it from a sub-directory containing its own `app.properties` can cause the daemon to read a stale token from a higher-level `app.properties` (shadowing the newly updated vault). If you are reregistering an existing runner, you must use its original password.
+
 ```bash
 export RUNNER_API_KEY="<your-backend-shared-secret>"
 export BUD_BACKEND_URL="https://<your-bud-instance-url>"
