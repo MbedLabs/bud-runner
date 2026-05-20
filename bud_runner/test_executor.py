@@ -8,14 +8,17 @@ Handles:
 """
 
 import importlib
-import sys
-import multiprocessing
-import traceback
 import inspect
-from typing import Any, List, Type, Optional, Dict
+import multiprocessing
+import sys
+import time
+import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
-import time
+from typing import Any, Dict, List, Optional, Type
+
+DEFAULT_TEST_TIMEOUT = 300  # seconds per individual test
+DEFAULT_SUITE_TIMEOUT = 1800  # seconds for the full suite (30 min)
 
 
 def _worker_run_test(test_class: Type, result_queue: multiprocessing.Queue):
@@ -130,14 +133,23 @@ class TestExecutor:
         results = executor.run_test_list("Bud_Test_Suite.HIL_TEST_CASES")
     """
 
-    def __init__(self, base_path: Optional[str] = None):
+    def __init__(
+        self,
+        base_path: Optional[str] = None,
+        test_timeout: int = DEFAULT_TEST_TIMEOUT,
+        suite_timeout: int = DEFAULT_SUITE_TIMEOUT,
+    ):
         """
         Initialize the test executor.
 
         Args:
             base_path: Base path to add to sys.path for imports.
+            test_timeout: Max seconds per individual test (default 300).
+            suite_timeout: Max seconds for the full suite (default 1800).
         """
         self._base_path = base_path
+        self._test_timeout = test_timeout
+        self._suite_timeout = suite_timeout
         if base_path and base_path not in sys.path:
             sys.path.insert(0, base_path)
 
@@ -169,9 +181,7 @@ class TestExecutor:
 
         # Get the test list
         if not hasattr(module, list_name):
-            raise AttributeError(
-                f"Module '{module_name}' has no attribute '{list_name}'"
-            )
+            raise AttributeError(f"Module '{module_name}' has no attribute '{list_name}'")
 
         test_list = getattr(module, list_name)
 
@@ -215,6 +225,7 @@ class TestExecutor:
         self,
         test_case_list: str,
         continue_on_error: bool = True,
+        should_stop: object = None,
     ) -> List[TestRunResult]:
         """
         Run all tests from a test case list.
@@ -222,14 +233,54 @@ class TestExecutor:
         Args:
             test_case_list: Module path to the test list.
             continue_on_error: Continue with next test after failure.
+            should_stop: Optional callable() -> bool checked before each test.
 
         Returns:
             List of TestRunResult for each test class.
         """
         test_classes = self.load_test_list(test_case_list)
         results = []
+        suite_deadline = time.time() + self._suite_timeout
 
         for test_class in test_classes:
+            # Allow external interrupt (e.g. SIGINT from CLI)
+            if should_stop and callable(should_stop) and should_stop():
+                results.append(
+                    TestRunResult(
+                        test_class="__suite_interrupted__",
+                        passed=False,
+                        error_message=f"Suite interrupted by signal; "
+                        f"{len(test_classes) - len(results)} test(s) skipped",
+                        start_time=datetime.now(),
+                        end_time=datetime.now(),
+                    )
+                )
+                break
+
+            # Enforce global suite timeout
+            if time.time() >= suite_deadline:
+                results.append(
+                    TestRunResult(
+                        test_class=test_class.__name__,
+                        passed=False,
+                        error_message=f"Suite timeout ({self._suite_timeout}s) exhausted; "
+                        "remaining tests skipped",
+                        start_time=datetime.now(),
+                        end_time=datetime.now(),
+                    )
+                )
+                results.append(
+                    TestRunResult(
+                        test_class="__suite_truncated__",
+                        passed=False,
+                        error_message=f"{len(test_classes) - len(results)} test(s) skipped "
+                        "due to suite timeout",
+                        start_time=datetime.now(),
+                        end_time=datetime.now(),
+                    )
+                )
+                break
+
             result = self.run_test_class(test_class)
             results.append(result)
 
@@ -253,25 +304,46 @@ class TestExecutor:
 
         p = ctx.Process(target=_worker_run_test, args=(test_class, queue))
         p.start()
-        p.join()
 
-        if p.exitcode != 0:
+        # Read from the queue BEFORE joining to avoid deadlock.
+        # If test results are large, the child process blocks trying to push
+        # data into a full queue while the parent waits on p.join().
+        result_dict = None
+        error_msg = None
+        try:
+            result_dict = queue.get(timeout=self._test_timeout)
+        except Exception as e:
+            error_msg = f"Failed to retrieve results: {e}"
+
+        # Wait briefly for clean exit, then escalate
+        p.join(timeout=5)
+        if p.is_alive():
+            p.terminate()
+            p.join(timeout=5)
+            if p.is_alive():
+                p.kill()
+                p.join(timeout=5)
+                if not error_msg:
+                    error_msg = (
+                        f"Test timed out after {self._test_timeout}s " "and process was killed"
+                    )
+
+        if p.exitcode != 0 and result_dict is None:
             return TestRunResult(
                 test_class=test_class.__name__,
                 passed=False,
-                error_message=f"Process crashed with exit code {p.exitcode}",
+                error_message=error_msg or f"Process crashed with exit code {p.exitcode}",
                 start_time=datetime.now(),
                 end_time=datetime.now(),
             )
 
-        try:
-            result_dict = queue.get(timeout=5)
+        if result_dict:
             return TestRunResult.from_dict(result_dict)
-        except Exception as e:
+        else:
             return TestRunResult(
                 test_class=test_class.__name__,
                 passed=False,
-                error_message=f"Failed to retrieve results from process: {e}",
+                error_message=error_msg or "Unknown error",
                 start_time=datetime.now(),
                 end_time=datetime.now(),
             )

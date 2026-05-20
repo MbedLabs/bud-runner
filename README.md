@@ -17,6 +17,24 @@ Bud Runner uses a **split-configuration** architecture to prevent secret tokens 
 1.  **Global Identity Vault**: Secret tokens and daemon settings are stored locally on your machine in `~/.bud/config.json`.
 2.  **Project Context**: Non-sensitive project metadata (account name, backend URL) is stored in your repository's `app.properties`.
 
+### Trusted-Code Execution Model
+
+**`bud_runner` imports and executes Python test code from your local workspace.**
+This is by design — the runner relies on `importlib` to discover and run test
+classes. Because of this architecture:
+
+- **Only run trusted test code.** Do not point `bud_runner` at test modules from
+  untrusted sources. A malicious test class can execute arbitrary code on the
+  runner host (file access, network calls, shell commands).
+- **Isolation per test class.** Each test class runs in a *separate OS process*
+  spawned with `multiprocessing.get_context("spawn")`. A crash or hang in one
+  test does not corrupt state in another. Per-test timeouts (default 5 min) and
+  a global suite timeout (default 30 min) prevent unbounded execution.
+- **Runner vs. daemon trust boundary.** The CLI commands (`run-tests`,
+  `add-test-run`, `register`) are trusted tools that you invoke directly. The
+  daemon (`bud_runner daemon`) responds to socket commands and should only be
+  exposed to localhost or a trusted network layer.
+
 ## Installation
 
 To use `bud_runner` in your projects, add it as a submodule:

@@ -8,20 +8,20 @@ Creates JUnit XML format compatible with:
 - Other CI/CD systems
 """
 
-from typing import List, Any, Optional, Dict
-from xml.etree.ElementTree import Element, SubElement, tostring
-from xml.dom import minidom
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+from xml.dom import minidom
+from xml.etree.ElementTree import Element, SubElement, tostring
 
 
 class JUnitReporter:
     """
     Generates JUnit XML reports from test results.
-    
+
     Usage:
         reporter = JUnitReporter()
         xml = reporter.generate(results)
-        
+
         with open("report_junit.xml", "w") as f:
             f.write(xml)
     """
@@ -29,7 +29,7 @@ class JUnitReporter:
     def __init__(self, suite_name: str = "BudTestSuite"):
         """
         Initialize the reporter.
-        
+
         Args:
             suite_name: Name for the test suite in the report.
         """
@@ -38,11 +38,11 @@ class JUnitReporter:
     def generate(self, results: List[Any], warnings: Optional[List[str]] = None) -> str:
         """
         Generate JUnit XML from test results.
-        
+
         Args:
             results: List of TestRunResult or similar objects.
             warnings: Optional list of strings (e.g. PLM sync issues) to include.
-        
+
         Returns:
             JUnit XML string.
         """
@@ -69,10 +69,10 @@ class JUnitReporter:
     def generate_single(self, result: Any) -> str:
         """
         Generate JUnit XML for a single test class result.
-        
+
         Args:
             result: TestRunResult or similar object.
-        
+
         Returns:
             JUnit XML string.
         """
@@ -83,26 +83,26 @@ class JUnitReporter:
     def _create_testsuite(self, result: Any) -> Element:
         """Create a testsuite element from a test result."""
         testsuite = Element("testsuite")
-        
+
         # Get test class name
         if hasattr(result, "test_class"):
             name = result.test_class
         else:
             name = str(result.get("test_class", "UnknownTest"))
-        
+
         testsuite.set("name", name)
-        
+
         # Get method results
         method_results = []
         if hasattr(result, "method_results"):
             method_results = result.method_results
         elif isinstance(result, dict):
             method_results = result.get("method_results", [])
-        
+
         testsuite.set("tests", str(len(method_results)))
         testsuite.set("failures", str(sum(1 for r in method_results if not self._is_passed(r))))
         testsuite.set("errors", "0")
-        
+
         # Duration
         duration = 0.0
         if hasattr(result, "duration_seconds"):
@@ -110,14 +110,14 @@ class JUnitReporter:
         elif isinstance(result, dict):
             duration = result.get("duration_seconds", 0.0)
         testsuite.set("time", str(duration))
-        
+
         # Timestamp
         start_time = None
         if hasattr(result, "start_time"):
             start_time = result.start_time
         elif isinstance(result, dict):
             start_time = result.get("start_time")
-        
+
         if start_time:
             if isinstance(start_time, str):
                 testsuite.set("timestamp", start_time)
@@ -136,13 +136,13 @@ class JUnitReporter:
                 error_msg = result.error_message
             elif isinstance(result, dict):
                 error_msg = result.get("error_message")
-            
+
             if error_msg:
                 testcase = SubElement(testsuite, "testcase")
                 testcase.set("name", "setup")
                 testcase.set("classname", name)
                 testcase.set("time", "0")
-                
+
                 error = SubElement(testcase, "error")
                 error.set("message", error_msg)
                 error.text = error_msg
@@ -152,7 +152,7 @@ class JUnitReporter:
     def _create_testcase(self, method_result: Any, classname: str) -> Element:
         """Create a testcase element from a method result."""
         testcase = Element("testcase")
-        
+
         # Method name
         if hasattr(method_result, "method_name"):
             name = method_result.method_name
@@ -160,10 +160,10 @@ class JUnitReporter:
             name = method_result.get("method_name", "unknown")
         else:
             name = "unknown"
-        
+
         testcase.set("name", name)
         testcase.set("classname", classname)
-        
+
         # Duration
         duration = 0.0
         if hasattr(method_result, "duration_seconds"):
@@ -171,29 +171,29 @@ class JUnitReporter:
         elif isinstance(method_result, dict):
             duration = method_result.get("duration_seconds", 0.0)
         testcase.set("time", str(duration))
-        
+
         # Check for failure
         passed = self._is_passed(method_result)
-        
+
         if not passed:
             failure = SubElement(testcase, "failure")
-            
+
             # Get error message
             error_msg = "Test failed"
             if hasattr(method_result, "error_message") and method_result.error_message:
                 error_msg = method_result.error_message
             elif isinstance(method_result, dict):
                 error_msg = method_result.get("error_message", "Test failed")
-            
+
             failure.set("message", error_msg)
-            
+
             # Get traceback
             tb = None
             if hasattr(method_result, "traceback"):
                 tb = method_result.traceback
             elif isinstance(method_result, dict):
                 tb = method_result.get("traceback")
-            
+
             if tb:
                 failure.text = tb
             else:
@@ -230,11 +230,11 @@ class JUnitReporter:
                 method_results = result.method_results
             elif isinstance(result, dict):
                 method_results = result.get("method_results", [])
-            
+
             for mr in method_results:
                 if not self._is_passed(mr):
                     failures += 1
-        
+
         return failures
 
     def _total_time(self, results: List[Any]) -> float:

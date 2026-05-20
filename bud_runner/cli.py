@@ -5,17 +5,21 @@ Provides commands for test execution, runner registration, and test case synchro
 """
 
 import json
-import typer
+import os
+import subprocess
+import sys
 import time
-from typing import Optional, List
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
+from typing import List, Optional
+
+import typer
 
 from bud_runner.api_client import BudAPIClient
+from bud_runner.auth import AuthManager
+from bud_runner.junit_reporter import JUnitReporter
 from bud_runner.runner_manager import RunnerManager
 from bud_runner.test_executor import TestExecutor
-from bud_runner.junit_reporter import JUnitReporter
-from bud_runner.auth import AuthManager
 
 app = typer.Typer(
     name="bud_runner",
@@ -191,6 +195,16 @@ def run_tests(
         "--upload/--no-upload",
         help="Upload results to backend",
     ),
+    test_timeout: int = typer.Option(
+        300,
+        "--test-timeout",
+        help="Max seconds per individual test (default: 300)",
+    ),
+    suite_timeout: int = typer.Option(
+        1800,
+        "--suite-timeout",
+        help="Max seconds for the full suite (default: 1800)",
+    ),
 ):
     """
     Execute tests from a test case list.
@@ -198,7 +212,25 @@ def run_tests(
     Runs all tests in the specified test case list and generates a JUnit XML
     report for CI/CD integration.
     """
-    executor = TestExecutor()
+    import signal
+
+    interrupted = False
+
+    def _on_interrupt(signum, frame):
+        nonlocal interrupted
+        if interrupted:
+            typer.echo("\nForce exiting...", err=True)
+            os._exit(128 + signum)
+        interrupted = True
+        typer.echo(
+            "\nInterrupted — finishing current test and collecting results...",
+            err=True,
+        )
+
+    signal.signal(signal.SIGINT, _on_interrupt)
+    signal.signal(signal.SIGTERM, _on_interrupt)
+
+    executor = TestExecutor(test_timeout=test_timeout, suite_timeout=suite_timeout)
     reporter = JUnitReporter()
 
     typer.echo(f"Running tests from: {test_case_list}")
@@ -209,6 +241,7 @@ def run_tests(
         results = executor.run_test_list(
             test_case_list=test_case_list,
             continue_on_error=continue_on_error,
+            should_stop=lambda: interrupted,
         )
         duration = time.time() - start_time
 
@@ -286,11 +319,6 @@ def run_tests(
     except Exception as e:
         typer.echo(f"✗ Error running tests: {e}", err=True)
         raise typer.Exit(code=1)
-
-
-import subprocess
-import sys
-import os
 
 
 def _start_daemon_background(username: str, backend_url: Optional[str], interval: int, port: int):
@@ -471,9 +499,9 @@ def daemon(
     This process must remain running for the runner to appear 'Online'
     and receive remote commands.
     """
+    import asyncio
     import signal
     import sys
-    import asyncio
 
     auth = AuthManager(username=username, backend_url=backend_url)
     if not auth.runner_account or not auth.token:
@@ -508,14 +536,6 @@ def daemon(
     except Exception as e:
         typer.echo(f"✗ Daemon error: {e}", err=True)
         raise typer.Exit(code=1)
-
-
-@app.command()
-def version():
-    """Show bud_runner version."""
-    from bud_runner import __version__
-
-    typer.echo(f"bud_runner version {__version__}")
 
 
 @app.command()
