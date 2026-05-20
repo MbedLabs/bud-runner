@@ -15,7 +15,6 @@ from typer.testing import CliRunner
 
 from bud_runner.api_client import _flatten_results
 from bud_runner.cli import app
-
 from tests.test_flatten_results import _FakeAssertion, _FakeMethodResult, _FakeRunResult
 
 

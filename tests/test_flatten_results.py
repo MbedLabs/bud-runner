@@ -21,7 +21,9 @@ class _FakeAssertion:
 
 
 class _FakeMethodResult:
-    def __init__(self, method_name, passed, assertions, duration=0.5, err=None, tb=None, summary_message=None):
+    def __init__(
+        self, method_name, passed, assertions, duration=0.5, err=None, tb=None, summary_message=None
+    ):
         self.method_name = method_name
         self.passed = passed
         self.assertions = assertions

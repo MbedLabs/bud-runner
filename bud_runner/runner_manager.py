@@ -151,7 +151,9 @@ class RunnerManager:
         """Run the daemon (socket server and heartbeat) concurrently."""
         self._running = True
 
-        self._socket_server = await asyncio.start_server(self._handle_connection, "0.0.0.0", port)
+        self._socket_server = await asyncio.start_server(
+            self._handle_connection, "0.0.0.0", port
+        )  # nosec B104
         logger.info(f"Runner listening on port {port}")
 
         self._heartbeat_task = asyncio.create_task(
