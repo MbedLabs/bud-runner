@@ -9,8 +9,36 @@ on:
   workflow_dispatch: # Added to allow manual triggering without creating a new tag
 
 jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install package with dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run pytest
+        run: python -m pytest tests/ -v
+
+      - name: Run bandit security scan
+        run: |
+          pip install bandit
+          python -m bandit -r bud_runner/ -ll
+
+      - name: Run pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit
+
   build:
-    runs-on: ubuntu-latest # Temporarily use standard runner for build to avoid contabo/self-hosted issues for this test
+    needs: quality
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -26,6 +54,9 @@ jobs:
       - name: Build distributions
         run: python -m build
 
+      - name: Validate distributions (twine check)
+        run: twine check dist/*
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -35,7 +66,7 @@ jobs:
   publish:
     needs: build
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') # Allow publish on manual trigger
-    runs-on: ubuntu-latest # Temporarily use standard runner
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 

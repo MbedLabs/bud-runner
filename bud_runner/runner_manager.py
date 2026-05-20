@@ -8,14 +8,14 @@ Handles:
 - Heartbeat functionality
 """
 
-import socket
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+import socket
 from pathlib import Path
+from typing import Any, Dict, Optional
 
-from bud_runner.auth import AuthManager
 from bud_runner.api_client import BudAPIClient
+from bud_runner.auth import AuthManager
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class RunnerManager:
     """
     Manages test runner registration and communication.
-    
+
     Usage:
         auth = AuthManager()
         manager = RunnerManager(auth)
@@ -33,7 +33,7 @@ class RunnerManager:
     def __init__(self, auth: AuthManager):
         """
         Initialize the runner manager.
-        
+
         Args:
             auth: AuthManager instance for credentials.
         """
@@ -51,12 +51,12 @@ class RunnerManager:
     ) -> Dict[str, Any]:
         """
         Register this machine as a test runner.
-        
+
         Args:
             username: Runner account name.
             password: Password for registration.
             socket_port: Socket port for communication.
-        
+
         Returns:
             Registration response with token.
         """
@@ -66,17 +66,17 @@ class RunnerManager:
             password=password,
             socket_port=socket_port,
         )
-        
+
         # Save secret identity to machine vault
         self._auth.save_identity(
             username=username,
             token=result.get("token"),
             port=socket_port,
         )
-        
+
         # Save public link to project app.properties
         self._auth.save_to_properties()
-        
+
         return {
             "account": username,
             "token_saved": True,
@@ -84,9 +84,11 @@ class RunnerManager:
             "socket_port": socket_port,
         }
 
-    async def _handle_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    async def _handle_connection(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         """Handle an incoming socket connection."""
-        address = writer.get_extra_info('peername')
+        address = writer.get_extra_info("peername")
         try:
             data = await asyncio.wait_for(reader.read(4096), timeout=5.0)
             if data:
@@ -111,7 +113,7 @@ class RunnerManager:
         parts = command.split(" ", 1)
         cmd = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
-        
+
         if cmd == "status":
             return "OK: Runner is active"
         elif cmd == "ping":
@@ -133,26 +135,28 @@ class RunnerManager:
             try:
                 # Use to_thread since requests is synchronous
                 result = await asyncio.to_thread(self._client.heartbeat, location=location)
-                
+
                 if result.get("status") == "ok":
                     logger.debug("✓ Heartbeat sent")
                 else:
                     logger.warning(f"✗ Heartbeat failed: {result.get('message')}")
             except Exception as e:
                 logger.error(f"Heartbeat loop error: {e}")
-            
+
             await asyncio.sleep(interval)
 
-    async def run_daemon(self, port: int = 53035, interval: int = 60, location: Optional[str] = None) -> None:
+    async def run_daemon(
+        self, port: int = 53035, interval: int = 60, location: Optional[str] = None
+    ) -> None:
         """Run the daemon (socket server and heartbeat) concurrently."""
         self._running = True
 
-        self._socket_server = await asyncio.start_server(
-            self._handle_connection, '0.0.0.0', port
-        )
+        self._socket_server = await asyncio.start_server(self._handle_connection, "0.0.0.0", port)
         logger.info(f"Runner listening on port {port}")
 
-        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop(interval, location=location))
+        self._heartbeat_task = asyncio.create_task(
+            self._heartbeat_loop(interval, location=location)
+        )
 
         logger.info(f"Heartbeat task started (interval={interval}s)")
 
@@ -160,7 +164,7 @@ class RunnerManager:
             # Run until self._running becomes False
             while self._running:
                 await asyncio.sleep(1)
-            
+
         if self._heartbeat_task:
             self._heartbeat_task.cancel()
 
@@ -179,11 +183,11 @@ class RunnerManager:
     def stop_listener(self) -> None:
         """Stop the socket listener."""
         self._running = False
-        
+
     def get_status(self) -> Dict[str, Any]:
         """
         Get current runner status.
-        
+
         Returns:
             Status dictionary.
         """
@@ -192,8 +196,6 @@ class RunnerManager:
             "backend_url": self._auth.backend_url,
             "socket_active": self._socket_server is not None,
             "heartbeat_active": (
-                self._heartbeat_task is not None
-                and not self._heartbeat_task.done()
+                self._heartbeat_task is not None and not self._heartbeat_task.done()
             ),
         }
-

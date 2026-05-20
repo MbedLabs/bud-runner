@@ -7,15 +7,16 @@ Loads credentials from (in order of priority):
 3. app.properties file
 """
 
-import os
 import configparser
-from pathlib import Path
-from typing import Optional, Dict, Any, List
 import json
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 
 class IdentityVault:
     """Manages sensitive runner identities in the user's home directory."""
-    
+
     def __init__(self):
         self.vault_dir = Path.home() / ".bud"
         self.config_file = self.vault_dir / "config.json"
@@ -97,7 +98,7 @@ class AuthManager:
                 if curr == curr.parent:
                     break
                 curr = curr.parent
-            
+
             # Load in reverse (root first) so local files override
             for pf in reversed(prop_files):
                 self._load_from_properties(str(pf))
@@ -133,16 +134,14 @@ class AuthManager:
         try:
             with open(filepath, "r") as f:
                 content = f.read()
-            
+
             # configparser requires a section header
             if "[DEFAULT]" not in content:
                 content = "[DEFAULT]\n" + content
 
             # Disable interpolation and inline comments to support complex keys
             config = configparser.ConfigParser(
-                strict=False, 
-                interpolation=None, 
-                inline_comment_prefixes=None
+                strict=False, interpolation=None, inline_comment_prefixes=None
             )
             config.read_string(content)
             props = config["DEFAULT"]
@@ -230,17 +229,19 @@ class AuthManager:
         self._runner_token = token
         self._socket_port = port
 
-    def save_to_properties(self, filepath: str = "app.properties", runner_token: Optional[str] = None) -> None:
+    def save_to_properties(
+        self, filepath: str = "app.properties", runner_token: Optional[str] = None
+    ) -> None:
         properties = {}
         if self._backend_url != self.DEFAULT_BACKEND_URL:
             properties["budBackend"] = self._backend_url
         if self._runner_account:
             properties["budRunnerAccount"] = self._runner_account
-        
+
         token_to_save = runner_token or self._runner_token
         if token_to_save:
             properties["budRunnerToken"] = token_to_save
-            
+
         if self._username:
             properties["lastUser"] = self._username
         if self._runner_api_key:

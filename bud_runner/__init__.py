@@ -16,8 +16,10 @@ Usage:
 Copyright (c) 2026 EmbedLabs
 """
 
-from bud_runner.cli import app
 from pathlib import Path
+
+from bud_runner.cli import app
+
 
 def _get_version():
     """Reads version from pyproject.toml."""
@@ -30,6 +32,7 @@ def _get_version():
     except Exception:
         pass
     return "0.4.6"
+
 
 __version__ = _get_version()
 __author__ = "EmbedLabs"

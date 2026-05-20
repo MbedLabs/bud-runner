@@ -8,10 +8,11 @@ Provides methods for:
 - Uploading artifacts/traces
 """
 
-import requests
-from typing import Any, Dict, List, Optional, Union
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
+
+import requests
 
 from bud_runner.auth import AuthManager
 
@@ -130,11 +131,7 @@ def _flatten_results(
                         "traceback": None,
                         "assertions": None,
                         "metadata": class_metadata,
-                        **(
-                            {"test_run_id": test_run_id}
-                            if test_run_id is not None
-                            else {}
-                        ),
+                        **({"test_run_id": test_run_id} if test_run_id is not None else {}),
                     }
                 )
             continue
@@ -460,9 +457,7 @@ class BudAPIClient:
                 data["test_case"] = test_case
 
             # Remove Content-Type header for multipart upload
-            headers = {
-                k: v for k, v in self._session.headers.items() if k != "Content-Type"
-            }
+            headers = {k: v for k, v in self._session.headers.items() if k != "Content-Type"}
             if self._auth.token:
                 headers["Authorization"] = f"Bearer {self._auth.token}"
 
@@ -571,6 +566,7 @@ class BudAPIClient:
             return response.json()
         except requests.exceptions.RequestException as e:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.error(f"Heartbeat network error: {e}")
             return {"status": "error", "message": str(e)}
