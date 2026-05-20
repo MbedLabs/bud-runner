@@ -64,7 +64,7 @@ class JUnitReporter:
             testsuites.append(testsuite)
 
         xml_str = tostring(testsuites, encoding="unicode")
-        return minidom.parseString(xml_str).toprettyxml(indent="  ")
+        return minidom.parseString(xml_str).toprettyxml(indent="  ")  # nosec B318
 
     def generate_single(self, result: Any) -> str:
         """
@@ -78,7 +78,7 @@ class JUnitReporter:
         """
         testsuite = self._create_testsuite(result)
         xml_str = tostring(testsuite, encoding="unicode")
-        return minidom.parseString(xml_str).toprettyxml(indent="  ")
+        return minidom.parseString(xml_str).toprettyxml(indent="  ")  # nosec B318
 
     def _create_testsuite(self, result: Any) -> Element:
         """Create a testsuite element from a test result."""
