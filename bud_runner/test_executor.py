@@ -9,10 +9,13 @@ Handles:
 
 import importlib
 import inspect
+import logging
 import multiprocessing
 import sys
 import time
 import traceback
+
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Type
@@ -70,8 +73,7 @@ def _worker_run_test(test_class: Type, result_queue: multiprocessing.Queue):
     except Exception as e:
         result_dict["passed"] = False
         result_dict["error_message"] = str(e)
-        print(f"Error running {test_class.__name__}: {e}")
-        traceback.print_exc()
+        logger.exception("Error running %s: %s", test_class.__name__, e)
 
     result_dict["end_time"] = datetime.now().isoformat()
     result_dict["duration_seconds"] = time.time() - start_time
@@ -209,7 +211,7 @@ class TestExecutor:
         """
         parts = test_path.rsplit(".", 1)
         if len(parts) != 2:
-            print(f"Warning: Invalid test path format: {test_path}")
+            logger.warning("Invalid test path format: %s", test_path)
             return None
 
         module_name, class_name = parts
@@ -218,7 +220,7 @@ class TestExecutor:
             module = importlib.import_module(module_name)
             return getattr(module, class_name)
         except (ImportError, AttributeError) as e:
-            print(f"Warning: Cannot load test '{test_path}': {e}")
+            logger.warning("Cannot load test '%s': %s", test_path, e)
             return None
 
     def run_test_list(

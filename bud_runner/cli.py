@@ -538,6 +538,26 @@ def daemon(
         raise typer.Exit(code=1)
 
 
+def _read_runner_package_version() -> str:
+    """Resolve bud_runner package version from pyproject.toml or installed metadata."""
+    try:
+        cli_dir = Path(__file__).parent.parent
+        toml_path = cli_dir / "pyproject.toml"
+        if toml_path.exists():
+            for line in toml_path.read_text().splitlines():
+                if line.startswith("version = "):
+                    return line.split("=")[1].strip().strip('"')
+    except Exception:
+        pass
+
+    from importlib.metadata import version as _pkg_version
+
+    try:
+        return _pkg_version("bud_runner")
+    except Exception:
+        return "unknown"
+
+
 @app.command()
 def status(
     backend_url: Optional[str] = typer.Option(
@@ -553,46 +573,34 @@ def status(
     auth = AuthManager(backend_url=backend_url)
 
     typer.echo("Runner Status:")
-    typer.echo(f"  Backend URL: {auth.backend_url}")
+    typer.echo(f"  Backend URL: {auth.backend_url or '(not set)'}")
     typer.echo(f"  Runner Account: {auth.runner_account or 'Not configured'}")
     typer.echo(f"  Token: {'Configured' if auth.token else 'Not configured'}")
+    typer.echo(f"  Runner package: {_read_runner_package_version()}")
 
-    # Check connectivity
+    if not auth.backend_url:
+        typer.echo("  Backend Health: (skipped — no backend URL)")
+        return
+
     client = BudAPIClient(auth)
     try:
         if client.health_check():
-            typer.echo(f"  Backend Status: ✓ Connected")
+            typer.echo("  Backend Health: ✓ OK")
+            try:
+                backend_version = client.get_version()
+                typer.echo(f"  Backend Version: {backend_version}")
+            except Exception as e:
+                typer.echo(f"  Backend Version: ✗ Error: {e}")
         else:
-            typer.echo(f"  Backend Status: ✗ Unreachable")
+            typer.echo("  Backend Health: ✗ Unreachable")
     except Exception as e:
-        typer.echo(f"  Backend Status: ✗ Error: {e}")
+        typer.echo(f"  Backend Health: ✗ Error: {e}")
 
 
 @app.command(name="version")
 def version():
     """Show bud_runner version."""
-    # 1. Prioritize local pyproject.toml (for development/source runs)
-    try:
-        cli_dir = Path(__file__).parent.parent
-        toml_path = cli_dir / "pyproject.toml"
-        if toml_path.exists():
-            for line in toml_path.read_text().splitlines():
-                if line.startswith("version = "):
-                    v = line.split("=")[1].strip().strip('"')
-                    typer.echo(f"bud_runner version {v}")
-                    return
-    except Exception:
-        pass
-
-    # 2. Fallback to installed package metadata
-    from importlib.metadata import version as _pkg_version
-
-    try:
-        v = _pkg_version("bud-runner")
-        typer.echo(f"bud_runner version {v}")
-    except Exception:
-        # 3. Hardcoded fallback
-        typer.echo("bud_runner version 0.4.6")
+    typer.echo(f"bud_runner version {_read_runner_package_version()}")
 
 
 def main():

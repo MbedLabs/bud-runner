@@ -48,6 +48,11 @@ pip install -e ./bud_runner
 
 - `budtestlibrary` must be installed
 - Python 3.9+
+- A running Bud backend (local dev default: `http://localhost:8000`)
+
+When no `budBackend` / `BUD_BACKEND_URL` is set, `AuthManager` defaults to
+`http://localhost:8000`. Override with `--backend-url` or `export BUD_BACKEND_URL=...`
+for remote instances.
 
 ## Quick Start
 
@@ -164,14 +169,17 @@ Options:
 
 ### `status`
 
-Show runner status and connectivity.
+Show runner configuration, backend health, and versions.
 
 ```bash
 python -m bud_runner status [OPTIONS]
 
 Options:
-  -b, --backend-url TEXT       Backend URL
+  -b, --backend-url TEXT       Backend URL (default: http://localhost:8000)
 ```
+
+Reports backend URL, token presence, runner account, package version, and
+`GET /api/health` + `GET /api/version` when the backend is reachable.
 
 ### `version`
 
@@ -186,6 +194,7 @@ python -m bud_runner version
 ### Environment Variables
 
 ```bash
+# Optional for local dev — defaults to http://localhost:8000 when unset
 export BUD_BACKEND_URL="https://<your-bud-instance-url>/"
 export BUD_TOKEN="your-api-token"
 export BUD_RUNNER_ACCOUNT="my-runner"

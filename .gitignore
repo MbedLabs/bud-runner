@@ -27,3 +27,11 @@ Thumbs.db
 *.log
 *.pid
 app.properties
+report_junit.xml
+tests/conftest.py
+tests/test_auth_and_status.py
+tests/test_cli_signals.py
+tests/test_test_executor.py
+tests/fixtures/mock_tests.py
+tests/fixtures/__init__.py
+tests/*.py
