@@ -60,7 +60,7 @@ class AuthManager:
     Manages authentication credentials for bud_runner.
     """
 
-    DEFAULT_BACKEND_URL = ""
+    DEFAULT_BACKEND_URL = "http://localhost:8000"
 
     def __init__(
         self,
