@@ -6,6 +6,7 @@ Provides commands for test execution, runner registration, and test case synchro
 
 import json
 import os
+import secrets
 import subprocess
 import sys
 import time
@@ -339,7 +340,9 @@ def _start_daemon_background(username: str, backend_url: Optional[str], interval
         cmd.extend(["--backend-url", backend_url])
 
     # Ensure logs are persistent and namespaced
-    log_file = open(f"bud_{username}.log", "a")
+    daemons_dir = Path.home() / ".bud" / "daemons"
+    daemons_dir.mkdir(parents=True, exist_ok=True)
+    log_file = open(daemons_dir / f"bud_{username}.log", "a")
 
     # Capture current environment and ensure PYTHONPATH includes sys.path
     env = os.environ.copy()
@@ -357,7 +360,7 @@ def _start_daemon_background(username: str, backend_url: Optional[str], interval
             env=env,
         )
         # Record PID for management
-        with open(f"bud_{username}.pid", "w") as f:
+        with open(daemons_dir / f"bud_{username}.pid", "w") as f:
             f.write(str(process.pid))
         return process.pid
     except Exception as e:
@@ -377,7 +380,7 @@ def register(
         None,
         "--password",
         "-p",
-        help="Password for registration (prompt if not provided)",
+        help="Password for registration (auto-generated if omitted)",
         hide_input=True,
     ),
     backend_url: Optional[str] = typer.Option(
@@ -410,8 +413,9 @@ def register(
     Creates a runner account, stores credentials in your global machine vault,
     and automatically starts the heartbeat daemon in the background.
     """
+    generated_password = password is None
     if password is None:
-        password = typer.prompt("Password", hide_input=True)
+        password = secrets.token_urlsafe(18)
 
     auth = AuthManager(backend_url=backend_url, runner_api_key=api_key)
     if not auth.backend_url:
@@ -439,6 +443,9 @@ def register(
         )
 
         typer.echo(f"✓ Registered successfully. Identity saved to ~/.bud/config.json")
+        if generated_password:
+            typer.echo("Generated password for this runner account. Save it somewhere secure:")
+            typer.echo(password)
 
         if not no_start:
             typer.echo(f"✓ Spawning heartbeat daemon in background for {username}...")
@@ -446,7 +453,7 @@ def register(
                 username=username, backend_url=backend_url, interval=60, port=socket_port
             )
             if pid:
-                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: bud_{username}.log")
+                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: ~/.bud/daemons/bud_{username}.log")
 
         typer.echo("\nProject Link (copy to your repo app.properties):")
         typer.echo("-" * 40)

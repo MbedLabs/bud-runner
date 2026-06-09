@@ -22,16 +22,19 @@ Execute the registration command to create a runner account. **The heartbeat dae
 
 ```bash
 # Register runner (daemon starts automatically)
-python -m bud_runner register --username <new-runner-name> --password <secure-password>
+python -m bud_runner register --username <new-runner-name>
 
 # Register without starting the daemon
 python -m bud_runner register --username <new-runner-name> --no-start
 ```
 
+If you do not pass `--password`, `bud_runner` generates one and prints it once
+after successful registration. Save that password securely for the registrant.
+
 ## 4. Verification
 Registration will update your global identity vault (`~/.bud/config.json`) and generate namespaced process files:
-- PID: `bud_<username>.pid`
-- Log: `bud_<username>.log`
+- PID: `~/.bud/daemons/bud_<username>.pid`
+- Log: `~/.bud/daemons/bud_<username>.log`
 
 ```properties
 # Repository app.properties

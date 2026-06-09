@@ -92,9 +92,11 @@ export BUD_BACKEND_URL="https://<your-bud-instance-url>"
 
 python -m bud_runner register \
     --username "my-runner" \
-    --password "mypassword" \
     --socket-port 53035
 ```
+
+If `--password` is omitted, `bud_runner` generates one during registration and
+prints it once so the registrant can save it securely.
 
 ### Project Linking
 
@@ -156,7 +158,7 @@ python -m bud_runner register [OPTIONS]
 
 Options:
   -u, --username TEXT          Runner account (required)
-  -p, --password TEXT          Password (prompted if not provided)
+  -p, --password TEXT          Password for registration (auto-generated if omitted)
   -b, --backend-url TEXT       Backend URL
   --socket-port INT            Socket port [default: 53035]
   --api-key TEXT               Shared secret sent as X-API-Key.
@@ -268,7 +270,7 @@ python -m bud_runner register --username "runner-01" --socket-port 53035
 python -m bud_runner register --username "runner-02" --socket-port 53036
 ```
 
-Each runner will have its own independent logs and PID file in the current directory, prefixed with `bud_<username>`.
+Each runner will have its own independent PID and log files under `~/.bud/daemons/`, prefixed with `bud_<username>`.
 
 ## License
 
