@@ -11,7 +11,6 @@ import subprocess
 import sys
 import time
 from enum import Enum
-from importlib.metadata import version
 from pathlib import Path
 from typing import List, Optional
 
@@ -23,6 +22,7 @@ from bud_runner.auth import AuthManager
 from bud_runner.junit_reporter import JUnitReporter
 from bud_runner.runner_manager import RunnerManager
 from bud_runner.test_executor import TestExecutor
+from bud_runner.versioning import read_package_version
 
 app = typer.Typer(
     name="bud_runner",
@@ -592,10 +592,7 @@ def daemon(
 
 def _read_runner_package_version() -> str:
     """Resolve bud_runner package version from installed package metadata."""
-    try:
-        return version("bud-runner")
-    except Exception:
-        return "unknown"
+    return read_package_version()
 
 
 @app.command()
