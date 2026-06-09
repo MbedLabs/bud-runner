@@ -3,10 +3,10 @@
 This guide explains how to register and run a new Bud runner instance. 
 
 ## 1. Installation
-Install the required packages. If you are developing locally, editable mode is recommended:
+Install the required packages from the package index:
 ```bash
-pip install -e ./bud-test-library
-pip install -e ./bud-runner
+pip install budtestlibrary
+pip install bud_runner
 ```
 
 ## 2. Environment Configuration

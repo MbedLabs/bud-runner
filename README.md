@@ -37,11 +37,10 @@ classes. Because of this architecture:
 
 ## Installation
 
-To use `bud_runner` in your projects, add it as a submodule:
+Install `bud_runner` from the package index:
 
 ```bash
-git submodule add https://github.com/MbedLabs/bud_runner.git
-pip install -e ./bud_runner
+pip install bud_runner
 ```
 
 ## Prerequisites
@@ -241,8 +240,8 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -e ./budtestlibrary
-          pip install -e ./bud_runner
+          pip install budtestlibrary
+          pip install bud_runner
       
       - name: Run tests
         env:
