@@ -4,7 +4,8 @@ AuthManager - Unified authentication management for bud_runner.
 Loads credentials from (in order of priority):
 1. Function arguments (highest priority)
 2. Environment variables
-3. app.properties file
+3. app.properties file (non-sensitive project metadata only)
+4. ~/.bud/config.json runner identity vault (runner secrets only)
 """
 
 import configparser
@@ -61,7 +62,14 @@ class AuthManager:
     """
 
     DEFAULT_BACKEND_URL = "http://localhost:8000"
-
+    PROJECT_PROPERTY_MAPPING = {
+        "budBackend": "_backend_url",
+        "budRunnerAccount": "_runner_account",
+        "lastUser": "_username",
+        "runnerSocketPort": "_socket_port",
+        "productId": "_product_id",
+        "location": "_location",
+    }
     def __init__(
         self,
         username: Optional[str] = None,
@@ -130,7 +138,7 @@ class AuthManager:
                     self._backend_url = identity.get("backend", self._backend_url)
 
     def _load_from_properties(self, filepath: str) -> None:
-        """Load credentials from a .properties file."""
+        """Load non-sensitive project metadata from a .properties file."""
         try:
             with open(filepath, "r") as f:
                 content = f.read()
@@ -146,19 +154,7 @@ class AuthManager:
             config.read_string(content)
             props = config["DEFAULT"]
 
-            mapping = {
-                "budBackend": "_backend_url",
-                "budToken": "_token",
-                "budRunnerAccount": "_runner_account",
-                "budRunnerToken": "_runner_token",
-                "lastUser": "_username",
-                "runnerApiKey": "_runner_api_key",
-                "runnerSocketPort": "_socket_port",
-                "productId": "_product_id",
-                "location": "_location",
-            }
-
-            for prop_key, attr_name in mapping.items():
+            for prop_key, attr_name in self.PROJECT_PROPERTY_MAPPING.items():
                 if prop_key in props and props[prop_key]:
                     val = props[prop_key]
                     if attr_name in ("_socket_port", "_product_id"):
@@ -172,7 +168,7 @@ class AuthManager:
             print(f"Warning: Error loading properties: {e}")
 
     def _load_from_env(self) -> None:
-        """Load credentials from environment variables ONLY if not already set."""
+        """Load credentials from environment variables."""
         env_mapping = {
             "BUD_BACKEND_URL": "_backend_url",
             "BUD_TOKEN": "_token",
@@ -185,9 +181,7 @@ class AuthManager:
         for env_key, attr_name in env_mapping.items():
             value = os.environ.get(env_key)
             if value:
-                # Priority Fix: Only use ENV if the property is still missing
-                if not getattr(self, attr_name):
-                    setattr(self, attr_name, value)
+                setattr(self, attr_name, value)
 
     @property
     def backend_url(self) -> str:
@@ -229,27 +223,21 @@ class AuthManager:
         self._runner_token = token
         self._socket_port = port
 
-    def save_to_properties(
-        self, filepath: str = "app.properties", runner_token: Optional[str] = None
-    ) -> None:
+    def save_to_properties(self, filepath: str = "app.properties") -> None:
         properties = {}
         if self._backend_url != self.DEFAULT_BACKEND_URL:
             properties["budBackend"] = self._backend_url
         if self._runner_account:
             properties["budRunnerAccount"] = self._runner_account
 
-        token_to_save = runner_token or self._runner_token
-        if token_to_save:
-            properties["budRunnerToken"] = token_to_save
-
         if self._username:
             properties["lastUser"] = self._username
-        if self._runner_api_key:
-            properties["runnerApiKey"] = self._runner_api_key
         if self._socket_port:
             properties["runnerSocketPort"] = self._socket_port
         if getattr(self, "_location", None):
             properties["location"] = self._location
+        if getattr(self, "_product_id", None) is not None:
+            properties["productId"] = self._product_id
 
         with open(filepath, "w") as f:
             for key, value in properties.items():
