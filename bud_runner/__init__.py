@@ -19,6 +19,7 @@ from importlib.metadata import version
 
 from bud_runner.cli import app
 
+
 def _get_version():
     """Resolve package version from installed metadata."""
     try:
