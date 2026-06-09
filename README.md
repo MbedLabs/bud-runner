@@ -1,14 +1,17 @@
 # bud_runner
 
-CLI tool for test execution and CI/CD integration with the Bud platform.
+`bud_runner` is the command-line runner for Bud TMP. It executes Python-based
+test suites, emits CI-friendly reports, uploads results to Bud, and manages a
+runner machine identity for long-lived daemon use.
 
-## Overview
+## What It Does
 
-`bud_runner` provides a command-line interface for:
-- Creating and managing test runs
-- Executing test suites
-- Generating JUnit XML reports for CI/CD
-- Runner registration and management
+`bud_runner` is designed for:
+- running test case lists from CI or local automation
+- generating JUnit XML for CI systems
+- creating and updating Bud test runs
+- uploading test results to Bud TMP
+- registering and operating a persistent runner daemon
 
 ## Identity & Security
 
@@ -55,6 +58,11 @@ for remote instances.
 
 ## Quick Start
 
+The usual flow is:
+1. Install `bud_runner` and `budtestlibrary`
+2. Point the runner at a Bud backend
+3. Run tests directly, or register a daemon-backed runner identity
+
 ### Run Tests
 
 ```bash
@@ -63,7 +71,7 @@ python -m bud_runner run-tests \
     --test-case-list <Module.ClassName> \
     --output report_junit.xml
 
-# With result upload
+# With result upload to Bud TMP
 python -m bud_runner run-tests \
     --test-case-list <Module.ClassName> \
     --backend-url "https://<your-bud-instance-url>/" \
@@ -76,7 +84,7 @@ If an upload returns `401 Unauthorized` and you provided `--username` plus
 `--password`, `bud_runner` will log in again via the Bud auth API, refresh the
 cached user token in `~/.bud/config.json`, and retry the upload once.
 
-### Create Test Run
+### Create a Test Run
 
 ```bash
 python -m bud_runner add-test-run \
@@ -86,7 +94,7 @@ python -m bud_runner add-test-run \
     --ref-test-software main
 ```
 
-### Register Runner (Machine Identity)
+### Register a Runner Identity
 
 The backend protects registration with a shared secret (`X-API-Key`).
 Identity and tokens are saved to a global machine vault (`~/.bud/config.json`).
@@ -105,8 +113,8 @@ prints it once so the registrant can save it securely.
 
 ### Project Linking
 
-To link a repository to a registered runner, add the following to its
-`app.properties`. No secret tokens are stored in the repo.
+To associate a project with a registered runner, add the following to its
+`app.properties`. Keep secrets out of the repository.
 
 ```properties
 budRunnerAccount=my-runner
@@ -114,7 +122,7 @@ budBackend=https://<your-bud-instance-url>
 ```
 
 
-## Commands
+## Command Reference
 
 ### `add-test-run`
 
@@ -222,6 +230,9 @@ runner secrets and daemon port state belong in `~/.bud/config.json` or
 environment variables.
 
 ## GitHub Actions Integration
+
+Use `bud_runner` in CI when you want machine-readable JUnit output plus optional
+result upload back to Bud TMP.
 
 ```yaml
 name: Run Tests
