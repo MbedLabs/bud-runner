@@ -10,9 +10,13 @@ Loads credentials from (in order of priority):
 
 import configparser
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+
+logger = logging.getLogger(__name__)
 
 
 class IdentityVault:
@@ -186,7 +190,7 @@ class AuthManager:
                     setattr(self, attr_name, val)
 
         except Exception as e:
-            print(f"Warning: Error loading properties: {e}")
+            logger.warning("Error loading properties: %s", e)
 
     def _load_from_env(self) -> None:
         """Load credentials from environment variables."""
