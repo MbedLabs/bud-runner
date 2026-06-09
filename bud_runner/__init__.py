@@ -15,20 +15,10 @@ Usage:
 Copyright (c) 2026 EmbedLabs
 """
 
-from importlib.metadata import version
-
 from bud_runner.cli import app
+from bud_runner.versioning import read_package_version
 
-
-def _get_version():
-    """Resolve package version from installed metadata."""
-    try:
-        return version("bud-runner")
-    except Exception:
-        return "unknown"
-
-
-__version__ = _get_version()
+__version__ = read_package_version()
 __author__ = "EmbedLabs"
 __email__ = "dev@embedlabs.net"
 
