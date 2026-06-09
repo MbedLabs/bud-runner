@@ -2,8 +2,8 @@
 Entry point for running bud_runner as a module.
 
 Usage:
-    python -m bud_runner add_test_run --test-case-list MyTests.LIST
-    python -m bud_runner run_tests --test-case-list MyTests.LIST
+    python -m bud_runner add_test_run --test-case-list BudTests.SUITE_LIST
+    python -m bud_runner run_tests --test-case-list BudTests.SUITE_LIST
     python -m bud_runner register --username runner1
 """
 
