@@ -58,7 +58,7 @@ binding as a public or LAN-safe deployment mode.
 Install `bud_runner` from the package index:
 
 ```bash
-pip install bud_runner
+pip install bud-runner
 ```
 
 ## Prerequisites
@@ -283,7 +283,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install budtestlibrary
-          pip install bud_runner
+          pip install bud-runner
       
       - name: Run tests
         env:

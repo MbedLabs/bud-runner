@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bud_runner"
+name = "bud-runner"
 version = "0.4.6"
 description = "CLI tool for test execution and Bud Test Management Platform integration"
 readme = "README.md"
