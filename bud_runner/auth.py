@@ -15,7 +15,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -85,6 +84,7 @@ class AuthManager:
         "productId": "_product_id",
         "location": "_location",
     }
+
     def __init__(
         self,
         username: Optional[str] = None,

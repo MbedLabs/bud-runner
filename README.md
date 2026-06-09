@@ -38,6 +38,21 @@ classes. Because of this architecture:
   daemon (`bud_runner daemon`) responds to socket commands and should only be
   exposed to localhost or a trusted network layer.
 
+### Daemon Socket Model
+
+`bud_runner daemon` binds its control socket to `127.0.0.1` by default.
+Remote socket exposure is not a supported feature unless you deliberately
+override the bind host and add your own external protection layer.
+
+Use the explicit override only when you understand the risk:
+
+```bash
+python -m bud_runner daemon --bind-host 127.0.0.1
+```
+
+Until the socket protocol has authentication, do not treat non-loopback daemon
+binding as a public or LAN-safe deployment mode.
+
 ## Installation
 
 Install `bud_runner` from the package index:
@@ -193,6 +208,22 @@ Options:
 
 Reports backend URL, token presence, runner account, package version, and
 `GET /api/health` + `GET /api/version` when the backend is reachable.
+
+### `daemon`
+
+Start the long-lived runner daemon (heartbeat plus local control socket).
+
+```bash
+python -m bud_runner daemon [OPTIONS]
+
+Options:
+  -u, --username TEXT          Runner account loaded from ~/.bud/config.json
+  -b, --backend-url TEXT       Backend URL
+  -i, --interval INT           Heartbeat interval in seconds [default: 60]
+  -p, --port INT               Socket listener port [default: 53035]
+  --bind-host TEXT             Socket bind host [default: 127.0.0.1]
+  -l, --location TEXT          Human-readable runner location
+```
 
 ### `version`
 
