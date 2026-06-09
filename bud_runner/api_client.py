@@ -427,9 +427,26 @@ class BudAPIClient:
             timeout=60,
         )
         if response.status_code not in (200, 201):
-            print(f"\033[91m✗ Upload failed ({response.status_code}): {response.text}\033[0m")
-            return False
+            response.raise_for_status()
         return True
+
+    def login_user(self, username: str, password: str) -> str:
+        """Authenticate a Bud user and return a fresh JWT access token."""
+        response = self._session.post(
+            f"{self._api_url}/auth/login",
+            json={
+                "email": username,
+                "password": password,
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        token = data.get("access_token")
+        if not token:
+            raise RuntimeError("Auth login response did not include access_token")
+        self._session.headers["Authorization"] = f"Bearer {token}"
+        return token
 
     def upload_artifact(
         self,

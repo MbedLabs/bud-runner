@@ -40,11 +40,11 @@ Registration will update your global identity vault (`~/.bud/config.json`) and g
 # Repository app.properties
 budBackend=https://<your-bud-instance-url>
 budRunnerAccount=<new-runner-name>
-runnerSocketPort=53035
 ```
 
 Keep runner secrets out of the repository. Tokens and registration secrets must
 live in `~/.bud/config.json` or environment variables, not `app.properties`.
+The daemon port is also stored in `~/.bud/config.json`.
 
 ## 5. Management
 The runner remains active in the background. You can manage it using the `daemon` command if needed:

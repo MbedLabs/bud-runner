@@ -11,9 +11,11 @@ import subprocess
 import sys
 import time
 from enum import Enum
+from importlib.metadata import version
 from pathlib import Path
 from typing import List, Optional
 
+import requests
 import typer
 
 from bud_runner.api_client import BudAPIClient
@@ -181,6 +183,18 @@ def run_tests(
         "-b",
         help="Backend URL for result upload",
     ),
+    username: Optional[str] = typer.Option(
+        None,
+        "--username",
+        "-u",
+        help="Bud user email for token refresh during uploads",
+    ),
+    password: Optional[str] = typer.Option(
+        None,
+        "--password",
+        help="Bud user password for token refresh during uploads",
+        hide_input=True,
+    ),
     test_run_id: Optional[int] = typer.Option(
         None,
         "--test-run-id",
@@ -254,7 +268,7 @@ def run_tests(
 
         # Upload results if requested. Requires a backend URL.
         if upload_results:
-            auth = AuthManager(backend_url=backend_url, bud_token=bud_token)
+            auth = AuthManager(username=username, backend_url=backend_url, bud_token=bud_token)
             if not auth.backend_url:
                 typer.echo(
                     "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
@@ -273,12 +287,29 @@ def run_tests(
                 except Exception:
                     pass
 
-            ok = client.upload_results(
-                results,
-                test_run_id=test_run_id,
-                product_id=final_product_id or auth.product_id,
-                test_suite_name=test_case_list,
-            )
+            try:
+                ok = client.upload_results(
+                    results,
+                    test_run_id=test_run_id,
+                    product_id=final_product_id or auth.product_id,
+                    test_suite_name=test_case_list,
+                )
+            except requests.HTTPError as exc:
+                status_code = exc.response.status_code if exc.response is not None else None
+                if status_code == 401 and username and password:
+                    typer.echo("401 during upload, refreshing token with provided credentials...")
+                    fresh_token = client.login_user(username, password)
+                    auth.save_user_token(username, fresh_token)
+                    ok = client.upload_results(
+                        results,
+                        test_run_id=test_run_id,
+                        product_id=final_product_id or auth.product_id,
+                        test_suite_name=test_case_list,
+                    )
+                else:
+                    typer.echo(f"✗ Result upload failed: {exc}", err=True)
+                    raise typer.Exit(code=1)
+
             if ok:
                 suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
                 typer.echo(f"✓ Results uploaded to backend{suffix}")
@@ -493,6 +524,11 @@ def daemon(
         "-p",
         help="Socket listener port",
     ),
+    bind_host: str = typer.Option(
+        "127.0.0.1",
+        "--bind-host",
+        help="Host interface for the daemon socket listener",
+    ),
     location: Optional[str] = typer.Option(
         None,
         "--location",
@@ -524,6 +560,7 @@ def daemon(
     typer.echo(f"  Backend: {auth.backend_url}")
     typer.echo(f"  Heartbeat Interval: {interval}s")
     typer.echo(f"  Socket Port: {port}")
+    typer.echo(f"  Bind Host: {bind_host}")
     if location:
         typer.echo(f"  Location: {location}")
 
@@ -537,7 +574,14 @@ def daemon(
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
-        asyncio.run(manager.run_daemon(port=port, interval=interval, location=location))
+        asyncio.run(
+            manager.run_daemon(
+                port=port,
+                interval=interval,
+                location=location,
+                host=bind_host,
+            )
+        )
     except KeyboardInterrupt:
         signal_handler(None, None)
     except Exception as e:
@@ -546,21 +590,9 @@ def daemon(
 
 
 def _read_runner_package_version() -> str:
-    """Resolve bud_runner package version from pyproject.toml or installed metadata."""
+    """Resolve bud_runner package version from installed package metadata."""
     try:
-        cli_dir = Path(__file__).parent.parent
-        toml_path = cli_dir / "pyproject.toml"
-        if toml_path.exists():
-            for line in toml_path.read_text().splitlines():
-                if line.startswith("version = "):
-                    return line.split("=")[1].strip().strip('"')
-    except Exception:
-        pass
-
-    from importlib.metadata import version as _pkg_version
-
-    try:
-        return _pkg_version("bud_runner")
+        return version("bud-runner")
     except Exception:
         return "unknown"
 

@@ -55,6 +55,18 @@ class IdentityVault:
         }
         self.save_all(data)
 
+    def get_user(self, username: str) -> Optional[Dict[str, Any]]:
+        return self.load_all().get("_users", {}).get(username)
+
+    def save_user(self, username: str, token: str, backend: str):
+        data = self.load_all()
+        users = data.setdefault("_users", {})
+        users[username] = {
+            "token": token,
+            "backend": backend,
+        }
+        self.save_all(data)
+
 
 class AuthManager:
     """
@@ -66,7 +78,6 @@ class AuthManager:
         "budBackend": "_backend_url",
         "budRunnerAccount": "_runner_account",
         "lastUser": "_username",
-        "runnerSocketPort": "_socket_port",
         "productId": "_product_id",
         "location": "_location",
     }
@@ -121,6 +132,8 @@ class AuthManager:
             self._token = token
         if username:
             self._username = username
+            if not self._runner_account:
+                self._runner_account = username
         if runner_account:
             self._runner_account = runner_account
         if runner_token:
@@ -136,6 +149,14 @@ class AuthManager:
                 self._socket_port = identity.get("port", self._socket_port)
                 if not backend_url and not os.environ.get("BUD_BACKEND_URL"):
                     self._backend_url = identity.get("backend", self._backend_url)
+
+        # 5. Fetch cached user token from Vault (if username is known but user token is missing)
+        if self._username and not self._token:
+            user_identity = self.vault.get_user(self._username)
+            if user_identity:
+                self._token = user_identity.get("token")
+                if not backend_url and not os.environ.get("BUD_BACKEND_URL"):
+                    self._backend_url = user_identity.get("backend", self._backend_url)
 
     def _load_from_properties(self, filepath: str) -> None:
         """Load non-sensitive project metadata from a .properties file."""
@@ -223,6 +244,11 @@ class AuthManager:
         self._runner_token = token
         self._socket_port = port
 
+    def save_user_token(self, username: str, token: str) -> None:
+        self.vault.save_user(username, token, self._backend_url)
+        self._username = username
+        self._token = token
+
     def save_to_properties(self, filepath: str = "app.properties") -> None:
         properties = {}
         if self._backend_url != self.DEFAULT_BACKEND_URL:
@@ -232,8 +258,6 @@ class AuthManager:
 
         if self._username:
             properties["lastUser"] = self._username
-        if self._socket_port:
-            properties["runnerSocketPort"] = self._socket_port
         if getattr(self, "_location", None):
             properties["location"] = self._location
         if getattr(self, "_product_id", None) is not None:

@@ -68,8 +68,14 @@ python -m bud_runner run-tests \
 python -m bud_runner run-tests \
     --test-case-list <Module.ClassName> \
     --backend-url "https://<your-bud-instance-url>/" \
+    --username "ci-user@example.com" \
+    --password "<bud-password>" \
     --upload
 ```
+
+If an upload returns `401 Unauthorized` and you provided `--username` plus
+`--password`, `bud_runner` will log in again via the Bud auth API, refresh the
+cached user token in `~/.bud/config.json`, and retry the upload once.
 
 ### Create Test Run
 
@@ -106,7 +112,6 @@ To link a repository to a registered runner, add the following to its
 ```properties
 budRunnerAccount=my-runner
 budBackend=https://<your-bud-instance-url>
-runnerSocketPort=53035
 ```
 
 
@@ -144,6 +149,8 @@ Options:
   -f, --format [json|text|junit]  Output format [default: junit]
   --continue-on-error/--stop-on-error  Continue after failure [default: continue]
   -b, --backend-url TEXT       Backend URL for upload
+  -u, --username TEXT          Bud user email for token refresh during uploads
+  --password TEXT              Bud user password for token refresh during uploads
   --test-run-id INT            Associate uploaded results with this TestRun id
   --bud-token TEXT             User JWT (falls back to BUD_TOKEN env)
   --upload/--no-upload         Upload results [default: upload]
@@ -208,12 +215,12 @@ export RUNNER_API_KEY="shared-runner-registration-secret"
 ```properties
 budBackend=https://<your-bud-instance-url>/
 budRunnerAccount=my-runner
-runnerSocketPort=53035
 ```
 
 `app.properties` must contain project metadata only. Never store
 `budRunnerToken`, `runnerApiKey`, `budToken`, or passwords in the repository;
-runner secrets belong in `~/.bud/config.json` or environment variables.
+runner secrets and daemon port state belong in `~/.bud/config.json` or
+environment variables.
 
 ## GitHub Actions Integration
 

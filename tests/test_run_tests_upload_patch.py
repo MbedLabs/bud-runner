@@ -11,6 +11,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import requests
 from typer.testing import CliRunner
 
 from bud_runner.api_client import _flatten_results
@@ -142,3 +143,104 @@ def test_run_tests_post_upload_still_omits_counters_when_suite_failed(tmp_path):
     assert "total_tests" not in kwargs
     assert "passed_tests" not in kwargs
     assert "failed_tests" not in kwargs
+
+
+def test_run_tests_reauths_on_upload_401_and_retries(tmp_path):
+    results = _one_tc_three_methods_all_pass()
+    out = tmp_path / "report.xml"
+    mock_exec = MagicMock()
+    mock_exec.run_test_list.return_value = results
+    mock_rep = MagicMock()
+    mock_rep.generate.return_value = "<testsuites/>"
+
+    auth_ns = SimpleNamespace(
+        backend_url="http://localhost:8000",
+        product_id=None,
+        token=None,
+        save_user_token=MagicMock(),
+    )
+
+    unauthorized = requests.HTTPError("401 Unauthorized")
+    unauthorized.response = SimpleNamespace(status_code=401)
+
+    with patch("bud_runner.cli.TestExecutor", return_value=mock_exec):
+        with patch("bud_runner.cli.JUnitReporter", return_value=mock_rep):
+            with patch("bud_runner.cli.AuthManager", return_value=auth_ns):
+                with patch("bud_runner.cli.BudAPIClient") as MockClient:
+                    client_inst = MockClient.return_value
+                    client_inst.upload_results.side_effect = [unauthorized, True]
+                    client_inst.login_user.return_value = "fresh-token"
+                    client_inst.get_test_run.return_value = {"product_id": None}
+                    client_inst.update_test_run.return_value = {}
+
+                    runner = CliRunner()
+                    result = runner.invoke(
+                        app,
+                        [
+                            "run-tests",
+                            "-t",
+                            "dummy.suite",
+                            "--backend-url",
+                            "http://localhost:8000",
+                            "--username",
+                            "ci@example.com",
+                            "--password",
+                            "secret-pass",
+                            "--test-run-id",
+                            "42",
+                            "--format",
+                            "junit",
+                            "-o",
+                            str(out),
+                        ],
+                    )
+
+    assert result.exit_code == 0, result.output
+    client_inst.login_user.assert_called_once_with("ci@example.com", "secret-pass")
+    auth_ns.save_user_token.assert_called_once_with("ci@example.com", "fresh-token")
+    assert client_inst.upload_results.call_count == 2
+
+
+def test_run_tests_fails_loudly_when_upload_error_is_not_recoverable(tmp_path):
+    results = _one_tc_three_methods_all_pass()
+    out = tmp_path / "report.xml"
+    mock_exec = MagicMock()
+    mock_exec.run_test_list.return_value = results
+    mock_rep = MagicMock()
+    mock_rep.generate.return_value = "<testsuites/>"
+
+    auth_ns = SimpleNamespace(
+        backend_url="http://localhost:8000",
+        product_id=None,
+        token=None,
+    )
+
+    upload_error = requests.HTTPError("500 Server Error")
+    upload_error.response = SimpleNamespace(status_code=500)
+
+    with patch("bud_runner.cli.TestExecutor", return_value=mock_exec):
+        with patch("bud_runner.cli.JUnitReporter", return_value=mock_rep):
+            with patch("bud_runner.cli.AuthManager", return_value=auth_ns):
+                with patch("bud_runner.cli.BudAPIClient") as MockClient:
+                    client_inst = MockClient.return_value
+                    client_inst.upload_results.side_effect = upload_error
+                    client_inst.get_test_run.return_value = {"product_id": None}
+
+                    runner = CliRunner()
+                    result = runner.invoke(
+                        app,
+                        [
+                            "run-tests",
+                            "-t",
+                            "dummy.suite",
+                            "--backend-url",
+                            "http://localhost:8000",
+                            "--format",
+                            "junit",
+                            "-o",
+                            str(out),
+                        ],
+                    )
+
+    assert result.exit_code == 1
+    assert "Result upload failed" in result.output
