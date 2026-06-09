@@ -396,7 +396,7 @@ def register(
         "--api-key",
         envvar="RUNNER_API_KEY",
         help="Shared secret sent as X-API-Key for POST /api/runners/register (matches backend RUNNER_API_KEY). "
-        "Falls back to RUNNER_API_KEY env var or app.properties 'runnerApiKey'.",
+        "Falls back to RUNNER_API_KEY env var.",
     ),
     no_start: bool = typer.Option(
         False,
