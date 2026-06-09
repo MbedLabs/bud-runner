@@ -484,7 +484,9 @@ def register(
                 username=username, backend_url=backend_url, interval=60, port=socket_port
             )
             if pid:
-                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: ~/.bud/daemons/bud_{username}.log")
+                typer.echo(
+                    f"  Daemon started (PID: {pid}). Monitoring: ~/.bud/daemons/bud_{username}.log"
+                )
 
         typer.echo("\nProject Link (copy to your repo app.properties):")
         typer.echo("-" * 40)
