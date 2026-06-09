@@ -490,7 +490,6 @@ def register(
         typer.echo("-" * 40)
         typer.echo(f"budRunnerAccount={username}")
         typer.echo(f"budBackend={auth.backend_url}")
-        typer.echo(f"runnerSocketPort={socket_port}")
         typer.echo("-" * 40)
 
     except Exception as e:
