@@ -146,15 +146,17 @@ class RunnerManager:
             await asyncio.sleep(interval)
 
     async def run_daemon(
-        self, port: int = 53035, interval: int = 60, location: Optional[str] = None
+        self,
+        port: int = 53035,
+        interval: int = 60,
+        location: Optional[str] = None,
+        host: str = "127.0.0.1",
     ) -> None:
         """Run the daemon (socket server and heartbeat) concurrently."""
         self._running = True
 
-        self._socket_server = await asyncio.start_server(
-            self._handle_connection, "0.0.0.0", port
-        )  # nosec B104
-        logger.info(f"Runner listening on port {port}")
+        self._socket_server = await asyncio.start_server(self._handle_connection, host, port)
+        logger.info("Runner listening on %s:%s", host, port)
 
         self._heartbeat_task = asyncio.create_task(
             self._heartbeat_loop(interval, location=location)
