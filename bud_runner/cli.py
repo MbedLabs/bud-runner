@@ -198,7 +198,7 @@ def run_tests(
     test_run_id: Optional[int] = typer.Option(
         None,
         "--test-run-id",
-        help="Existing TestRun id (from 'add_test_run --output-format json') to associate uploaded results with.",
+        help="Existing TestRun id (from 'add-test-run --output-format json') to associate uploaded results with.",
     ),
     bud_token: Optional[str] = typer.Option(
         None,
