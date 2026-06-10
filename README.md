@@ -266,7 +266,7 @@ budRunnerAccount=my-runner
 runner secrets and daemon port state belong in `~/.bud/config.json` or
 environment variables.
 
-## GitHub Actions Integration
+## CI Integration
 
 Use `bud_runner` in CI when you want machine-readable JUnit output plus optional
 result upload back to Bud TMP.
@@ -334,4 +334,4 @@ This project is licensed under the **GNU Affero General Public License v3.0 (AGP
 
 Copyright (C) 2026 EmbedLabs.
 
-For commercial licensing options that do not require AGPL compliance, contact dev@embedlabs.net. Contributions are accepted under the [CLA](CLA.md) — see [CONTRIBUTING.md](CONTRIBUTING.md).
+For commercial licensing options that do not require AGPL compliance, contact dev@embedlabs.net. For support or private-source collaboration, email dev@embedlabs.net.
