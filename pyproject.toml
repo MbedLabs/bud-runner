@@ -55,8 +55,7 @@ bud-runner = "bud_runner.cli:main"
 [project.urls]
 Homepage = "https://embedlabs.de"
 Documentation = "https://embedlabs.de/docs"
-Repository = "https://github.com/MbedLabs/bud-runner"
-Issues = "https://github.com/MbedLabs/bud-runner/issues"
+Support = "https://embedlabs.de"
 
 [tool.setuptools.packages.find]
 where = ["."]
