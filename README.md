@@ -355,6 +355,10 @@ python -m bud_runner register --username "runner-02" --socket-port 53036
 
 Each runner will have its own independent PID and log files under `~/.bud/daemons/`, prefixed with `bud_<username>`.
 
+Daemon log files are newline-delimited JSON records with `timestamp`, `level`,
+`logger`, and `message` fields so they can be parsed by log shippers or basic
+CLI tooling.
+
 ## License
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See the [LICENSE](LICENSE) file for the full text.
