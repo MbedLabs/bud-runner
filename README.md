@@ -105,8 +105,10 @@ cached user token in `~/.bud/config.json`, and retry the upload once.
 python -m bud_runner add-test-run \
     --test-case-list <Module.ClassName> \
     --test-suite-name "Nightly Automated Tests" \
-    --sw-under-test https://github.com/org/repo.git \
-    --ref-sw-under-test main
+    --url-test-software https://github.com/org/repo.git \
+    --ref-test-software main \
+    --sw-under-test https://github.com/org/firmware.git \
+    --ref-sw-under-test release-2026.06
 ```
 
 ### Register a Runner Identity
@@ -149,10 +151,12 @@ python -m bud_runner add-test-run [OPTIONS]
 Options:
   -t, --test-case-list TEXT    Test case list module path (required)
   -n, --test-suite-name TEXT   Name for the test run (required)
-  --url-test-sw, --sw-under-test TEXT
-                               Software-under-test repository URL
-  --ref-test-sw, --ref-sw-under-test TEXT
-                               Software-under-test git ref [default: main]
+  --url-test-software, --url-test-sw TEXT
+                               Test software repository URL
+  --ref-test-software, --ref-test-sw TEXT
+                               Test software git ref [default: main]
+  --sw-under-test TEXT         Software-under-test repository URL
+  --ref-sw-under-test TEXT     Software-under-test git ref
   --product-composition-id INT Product ID [default: 1]
   --status TEXT                Initial status [default: Running]
   -b, --backend-url TEXT       Backend URL
@@ -176,10 +180,12 @@ Options:
   -u, --username TEXT          Bud user email for token refresh during uploads
   --password TEXT              Bud user password for token refresh during uploads
   --test-run-id INT            Associate uploaded results with this TestRun id
-  --url-test-sw, --sw-under-test TEXT
-                               Software-under-test repository URL for auto-created runs
-  --ref-test-sw, --ref-sw-under-test TEXT
-                               Software-under-test git ref for auto-created runs
+  --url-test-software, --url-test-sw TEXT
+                               Test software repository URL for auto-created runs
+  --ref-test-software, --ref-test-sw TEXT
+                               Test software git ref for auto-created runs
+  --sw-under-test TEXT         Software-under-test repository URL for auto-created runs
+  --ref-sw-under-test TEXT     Software-under-test git ref for auto-created runs
   --bud-token TEXT             User JWT (falls back to BUD_TOKEN env)
   --upload/--no-upload         Upload results [default: upload]
 ```
@@ -298,8 +304,10 @@ jobs:
         run: |
           python -m bud_runner run-tests \
             --test-case-list <Module.ClassName> \
+            --url-test-software https://github.com/my-org/my-test-repo \
+            --ref-test-software ${{ github.sha }} \
             --sw-under-test https://github.com/my-org/my-firmware-repo \
-            --ref-sw-under-test ${{ github.sha }} \
+            --ref-sw-under-test ${{ github.ref_name }} \
             --output report_junit.xml
       
       - name: Upload test results

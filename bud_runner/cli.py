@@ -39,6 +39,13 @@ class OutputFormat(str, Enum):
     junit = "junit"
 
 
+class StatusOutputFormat(str, Enum):
+    """Output format options for status-style commands."""
+
+    json = "json"
+    text = "text"
+
+
 @app.command()
 def add_test_run(
     test_case_list: str = typer.Option(
@@ -53,15 +60,25 @@ def add_test_run(
         "-n",
         help="Name for the test suite run",
     ),
-    url_sw_under_test: Optional[str] = typer.Option(
+    url_test_software: Optional[str] = typer.Option(
         None,
+        "--url-test-software",
         "--url-test-sw",
+        help="URL to the test software repository",
+    ),
+    ref_test_software: str = typer.Option(
+        "main",
+        "--ref-test-software",
+        "--ref-test-sw",
+        help="Git ref (branch/tag/commit) of the test software",
+    ),
+    url_software_under_test: Optional[str] = typer.Option(
+        None,
         "--sw-under-test",
         help="URL to the software-under-test repository",
     ),
-    ref_sw_under_test: str = typer.Option(
-        "main",
-        "--ref-test-sw",
+    ref_software_under_test: Optional[str] = typer.Option(
+        None,
         "--ref-sw-under-test",
         help="Git ref (branch/tag/commit) of the software under test",
     ),
@@ -132,8 +149,10 @@ def add_test_run(
         result = client.create_test_run(
             test_case_list=test_case_list,
             test_suite_name=test_suite_name,
-            url_test_software=url_sw_under_test,
-            ref_test_software=ref_sw_under_test,
+            url_test_software=url_test_software,
+            ref_test_software=ref_test_software,
+            url_software_under_test=url_software_under_test,
+            ref_software_under_test=ref_software_under_test,
             product_composition_id=product_composition_id,
             status=status,
             pipeline_software_under_test=pipeline_software_under_test,
@@ -202,15 +221,25 @@ def run_tests(
         "--test-run-id",
         help="Existing TestRun id (from 'add-test-run --output-format json') to associate uploaded results with.",
     ),
-    url_sw_under_test: Optional[str] = typer.Option(
+    url_test_software: Optional[str] = typer.Option(
         None,
+        "--url-test-software",
         "--url-test-sw",
+        help="URL to the test software repository (for auto-created test runs)",
+    ),
+    ref_test_software: Optional[str] = typer.Option(
+        None,
+        "--ref-test-software",
+        "--ref-test-sw",
+        help="Git ref of the test software (for auto-created test runs)",
+    ),
+    url_software_under_test: Optional[str] = typer.Option(
+        None,
         "--sw-under-test",
         help="URL to the software-under-test repository (for auto-created test runs)",
     ),
-    ref_sw_under_test: Optional[str] = typer.Option(
+    ref_software_under_test: Optional[str] = typer.Option(
         None,
-        "--ref-test-sw",
         "--ref-sw-under-test",
         help="Git ref of the software under test (for auto-created test runs)",
     ),
@@ -307,8 +336,10 @@ def run_tests(
                     test_run_id=test_run_id,
                     product_id=final_product_id or auth.product_id,
                     test_suite_name=test_case_list,
-                    url_test_software=url_sw_under_test,
-                    ref_test_software=ref_sw_under_test,
+                    url_test_software=url_test_software,
+                    ref_test_software=ref_test_software,
+                    url_software_under_test=url_software_under_test,
+                    ref_software_under_test=ref_software_under_test,
                 )
             except requests.HTTPError as exc:
                 status_code = exc.response.status_code if exc.response is not None else None
@@ -321,8 +352,10 @@ def run_tests(
                         test_run_id=test_run_id,
                         product_id=final_product_id or auth.product_id,
                         test_suite_name=test_case_list,
-                        url_test_software=url_sw_under_test,
-                        ref_test_software=ref_sw_under_test,
+                        url_test_software=url_test_software,
+                        ref_test_software=ref_test_software,
+                        url_software_under_test=url_software_under_test,
+                        ref_software_under_test=ref_software_under_test,
                     )
                 else:
                     typer.echo(f"✗ Result upload failed: {exc}", err=True)
@@ -369,6 +402,57 @@ def run_tests(
     except Exception as e:
         typer.echo(f"✗ Error running tests: {e}", err=True)
         raise typer.Exit(code=1)
+
+
+@app.command(name="list-tests")
+def list_tests(
+    test_case_list: str = typer.Option(
+        ...,
+        "--test-case-list",
+        "-t",
+        help="Test case list module path (e.g., Bud_Test_Suite.CORE_TEST_CASES)",
+    ),
+    output_format: StatusOutputFormat = typer.Option(
+        StatusOutputFormat.text,
+        "--output-format",
+        help="Output format for this command (text or json).",
+    ),
+):
+    """
+    Resolve a test case list without executing the tests.
+    """
+    executor = TestExecutor()
+
+    try:
+        test_classes = executor.load_test_list(test_case_list)
+    except Exception as e:
+        typer.echo(f"✗ Error loading tests: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    resolved = [
+        {
+            "name": test_class.__name__,
+            "module": test_class.__module__,
+            "path": f"{test_class.__module__}.{test_class.__name__}",
+        }
+        for test_class in test_classes
+    ]
+
+    if output_format == StatusOutputFormat.json:
+        typer.echo(
+            json.dumps(
+                {
+                    "test_case_list": test_case_list,
+                    "count": len(resolved),
+                    "tests": resolved,
+                }
+            )
+        )
+        return
+
+    typer.echo(f"Resolved {len(resolved)} test class(es) from {test_case_list}:")
+    for test_class in resolved:
+        typer.echo(f"  - {test_class['path']}")
 
 
 def _start_daemon_background(username: str, backend_url: Optional[str], interval: int, port: int):
@@ -622,35 +706,80 @@ def status(
         "-b",
         help="Backend URL",
     ),
+    output_format: StatusOutputFormat = typer.Option(
+        StatusOutputFormat.text,
+        "--output-format",
+        help="Output format for this command (text or json).",
+    ),
 ):
     """
     Show runner status and connectivity.
     """
     auth = AuthManager(backend_url=backend_url)
+    status_payload = {
+        "backend_url": auth.backend_url or None,
+        "runner_account": auth.runner_account,
+        "token_configured": bool(auth.token),
+        "runner_package_version": _read_runner_package_version(),
+        "socket_port": auth.socket_port if auth.runner_account else None,
+        "backend_health": "skipped",
+        "backend_version": None,
+        "daemon": {
+            "configured": bool(auth.runner_account and auth.token),
+        },
+    }
 
-    typer.echo("Runner Status:")
-    typer.echo(f"  Backend URL: {auth.backend_url or '(not set)'}")
-    typer.echo(f"  Runner Account: {auth.runner_account or 'Not configured'}")
-    typer.echo(f"  Token: {'Configured' if auth.token else 'Not configured'}")
-    typer.echo(f"  Runner package: {_read_runner_package_version()}")
+    if auth.backend_url:
+        client = BudAPIClient(auth)
+        try:
+            if client.health_check():
+                status_payload["backend_health"] = "ok"
+                try:
+                    status_payload["backend_version"] = client.get_version()
+                except Exception as e:
+                    status_payload["backend_version"] = f"error: {e}"
+                if auth.runner_account and auth.token:
+                    try:
+                        runner_status = client.get_runner_status()
+                        status_payload["daemon"]["backend_runner_status"] = runner_status
+                    except Exception as e:
+                        status_payload["daemon"]["backend_runner_status_error"] = str(e)
+            else:
+                status_payload["backend_health"] = "unreachable"
+        except Exception as e:
+            status_payload["backend_health"] = f"error: {e}"
 
-    if not auth.backend_url:
-        typer.echo("  Backend Health: (skipped — no backend URL)")
+    if output_format == StatusOutputFormat.json:
+        typer.echo(json.dumps(status_payload))
         return
 
-    client = BudAPIClient(auth)
-    try:
-        if client.health_check():
-            typer.echo("  Backend Health: ✓ OK")
-            try:
-                backend_version = client.get_version()
-                typer.echo(f"  Backend Version: {backend_version}")
-            except Exception as e:
-                typer.echo(f"  Backend Version: ✗ Error: {e}")
-        else:
-            typer.echo("  Backend Health: ✗ Unreachable")
-    except Exception as e:
-        typer.echo(f"  Backend Health: ✗ Error: {e}")
+    typer.echo("Runner Status:")
+    typer.echo(f"  Backend URL: {status_payload['backend_url'] or '(not set)'}")
+    typer.echo(f"  Runner Account: {auth.runner_account or 'Not configured'}")
+    typer.echo(f"  Token: {'Configured' if auth.token else 'Not configured'}")
+    typer.echo(f"  Runner package: {status_payload['runner_package_version']}")
+    if status_payload["socket_port"] is not None:
+        typer.echo(f"  Socket Port: {status_payload['socket_port']}")
+
+    backend_health = status_payload["backend_health"]
+    if backend_health == "skipped":
+        typer.echo("  Backend Health: (skipped — no backend URL)")
+        return
+    if backend_health == "ok":
+        typer.echo("  Backend Health: ✓ OK")
+    elif backend_health == "unreachable":
+        typer.echo("  Backend Health: ✗ Unreachable")
+    else:
+        typer.echo(f"  Backend Health: ✗ {backend_health}")
+
+    if status_payload["backend_version"] is not None:
+        typer.echo(f"  Backend Version: {status_payload['backend_version']}")
+
+    runner_status = status_payload["daemon"].get("backend_runner_status")
+    if runner_status is not None:
+        typer.echo(f"  Daemon Status: {runner_status}")
+    elif "backend_runner_status_error" in status_payload["daemon"]:
+        typer.echo(f"  Daemon Status: ✗ {status_payload['daemon']['backend_runner_status_error']}")
 
 
 @app.command(name="version")
