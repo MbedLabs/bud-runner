@@ -145,11 +145,12 @@ class AuthManager:
         if runner_api_key:
             self._runner_api_key = runner_api_key
 
-        # 4. Fetch Secret from Vault (If account is known but token is missing)
-        if self._runner_account and not self._runner_token:
+        # 4. Fetch Secret from Vault (If account is known)
+        if self._runner_account:
             identity = self.vault.get_runner(self._runner_account)
             if identity:
-                self._runner_token = identity.get("token")
+                if not self._runner_token:
+                    self._runner_token = identity.get("token")
                 self._socket_port = identity.get("port", self._socket_port)
                 if not backend_url and not os.environ.get("BUD_BACKEND_URL"):
                     self._backend_url = identity.get("backend", self._backend_url)
@@ -241,6 +242,11 @@ class AuthManager:
     def product_id(self) -> Optional[int]:
         """Get the associated product ID."""
         return self._product_id
+
+    @property
+    def socket_port(self) -> int:
+        """Get the runner socket listener port."""
+        return self._socket_port
 
     def save_identity(self, username: str, token: str, port: int):
         self.vault.save_runner(username, token, port, self._backend_url)

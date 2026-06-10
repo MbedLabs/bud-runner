@@ -105,8 +105,8 @@ cached user token in `~/.bud/config.json`, and retry the upload once.
 python -m bud_runner add-test-run \
     --test-case-list <Module.ClassName> \
     --test-suite-name "Nightly Automated Tests" \
-    --url-test-software https://github.com/org/repo.git \
-    --ref-test-software main
+    --sw-under-test https://github.com/org/repo.git \
+    --ref-sw-under-test main
 ```
 
 ### Register a Runner Identity
@@ -149,8 +149,10 @@ python -m bud_runner add-test-run [OPTIONS]
 Options:
   -t, --test-case-list TEXT    Test case list module path (required)
   -n, --test-suite-name TEXT   Name for the test run (required)
-  --url-test-software TEXT     Repository URL
-  --ref-test-software TEXT     Git ref [default: main]
+  --url-test-sw, --sw-under-test TEXT
+                               Software-under-test repository URL
+  --ref-test-sw, --ref-sw-under-test TEXT
+                               Software-under-test git ref [default: main]
   --product-composition-id INT Product ID [default: 1]
   --status TEXT                Initial status [default: Running]
   -b, --backend-url TEXT       Backend URL
@@ -174,6 +176,10 @@ Options:
   -u, --username TEXT          Bud user email for token refresh during uploads
   --password TEXT              Bud user password for token refresh during uploads
   --test-run-id INT            Associate uploaded results with this TestRun id
+  --url-test-sw, --sw-under-test TEXT
+                               Software-under-test repository URL for auto-created runs
+  --ref-test-sw, --ref-sw-under-test TEXT
+                               Software-under-test git ref for auto-created runs
   --bud-token TEXT             User JWT (falls back to BUD_TOKEN env)
   --upload/--no-upload         Upload results [default: upload]
 ```
@@ -220,7 +226,7 @@ Options:
   -u, --username TEXT          Runner account loaded from ~/.bud/config.json
   -b, --backend-url TEXT       Backend URL
   -i, --interval INT           Heartbeat interval in seconds [default: 60]
-  -p, --port INT               Socket listener port [default: 53035]
+  -p, --port INT               Socket listener port (defaults to the registered port)
   --bind-host TEXT             Socket bind host [default: 127.0.0.1]
   -l, --location TEXT          Human-readable runner location
 ```
@@ -292,6 +298,8 @@ jobs:
         run: |
           python -m bud_runner run-tests \
             --test-case-list <Module.ClassName> \
+            --sw-under-test https://github.com/my-org/my-firmware-repo \
+            --ref-sw-under-test ${{ github.sha }} \
             --output report_junit.xml
       
       - name: Upload test results

@@ -53,15 +53,17 @@ def add_test_run(
         "-n",
         help="Name for the test suite run",
     ),
-    url_test_software: Optional[str] = typer.Option(
+    url_sw_under_test: Optional[str] = typer.Option(
         None,
-        "--url-test-software",
-        help="URL to the test software repository",
+        "--url-test-sw",
+        "--sw-under-test",
+        help="URL to the software-under-test repository",
     ),
-    ref_test_software: str = typer.Option(
+    ref_sw_under_test: str = typer.Option(
         "main",
-        "--ref-test-software",
-        help="Git ref (branch/tag/commit) of test software",
+        "--ref-test-sw",
+        "--ref-sw-under-test",
+        help="Git ref (branch/tag/commit) of the software under test",
     ),
     product_composition_id: int = typer.Option(
         1,
@@ -130,8 +132,8 @@ def add_test_run(
         result = client.create_test_run(
             test_case_list=test_case_list,
             test_suite_name=test_suite_name,
-            url_test_software=url_test_software,
-            ref_test_software=ref_test_software,
+            url_test_software=url_sw_under_test,
+            ref_test_software=ref_sw_under_test,
             product_composition_id=product_composition_id,
             status=status,
             pipeline_software_under_test=pipeline_software_under_test,
@@ -199,6 +201,18 @@ def run_tests(
         None,
         "--test-run-id",
         help="Existing TestRun id (from 'add-test-run --output-format json') to associate uploaded results with.",
+    ),
+    url_sw_under_test: Optional[str] = typer.Option(
+        None,
+        "--url-test-sw",
+        "--sw-under-test",
+        help="URL to the software-under-test repository (for auto-created test runs)",
+    ),
+    ref_sw_under_test: Optional[str] = typer.Option(
+        None,
+        "--ref-test-sw",
+        "--ref-sw-under-test",
+        help="Git ref of the software under test (for auto-created test runs)",
     ),
     bud_token: Optional[str] = typer.Option(
         None,
@@ -293,6 +307,8 @@ def run_tests(
                     test_run_id=test_run_id,
                     product_id=final_product_id or auth.product_id,
                     test_suite_name=test_case_list,
+                    url_test_software=url_sw_under_test,
+                    ref_test_software=ref_sw_under_test,
                 )
             except requests.HTTPError as exc:
                 status_code = exc.response.status_code if exc.response is not None else None
@@ -305,6 +321,8 @@ def run_tests(
                         test_run_id=test_run_id,
                         product_id=final_product_id or auth.product_id,
                         test_suite_name=test_case_list,
+                        url_test_software=url_sw_under_test,
+                        ref_test_software=ref_sw_under_test,
                     )
                 else:
                     typer.echo(f"✗ Result upload failed: {exc}", err=True)
@@ -519,11 +537,11 @@ def daemon(
         "-i",
         help="Heartbeat interval in seconds",
     ),
-    port: int = typer.Option(
-        53035,
+    port: Optional[int] = typer.Option(
+        None,
         "--port",
         "-p",
-        help="Socket listener port",
+        help="Socket listener port (falls back to registered port)",
     ),
     bind_host: str = typer.Option(
         "127.0.0.1",
@@ -555,12 +573,13 @@ def daemon(
         )
         raise typer.Exit(code=2)
 
+    resolved_port = port or auth.socket_port
     manager = RunnerManager(auth)
 
     typer.echo(f"Starting Bud Runner Daemon for: {auth.runner_account}")
     typer.echo(f"  Backend: {auth.backend_url}")
     typer.echo(f"  Heartbeat Interval: {interval}s")
-    typer.echo(f"  Socket Port: {port}")
+    typer.echo(f"  Socket Port: {resolved_port}")
     typer.echo(f"  Bind Host: {bind_host}")
     if location:
         typer.echo(f"  Location: {location}")
@@ -577,7 +596,7 @@ def daemon(
     try:
         asyncio.run(
             manager.run_daemon(
-                port=port,
+                port=resolved_port,
                 interval=interval,
                 location=location,
                 host=bind_host,
