@@ -5,6 +5,7 @@ Provides commands for test execution, runner registration, and test case synchro
 """
 
 import json
+import logging
 import os
 import secrets
 import subprocess
@@ -44,6 +45,30 @@ class StatusOutputFormat(str, Enum):
 
     json = "json"
     text = "text"
+
+
+class DaemonLogFormatter(logging.Formatter):
+    """Structured formatter for daemon log files."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        return json.dumps(payload, ensure_ascii=True)
+
+
+def _configure_daemon_logging() -> None:
+    """Route daemon logs through a structured stdout handler."""
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.handlers.clear()
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(DaemonLogFormatter())
+    root_logger.addHandler(handler)
 
 
 @app.command()
@@ -681,6 +706,8 @@ def daemon(
 
     resolved_port = port or auth.socket_port
     manager = RunnerManager(auth)
+
+    _configure_daemon_logging()
 
     typer.echo(f"Starting Bud Runner Daemon for: {auth.runner_account}")
     typer.echo(f"  Backend: {auth.backend_url}")
