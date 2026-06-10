@@ -532,7 +532,7 @@ class BudAPIClient:
             if self._auth.token:
                 headers["Authorization"] = f"Bearer {self._auth.token}"
 
-            response = requests.post(
+            response = self._session.post(
                 f"{self._api_url}/uploads",
                 files=files,
                 data=data,

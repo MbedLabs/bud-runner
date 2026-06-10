@@ -30,7 +30,7 @@ from bud_runner.versioning import read_package_version
 app = typer.Typer(
     name="bud_runner",
     help="CLI tool for test execution and CI/CD integration with the Bud backend",
-    add_completion=False,
+    add_completion=True,
 )
 
 
