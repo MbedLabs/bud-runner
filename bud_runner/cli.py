@@ -539,6 +539,11 @@ def register(
         "--no-start",
         help="Do NOT start the heartbeat daemon automatically after registration",
     ),
+    re_register: bool = typer.Option(
+        False,
+        "--re-register",
+        help="Refresh an already-registered runner using its existing password",
+    ),
 ):
     """
     Register this machine as a test runner.
@@ -546,10 +551,6 @@ def register(
     Creates a runner account, stores credentials in your global machine vault,
     and automatically starts the heartbeat daemon in the background.
     """
-    generated_password = password is None
-    if password is None:
-        password = secrets.token_urlsafe(18)
-
     auth = AuthManager(backend_url=backend_url, runner_api_key=api_key)
     if not auth.backend_url:
         typer.echo(
@@ -564,9 +565,30 @@ def register(
         )
         raise typer.Exit(code=2)
 
+    existing_identity = auth.vault.get_runner(username)
+    if existing_identity and not re_register:
+        typer.echo(
+            "✗ Runner is already registered locally. Use --re-register with the "
+            "existing password to refresh the token or update socket settings.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    generated_password = False
+    if password is None:
+        if re_register:
+            typer.echo(
+                "✗ Re-registration requires the existing runner password. Pass "
+                "--password together with --re-register.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        generated_password = True
+        password = secrets.token_urlsafe(18)
+
     manager = RunnerManager(auth)
 
-    typer.echo(f"Registering runner: {username}")
+    typer.echo(f"{'Re-registering' if re_register else 'Registering'} runner: {username}")
 
     try:
         result = manager.register(

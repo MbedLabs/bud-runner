@@ -128,6 +128,9 @@ python -m bud_runner register \
 If `--password` is omitted, `bud_runner` generates one during registration and
 prints it once so the registrant can save it securely.
 
+If the runner is already registered on this machine, use `--re-register` with
+the existing password to refresh the token or update socket settings safely.
+
 ### Project Linking
 
 To associate a project with a registered runner, add the following to its
@@ -216,6 +219,7 @@ Options:
   --socket-port INT            Socket port [default: 53035]
   --api-key TEXT               Shared secret sent as X-API-Key.
                                Falls back to RUNNER_API_KEY env var.
+  --re-register                Refresh an existing local runner registration
 ```
 
 
