@@ -8,6 +8,7 @@ Provides methods for:
 - Uploading artifacts/traces
 """
 
+import copy
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -419,9 +420,37 @@ class BudAPIClient:
         Returns:
             True if upload was successful.
         """
+        payload = self.build_results_payload(
+            results=results,
+            test_run_id=test_run_id,
+            product_id=product_id,
+            test_suite_name=test_suite_name,
+            url_test_software=url_test_software,
+            ref_test_software=ref_test_software,
+            url_software_under_test=url_software_under_test,
+            ref_software_under_test=ref_software_under_test,
+        )
+        if not payload:
+            return True
+
+        self.upload_results_payload(payload)
+        return True
+
+    def build_results_payload(
+        self,
+        results: List[Any],
+        test_run_id: Optional[int] = None,
+        product_id: Optional[int] = None,
+        test_suite_name: Optional[str] = None,
+        url_test_software: Optional[str] = None,
+        ref_test_software: Optional[str] = None,
+        url_software_under_test: Optional[str] = None,
+        ref_software_under_test: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Build a serializable upload payload for result submission or spooling."""
         flat_rows = _flatten_results(results, test_run_id=test_run_id)
         if not flat_rows:
-            return True
+            return None
 
         payload = {
             "results": flat_rows,
@@ -435,6 +464,11 @@ class BudAPIClient:
         }
         if product_id is not None:
             payload["product_id"] = product_id
+        return payload
+
+    def upload_results_payload(self, payload: Dict[str, Any]) -> bool:
+        """Upload a pre-built results payload."""
+        request_payload = copy.deepcopy(payload)
 
         headers = {}
         if self._auth.runner_api_key:
@@ -442,7 +476,7 @@ class BudAPIClient:
 
         response = self._session.post(
             f"{self._api_url}/results",
-            json=payload,
+            json=request_payload,
             headers=headers,
             timeout=60,
         )

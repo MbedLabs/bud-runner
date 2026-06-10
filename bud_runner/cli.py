@@ -10,7 +10,9 @@ import os
 import secrets
 import subprocess
 import sys
+import tempfile
 import time
+import uuid
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional
@@ -69,6 +71,69 @@ def _configure_daemon_logging() -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(DaemonLogFormatter())
     root_logger.addHandler(handler)
+
+
+def _spool_dir() -> Path:
+    """Directory for persisted result-upload payloads."""
+    candidates = [
+        Path.home() / ".bud" / "spool" / "results",
+        Path(tempfile.gettempdir()) / "bud" / "spool" / "results",
+    ]
+    for spool_dir in candidates:
+        try:
+            spool_dir.mkdir(parents=True, exist_ok=True)
+            return spool_dir
+        except OSError:
+            continue
+    raise RuntimeError("Could not create a writable result spool directory")
+
+
+def _spool_results_payload(payload: dict) -> Path:
+    """Persist a failed upload payload for later replay."""
+    spool_file = _spool_dir() / f"{int(time.time())}-{uuid.uuid4().hex}.json"
+    spool_file.write_text(json.dumps(payload), encoding="utf-8")
+    return spool_file
+
+
+def _upload_payload_with_retry(
+    client: BudAPIClient,
+    auth: AuthManager,
+    payload: dict,
+    username: Optional[str],
+    password: Optional[str],
+) -> None:
+    """Upload a result payload with the same 401 refresh flow as live uploads."""
+    try:
+        client.upload_results_payload(payload)
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else None
+        if status_code == 401 and username and password:
+            typer.echo("401 during upload, refreshing token with provided credentials...")
+            fresh_token = client.login_user(username, password)
+            auth.save_user_token(username, fresh_token)
+            client.upload_results_payload(payload)
+            return
+        raise
+
+
+def _flush_spooled_results(
+    client: BudAPIClient,
+    auth: AuthManager,
+    username: Optional[str],
+    password: Optional[str],
+) -> None:
+    """Replay any spooled result payloads from earlier failed runs."""
+    for spool_file in sorted(_spool_dir().glob("*.json")):
+        payload = json.loads(spool_file.read_text(encoding="utf-8"))
+        try:
+            _upload_payload_with_retry(client, auth, payload, username, password)
+        except Exception as exc:
+            typer.echo(
+                f"⚠ Could not replay spooled results from {spool_file.name}: {exc}", err=True
+            )
+            return
+        spool_file.unlink(missing_ok=True)
+        typer.echo(f"✓ Replayed spooled results from {spool_file.name}")
 
 
 @app.command()
@@ -345,6 +410,7 @@ def run_tests(
                 raise typer.Exit(code=2)
 
             client = BudAPIClient(auth)
+            _flush_spooled_results(client, auth, username, password)
 
             # If we don't have a product_id yet, try to get it from the run if we have a run_id
             final_product_id = None
@@ -355,35 +421,26 @@ def run_tests(
                 except Exception:
                     pass
 
-            try:
-                ok = client.upload_results(
-                    results,
-                    test_run_id=test_run_id,
-                    product_id=final_product_id or auth.product_id,
-                    test_suite_name=test_case_list,
-                    url_test_software=url_test_software,
-                    ref_test_software=ref_test_software,
-                    url_software_under_test=url_software_under_test,
-                    ref_software_under_test=ref_software_under_test,
-                )
-            except requests.HTTPError as exc:
-                status_code = exc.response.status_code if exc.response is not None else None
-                if status_code == 401 and username and password:
-                    typer.echo("401 during upload, refreshing token with provided credentials...")
-                    fresh_token = client.login_user(username, password)
-                    auth.save_user_token(username, fresh_token)
-                    ok = client.upload_results(
-                        results,
-                        test_run_id=test_run_id,
-                        product_id=final_product_id or auth.product_id,
-                        test_suite_name=test_case_list,
-                        url_test_software=url_test_software,
-                        ref_test_software=ref_test_software,
-                        url_software_under_test=url_software_under_test,
-                        ref_software_under_test=ref_software_under_test,
+            payload = client.build_results_payload(
+                results,
+                test_run_id=test_run_id,
+                product_id=final_product_id or auth.product_id,
+                test_suite_name=test_case_list,
+                url_test_software=url_test_software,
+                ref_test_software=ref_test_software,
+                url_software_under_test=url_software_under_test,
+                ref_software_under_test=ref_software_under_test,
+            )
+            ok = True
+            if payload:
+                try:
+                    _upload_payload_with_retry(client, auth, payload, username, password)
+                except Exception as exc:
+                    spool_file = _spool_results_payload(payload)
+                    typer.echo(
+                        f"✗ Result upload failed: {exc}. Payload spooled to {spool_file}",
+                        err=True,
                     )
-                else:
-                    typer.echo(f"✗ Result upload failed: {exc}", err=True)
                     raise typer.Exit(code=1)
 
             if ok:
