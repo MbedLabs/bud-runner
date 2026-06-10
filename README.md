@@ -359,6 +359,14 @@ Daemon log files are newline-delimited JSON records with `timestamp`, `level`,
 `logger`, and `message` fields so they can be parsed by log shippers or basic
 CLI tooling.
 
+## Service Deployment
+
+Starter deployment assets are included for common host environments:
+
+- Linux/systemd: [`docs/systemd.md`](docs/systemd.md)
+- macOS/launchd: [`docs/launchd.md`](docs/launchd.md)
+- Windows service wrapper guidance: [`docs/windows-service.md`](docs/windows-service.md)
+
 ## License
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See the [LICENSE](LICENSE) file for the full text.

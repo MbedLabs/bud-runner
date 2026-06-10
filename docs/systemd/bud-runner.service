@@ -1,0 +1,17 @@
+[Unit]
+Description=Bud Runner daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i
+Environment=BUD_BACKEND_URL=https://your-bud-instance.example
+Environment=RUNNER_API_KEY=replace-me-for-register-only
+ExecStart=/usr/bin/env python -m bud_runner daemon --username %i
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
