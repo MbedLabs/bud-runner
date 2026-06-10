@@ -269,6 +269,14 @@ Show bud_runner version.
 python -m bud_runner version
 ```
 
+### Shell completion
+
+Typer shell completion is enabled. Install it with:
+
+```bash
+bud-runner --install-completion
+```
+
 ## Configuration
 
 ### Environment Variables
