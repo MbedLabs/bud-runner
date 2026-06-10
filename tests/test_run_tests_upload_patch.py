@@ -199,6 +199,74 @@ def test_run_tests_reauths_on_upload_401_and_retries(tmp_path):
     client_inst.login_user.assert_called_once_with("ci@example.com", "secret-pass")
     auth_ns.save_user_token.assert_called_once_with("ci@example.com", "fresh-token")
     assert client_inst.upload_results.call_count == 2
+    first_call = client_inst.upload_results.call_args_list[0].kwargs
+    retry_call = client_inst.upload_results.call_args_list[1].kwargs
+    assert first_call["url_test_software"] is None
+    assert first_call["ref_test_software"] is None
+    assert retry_call["url_test_software"] is None
+    assert retry_call["ref_test_software"] is None
+
+
+def test_run_tests_reauth_retry_preserves_software_under_test_metadata(tmp_path):
+    results = _one_tc_three_methods_all_pass()
+    out = tmp_path / "report.xml"
+    mock_exec = MagicMock()
+    mock_exec.run_test_list.return_value = results
+    mock_rep = MagicMock()
+    mock_rep.generate.return_value = "<testsuites/>"
+
+    auth_ns = SimpleNamespace(
+        backend_url="http://localhost:8000",
+        product_id=None,
+        token=None,
+        save_user_token=MagicMock(),
+    )
+
+    unauthorized = requests.HTTPError("401 Unauthorized")
+    unauthorized.response = SimpleNamespace(status_code=401)
+
+    with patch("bud_runner.cli.TestExecutor", return_value=mock_exec):
+        with patch("bud_runner.cli.JUnitReporter", return_value=mock_rep):
+            with patch("bud_runner.cli.AuthManager", return_value=auth_ns):
+                with patch("bud_runner.cli.BudAPIClient") as MockClient:
+                    client_inst = MockClient.return_value
+                    client_inst.upload_results.side_effect = [unauthorized, True]
+                    client_inst.login_user.return_value = "fresh-token"
+                    client_inst.get_test_run.return_value = {"product_id": None}
+                    client_inst.update_test_run.return_value = {}
+
+                    runner = CliRunner()
+                    result = runner.invoke(
+                        app,
+                        [
+                            "run-tests",
+                            "-t",
+                            "dummy.suite",
+                            "--backend-url",
+                            "http://localhost:8000",
+                            "--username",
+                            "ci@example.com",
+                            "--password",
+                            "secret-pass",
+                            "--sw-under-test",
+                            "https://github.com/example/fw-under-test",
+                            "--ref-sw-under-test",
+                            "abc123def",
+                            "--format",
+                            "junit",
+                            "-o",
+                            str(out),
+                        ],
+                    )
+
+    assert result.exit_code == 0, result.output
+    assert client_inst.upload_results.call_count == 2
+    first_call = client_inst.upload_results.call_args_list[0].kwargs
+    retry_call = client_inst.upload_results.call_args_list[1].kwargs
+    assert first_call["url_test_software"] == "https://github.com/example/fw-under-test"
+    assert first_call["ref_test_software"] == "abc123def"
+    assert retry_call["url_test_software"] == "https://github.com/example/fw-under-test"
+    assert retry_call["ref_test_software"] == "abc123def"
 
 
 def test_run_tests_fails_loudly_when_upload_error_is_not_recoverable(tmp_path):
@@ -244,3 +312,51 @@ def test_run_tests_fails_loudly_when_upload_error_is_not_recoverable(tmp_path):
 
     assert result.exit_code == 1
     assert "Result upload failed" in result.output
+
+
+def test_run_tests_forwards_software_under_test_metadata(tmp_path):
+    results = _one_tc_three_methods_all_pass()
+    out = tmp_path / "report.xml"
+    mock_exec = MagicMock()
+    mock_exec.run_test_list.return_value = results
+    mock_rep = MagicMock()
+    mock_rep.generate.return_value = "<testsuites/>"
+
+    auth_ns = SimpleNamespace(
+        backend_url="http://localhost:8000",
+        product_id=None,
+        token=None,
+    )
+
+    with patch("bud_runner.cli.TestExecutor", return_value=mock_exec):
+        with patch("bud_runner.cli.JUnitReporter", return_value=mock_rep):
+            with patch("bud_runner.cli.AuthManager", return_value=auth_ns):
+                with patch("bud_runner.cli.BudAPIClient") as MockClient:
+                    client_inst = MockClient.return_value
+                    client_inst.upload_results.return_value = True
+
+                    runner = CliRunner()
+                    result = runner.invoke(
+                        app,
+                        [
+                            "run-tests",
+                            "-t",
+                            "dummy.suite",
+                            "--backend-url",
+                            "http://localhost:8000",
+                            "--format",
+                            "junit",
+                            "--sw-under-test",
+                            "https://github.com/example/repo",
+                            "--ref-sw-under-test",
+                            "abc123",
+                            "-o",
+                            str(out),
+                        ],
+                    )
+
+    assert result.exit_code == 0, result.output
+    client_inst.upload_results.assert_called_once()
+    kwargs = client_inst.upload_results.call_args.kwargs
+    assert kwargs["url_test_software"] == "https://github.com/example/repo"
+    assert kwargs["ref_test_software"] == "abc123"

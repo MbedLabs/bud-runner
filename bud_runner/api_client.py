@@ -246,8 +246,8 @@ class BudAPIClient:
         Args:
             test_case_list: Module path to the test case list.
             test_suite_name: Name for this test run.
-            url_test_software: URL to the test software repository.
-            ref_test_software: Git ref of the test software.
+            url_test_software: URL to the software-under-test repository.
+            ref_test_software: Git ref of the software under test.
             product_composition_id: ID of the product composition.
             status: Initial status (Running, Pending, etc.).
             pipeline_software_under_test: Use SW version from CI pipeline.
@@ -384,6 +384,8 @@ class BudAPIClient:
         test_run_id: Optional[int] = None,
         product_id: Optional[int] = None,
         test_suite_name: Optional[str] = None,
+        url_test_software: Optional[str] = None,
+        ref_test_software: Optional[str] = None,
     ) -> bool:
         """
         Upload multiple test results to the backend.
@@ -399,6 +401,8 @@ class BudAPIClient:
             test_run_id: Optional ID of the test run to associate results with.
             product_id: Optional ID of the product/project.
             test_suite_name: Optional name of the test suite (for auto-run creation).
+            url_test_software: Optional URL to the software-under-test repository.
+            ref_test_software: Optional Git ref of the software under test.
 
         Returns:
             True if upload was successful.
@@ -412,6 +416,8 @@ class BudAPIClient:
             "test_run_id": test_run_id,
             "runner_account": self._auth.runner_account,
             "test_suite_name": test_suite_name,
+            "url_test_software": url_test_software,
+            "ref_test_software": ref_test_software,
         }
         if product_id is not None:
             payload["product_id"] = product_id
