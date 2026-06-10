@@ -190,6 +190,18 @@ Options:
   --upload/--no-upload         Upload results [default: upload]
 ```
 
+### `list-tests`
+
+Resolve a test case list without executing the tests.
+
+```bash
+python -m bud_runner list-tests [OPTIONS]
+
+Options:
+  -t, --test-case-list TEXT    Test case list module path (required)
+  --output-format [json|text]  Output format [default: text]
+```
+
 ### `register`
 
 Register this machine as a test runner.
@@ -216,10 +228,13 @@ python -m bud_runner status [OPTIONS]
 
 Options:
   -b, --backend-url TEXT       Backend URL (default: http://localhost:8000)
+  --output-format [json|text]  Output format [default: text]
 ```
 
 Reports backend URL, token presence, runner account, package version, and
-`GET /api/health` + `GET /api/version` when the backend is reachable.
+`GET /api/health` + `GET /api/version` when the backend is reachable. When a
+runner identity is configured, status also includes the registered socket port
+and backend runner-status details. Use `--output-format json` in CI.
 
 ### `daemon`
 
