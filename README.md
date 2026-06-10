@@ -193,6 +193,11 @@ Options:
   --upload/--no-upload         Upload results [default: upload]
 ```
 
+If result upload fails after the test run completes, `bud_runner` exits non-zero
+and spools the serialized payload under `~/.bud/spool/results/` for replay on
+the next successful `run-tests` invocation. If the home directory is not
+writable, it falls back to a temp-directory spool path for that machine.
+
 ### `list-tests`
 
 Resolve a test case list without executing the tests.
