@@ -4,6 +4,11 @@
 test suites, emits CI-friendly reports, uploads results to Bud, and manages a
 runner machine identity for long-lived daemon use.
 
+Creator: Amine El Omari
+
+`bud_runner` is designed to run on machines you manage, such as self-hosted CI
+runners and dedicated lab hosts.
+
 ## What It Does
 
 `bud_runner` is designed for:
@@ -307,7 +312,9 @@ environment variables.
 ## CI Integration
 
 Use `bud_runner` in CI when you want machine-readable JUnit output plus optional
-result upload back to Bud TMP.
+result upload back to Bud TMP. The intended deployment model is self-hosted CI
+where you control the runner host, installed test code, and local machine
+secrets.
 
 ```yaml
 name: Run Tests
@@ -376,13 +383,13 @@ CLI tooling.
 
 Starter deployment assets are included for common host environments:
 
-- Linux/systemd: [`docs/systemd.md`](docs/systemd.md)
-- macOS/launchd: [`docs/launchd.md`](docs/launchd.md)
-- Windows service wrapper guidance: [`docs/windows-service.md`](docs/windows-service.md)
+- Linux/systemd: `docs/systemd.md`
+- macOS/launchd: `docs/launchd.md`
+- Windows service wrapper guidance: `docs/windows-service.md`
 
 ## License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See the [LICENSE](LICENSE) file for the full text.
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See `LICENSE` for the full text.
 
 Copyright (C) 2026 EmbedLabs.
 
