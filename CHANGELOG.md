@@ -2,6 +2,13 @@
 
 All notable changes to `bud_runner` will be documented in this file.
 
+## [1.0.0.post1] — 2026-06-28
+
+### Changed
+- Package version advanced to `1.0.0.post1` for a docs-only PyPI metadata correction
+- Package author metadata now credits Amine El Omari
+- README now includes creator credit for the published project page
+
 ## [1.0.0] — 2026-06-28
 
 ### Added

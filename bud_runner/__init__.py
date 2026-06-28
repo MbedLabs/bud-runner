@@ -19,7 +19,7 @@ from bud_runner.cli import app
 from bud_runner.versioning import read_package_version
 
 __version__ = read_package_version()
-__author__ = "EmbedLabs"
+__author__ = "Amine El Omari"
 __email__ = "dev@embedlabs.net"
 
 __all__ = ["app"]
