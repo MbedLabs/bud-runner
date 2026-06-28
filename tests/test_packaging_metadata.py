@@ -14,12 +14,17 @@ def _pyproject() -> dict:
 def test_release_metadata_is_ready_for_1_0_0() -> None:
     project = _pyproject()["project"]
 
-    assert project["version"] == "1.0.0.post1"
+    assert project["version"] == "1.0.0.post2"
     assert project["authors"] == [
         {"name": "EmbedLabs", "email": "dev@embedlabs.net"},
         {"name": "Amine El Omari"},
     ]
     assert project["maintainers"] == [{"name": "EmbedLabs", "email": "dev@embedlabs.net"}]
+    assert project["urls"] == {
+        "Homepage": "https://embedlabs.net",
+        "Documentation": "https://embedlabs.net/docs",
+        "Support": "https://embedlabs.net",
+    }
     assert project["license"] == {"text": "AGPL-3.0-only"}
     assert "Development Status :: 5 - Production/Stable" in project["classifiers"]
 
@@ -27,7 +32,7 @@ def test_release_metadata_is_ready_for_1_0_0() -> None:
 def test_changelog_has_1_0_0_entry() -> None:
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## [1.0.0.post1]" in changelog
+    assert "## [1.0.0.post2]" in changelog
 
 
 def test_readme_credits_creator() -> None:
