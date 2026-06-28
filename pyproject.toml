@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bud-runner"
-version = "1.0.0.post1"
+version = "1.0.0.post2"
 description = "CLI tool for test execution and Bud Test Management Platform integration"
 readme = "README.md"
 license = {text = "AGPL-3.0-only"}
@@ -54,9 +54,9 @@ dev = [
 bud-runner = "bud_runner.cli:main"
 
 [project.urls]
-Homepage = "https://embedlabs.de"
-Documentation = "https://embedlabs.de/docs"
-Support = "https://embedlabs.de"
+Homepage = "https://embedlabs.net"
+Documentation = "https://embedlabs.net/docs"
+Support = "https://embedlabs.net"
 
 [tool.setuptools.packages.find]
 where = ["."]

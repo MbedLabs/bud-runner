@@ -2,6 +2,13 @@
 
 All notable changes to `bud_runner` will be documented in this file.
 
+## [1.0.0.post2] — 2026-06-28
+
+### Changed
+- Package version advanced to `1.0.0.post2` for the final public metadata and documentation corrections
+- Project URLs now point to `embedlabs.net`
+- PyPI README no longer relies on private-repo file links for service deployment guidance
+
 ## [1.0.0.post1] — 2026-06-28
 
 ### Changed

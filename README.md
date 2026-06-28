@@ -381,15 +381,20 @@ CLI tooling.
 
 ## Service Deployment
 
-Starter deployment assets are included for common host environments:
+`bud_runner daemon` is intended to run under a service manager on a machine you
+control.
 
-- Linux/systemd: `docs/systemd.md`
-- macOS/launchd: `docs/launchd.md`
-- Windows service wrapper guidance: `docs/windows-service.md`
+- Linux/systemd: run the daemon under a dedicated service account and keep
+  `~/.bud/config.json` owned by that account.
+- macOS/launchd: run the same daemon command under a LaunchAgent or
+  LaunchDaemon, depending on whether the runner is user-scoped or machine-scoped.
+- Windows: run the daemon behind a service wrapper such as NSSM or WinSW and
+  keep the Bud config directory private to that service identity.
 
 ## License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See `LICENSE` for the full text.
+This project is licensed under the **GNU Affero General Public License v3.0
+(AGPL-3.0)**. Full license text: https://www.gnu.org/licenses/agpl-3.0.html
 
 Copyright (C) 2026 EmbedLabs.
 
