@@ -1,42 +1,149 @@
-# Contributor License Agreement (CLA)
+# EmbedLabs Contributor License Agreement 1.0
 
-Thank you for contributing to EmbedLabs projects in this repository.
+This Contributor License Agreement (the "Agreement") applies to contributions
+to `bud-runner` (the "Project").
 
-By submitting a contribution (including issues, pull requests, patches, documentation, or other material) you agree to the following terms.
+The Project is maintained by Mohamed Amine El Omari Alaoui, operating under the
+name EmbedLabs (the "Project Steward"), contactable at `dev@embedlabs.net`.
 
-## 1. Definitions
+## 1. Acceptance
 
-- **"You"** means the individual or legal entity submitting the contribution.
-- **"Contribution"** means any original work of authorship, including modifications or additions to the project, that you intentionally submit for inclusion in the project.
-- **"EmbedLabs"** means EmbedLabs (contact: dev@embedlabs.net).
+By intentionally submitting source code, tests, documentation, designs,
+configuration, fixes, or other material for inclusion in the official Project
+repository, and by affirming the CLA declaration attached to that submission,
+you accept this Agreement.
 
-## 2. Grant of copyright
+Opening an issue without intentionally submitting material for inclusion does
+not by itself constitute acceptance.
 
-You hereby assign to EmbedLabs all right, title, and interest in copyright in the Contribution. EmbedLabs may register copyright and enforce it in its name.
+## 2. Definitions
 
-To the extent any moral rights or similar rights cannot be assigned under applicable law, you waive and agree not to assert those rights against EmbedLabs or users of the project under the applicable open-source license.
+- **You** means the individual submitting a Contribution, or the legal entity on
+  whose behalf it is submitted when that entity has authorised the submission.
+- **Contribution** means original material intentionally submitted for inclusion
+  in the official Project.
+- **Accepted Contribution** means a Contribution merged or otherwise expressly
+  accepted into the official Project repository by the Project Steward.
+- **Project Steward** means Mohamed Amine El Omari Alaoui, operating under the
+  name EmbedLabs, and any legal successor that receives the Project subject to
+  this Agreement.
 
-## 3. Grant of patent license
+## 3. Copyright assignment where permitted
 
-If your Contribution includes subject matter patentable by you, you grant EmbedLabs and recipients of the software a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the Contribution and the project, where such license applies only to those patent claims licensable by you that are necessarily infringed by your Contribution alone or by combination of your Contribution with the project.
+To the extent permitted by applicable law, You assign to the Project Steward all
+right, title, and interest in copyright and copyright-like rights in Your
+Contribution, including the rights to register, enforce, license, sublicense,
+transfer, modify, and distribute it.
 
-## 4. Representations
+## 4. Exclusive rights of use where assignment is unavailable
+
+To the extent copyright, authorship rights, or similar rights cannot legally be
+assigned, You grant the Project Steward an exclusive, irrevocable, worldwide,
+transferable, sublicensable, royalty-free right of use for the full duration of
+protection to:
+
+1. reproduce, store, publish, display, communicate, and make the Contribution
+   available to the public;
+2. modify, translate, adapt, maintain, develop, and create derivative works;
+3. combine it with other software, documentation, data, and services;
+4. distribute and operate it in source, object, hosted, or other form;
+5. license and sublicense it under `AGPL-3.0-only`;
+6. grant further rights necessary to maintain and distribute the Project;
+7. transfer these rights to a successor that accepts the obligations in this
+   Agreement; and
+8. register and enforce the granted rights.
+
+## 5. Permanent AGPL commitment
+
+Every Accepted Contribution must remain publicly available under
+`AGPL-3.0-only`.
+
+The Project Steward may use the Project and Accepted Contributions in paid
+hosting, support, integration, consulting, or other services, but must not make
+an Accepted Contribution available exclusively under proprietary terms or under
+terms that remove the public `AGPL-3.0-only` version.
+
+The Project Steward may modify, refactor, supersede, deprecate, or remove an
+Accepted Contribution from later versions for genuine technical, security,
+legal, maintenance, or product reasons. The accepted source must nevertheless
+remain publicly accessible through repository history, a public release, tag,
+archive, or another durable public source location under `AGPL-3.0-only`.
+
+Any successor receiving the Project and rights under this Agreement receives
+them subject to this permanent AGPL commitment.
+
+## 6. Contributor licence-back
+
+The Project Steward grants You a perpetual, worldwide, non-exclusive,
+royalty-free licence to use, reproduce, modify, and distribute Your original
+Contribution independently, provided this licence-back does not grant rights in
+material authored by others, Project trademarks, or confidential information.
+
+## 7. Moral and personality rights
+
+To the extent permitted by law, You waive and agree not to assert moral rights or
+similar author rights in a way that prevents the Project Steward or recipients
+from exercising the rights granted by this Agreement.
+
+Where such rights cannot be waived, You consent to modifications, combinations,
+publication, and reasonable attribution changes necessary to maintain and
+distribute the Project, subject to mandatory law.
+
+Nothing in this Agreement denies Your legal status as the natural author where
+applicable law preserves that status.
+
+## 8. Patent licence
+
+If Your Contribution includes patent claims that You can license, You grant the
+Project Steward and recipients of the Project under `AGPL-3.0-only` a perpetual,
+worldwide, non-exclusive, transferable, sublicensable, royalty-free,
+irrevocable patent licence to make, have made, use, offer, sell, import,
+distribute, and otherwise exploit the Contribution and Project, limited to
+claims necessarily infringed by the Contribution alone or in combination with
+the Project as submitted.
+
+## 9. Representations
 
 You represent that:
 
-- The Contribution is your original creation (or you have the right to submit it on behalf of your employer, and your employer has authorized this agreement).
-- To the best of your knowledge, the Contribution does not violate any third party’s rights.
+1. You may legally submit the Contribution and grant these rights;
+2. the Contribution is Your original work, or all third-party material has been
+   identified and may legally be submitted;
+3. any necessary employer, client, institution, or other rights-holder approval
+   has been obtained;
+4. to the best of Your knowledge, the Contribution does not knowingly infringe
+   third-party rights; and
+5. You have disclosed known third-party licence obligations.
 
-## 5. Dual licensing
+## 10. No obligation to accept
 
-You acknowledge that the project may be distributed under the GNU Affero General Public License v3.0 (AGPL-3.0) and that EmbedLabs may offer the project or combined works under other license terms (including proprietary commercial licenses) without further permission from you beyond this agreement.
+The Project Steward is not required to review, accept, use, or maintain a
+submitted Contribution. The permanent AGPL commitment applies once a
+Contribution becomes an Accepted Contribution.
 
-## 6. No obligation
+## 11. Records and electronic form
 
-Nothing in this agreement obligates EmbedLabs to accept or use your Contribution.
+Electronic records associated with a submission—including the GitHub identity,
+pull-request number, timestamp, commit identifiers, checked acceptance
+statement, and Agreement version—may be retained as evidence of acceptance.
 
-## 7. Contact
+## 12. Governing law and jurisdiction
 
-For questions about this CLA: dev@embedlabs.net
+This Agreement is governed by the laws of the Federal Republic of Germany,
+excluding conflict-of-law rules and the United Nations Convention on Contracts
+for the International Sale of Goods.
 
-For commercial licensing of the hosted Bud (Test Management Platform) and Bloom (Product Lifecycle Management) applications: sales@embedlabs.de
+Where legally permitted, the competent courts at the Project Steward's place of
+business have exclusive jurisdiction. Mandatory consumer and employment-law
+jurisdiction rules remain unaffected.
+
+## 13. Severability and entire agreement
+
+If a provision is unenforceable, it will be applied to the maximum extent
+permitted and the remaining provisions remain effective. This Agreement is the
+entire agreement concerning rights in Contributions unless the Project Steward
+and You sign a separate written agreement.
+
+## 14. Contact
+
+Questions about this Agreement may be sent to `dev@embedlabs.net`.
