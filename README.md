@@ -398,4 +398,4 @@ This project is licensed under the **GNU Affero General Public License v3.0
 
 Copyright (C) 2026 EmbedLabs.
 
-For commercial licensing options that do not require AGPL compliance, contact dev@embedlabs.net. For support or private-source collaboration, email dev@embedlabs.net.
+For commercial licensing of the hosted Bud (Test Management Platform) and Bloom (Product Lifecycle Management) applications that do not require AGPL compliance, contact sales@embedlabs.de. For support or private-source collaboration, email dev@embedlabs.net.

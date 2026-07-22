@@ -37,4 +37,6 @@ Nothing in this agreement obligates EmbedLabs to accept or use your Contribution
 
 ## 7. Contact
 
-For questions about this CLA or commercial licensing: dev@embedlabs.net
+For questions about this CLA: dev@embedlabs.net
+
+For commercial licensing of the hosted Bud (Test Management Platform) and Bloom (Product Lifecycle Management) applications: sales@embedlabs.de
