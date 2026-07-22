@@ -1,30 +1,52 @@
 # Contributing
 
-Thank you for your interest in improving EmbedLabs Bud and Bloom related projects in this repository.
+Thank you for your interest in improving `bud-runner`.
 
-## License
+## Licence
 
-The software in this repository is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. A copy of the license text is included as `LICENSE` in each project directory.
+The software in this repository is licensed under the **GNU Affero General
+Public License v3.0 only (`AGPL-3.0-only`)**.
 
-By contributing, you agree that your contributions will be licensed under the same terms as the project (AGPL-3.0) to the community, and you agree to the **Contributor License Agreement** below so EmbedLabs can steward the project and offer commercial licensing where appropriate.
+`bud-runner` is a permanent free and open-source EmbedLabs package. No paid
+EmbedLabs licence is required to use it, including commercially, provided the
+`AGPL-3.0-only` terms are followed.
 
-## Contributor License Agreement (CLA)
+Accepted contributions remain publicly available under `AGPL-3.0-only`. The
+Contributor License Agreement gives the Project Steward the rights needed to
+maintain, enforce, modify, and distribute the project. It does not permit an
+Accepted Contribution to become available only under proprietary terms.
 
-Before we can accept a pull request or similar contribution, you must agree to the [CLA.md](CLA.md) in this project.
+Bud and Bloom are separate applications with separate source-available
+licensing. Professional licensing for those applications does not replace,
+restrict, or change the AGPL licence of `bud-runner`.
 
-- Read [CLA.md](CLA.md) carefully.
-- For GitHub contributions, sign the CLA when prompted (for example via a CLA assistant bot on the pull request), or otherwise provide written confirmation to dev@embedlabs.net that you accept the CLA for the specific contribution.
+## Contributor License Agreement
 
-If you are contributing on behalf of your employer, ensure your employer authorizes this agreement.
+Before an external contribution can be accepted, you must:
+
+1. read [`CLA.md`](CLA.md);
+2. open a focused pull request; and
+3. check the CLA acceptance declaration in the pull-request template.
+
+If you are contributing on behalf of an employer or another legal entity, make
+sure you have authority to grant the rights described in the CLA.
+
+Questions about contributions or the CLA may be sent to `dev@embedlabs.net`.
 
 ## How to contribute
 
-1. Open an issue to discuss larger changes when appropriate.
-2. Fork the repository (or use a branch if you have write access).
-3. Make focused commits with clear messages.
-4. Ensure tests and linters pass for the subproject you changed.
-5. Open a pull request and complete the CLA step.
+1. Open an issue for a significant change when prior discussion would help.
+2. Fork the repository, or use a branch if you have write access.
+3. Keep commits focused and use clear messages.
+4. Add or update tests for changed behaviour.
+5. Run the relevant linters, tests, and packaging checks.
+6. Open a pull request and check the CLA declaration.
 
-## Commercial licensing
+## Bud and Bloom application licensing
 
-For commercial licensing of the hosted Bud (Test Management Platform) and Bloom (Product Lifecycle Management) applications — and for any use cases that cannot comply with AGPL-3.0 — contact sales@embedlabs.de.
+Professional licensing, deployment, integration, and support for the separately
+licensed Bud and Bloom applications are available through
+`sales@embedlabs.de`.
+
+That commercial contact applies to Bud and Bloom application licensing and
+services—not to the `bud-runner` package licence.
