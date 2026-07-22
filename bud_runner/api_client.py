@@ -224,8 +224,6 @@ class BudAPIClient:
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
-        self._session.headers["Content-Type"] = "application/json"
-
         if auth.token:
             self._session.headers["Authorization"] = f"Bearer {auth.token}"
 
