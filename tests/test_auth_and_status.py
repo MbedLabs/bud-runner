@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
+import requests
 from typer.testing import CliRunner
 
 from bud_runner.api_client import BudAPIClient
@@ -379,3 +380,25 @@ def test_upload_artifact_uses_api_client_session_for_retries(tmp_path):
     assert kwargs["data"] == {"run_id": 12, "test_case": "VoltageTest"}
     assert kwargs["timeout"] == 120
     assert "Authorization" in kwargs["headers"]
+
+
+def test_upload_artifact_prepares_a_real_multipart_content_type(tmp_path):
+    auth = MagicMock()
+    auth.backend_url = "https://bud.example.com"
+    auth.token = "runner-token"
+    auth.runner_api_key = None
+    client = BudAPIClient(auth)
+
+    artifact_path = tmp_path / "trace.log"
+    artifact_path.write_text("trace-data", encoding="utf-8")
+
+    response = requests.Response()
+    response.status_code = 201
+    response._content = b'{"id": 7}'
+    response.headers["Content-Type"] = "application/json"
+
+    with patch.object(client._session, "send", return_value=response) as mock_send:
+        client.upload_artifact(str(artifact_path), run_id=12, test_case="VoltageTest")
+
+    prepared_request = mock_send.call_args.args[0]
+    assert prepared_request.headers["Content-Type"].startswith("multipart/form-data; boundary=")
