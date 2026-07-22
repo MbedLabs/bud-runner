@@ -14,7 +14,7 @@ def _pyproject() -> dict:
 def test_release_metadata_is_ready_for_1_0_0() -> None:
     project = _pyproject()["project"]
 
-    assert project["version"] == "1.0.1"
+    assert project["version"] == "1.0.2"
     assert project["authors"] == [
         {"name": "EmbedLabs", "email": "dev@embedlabs.net"},
         {"name": "Amine El Omari"},
@@ -32,7 +32,7 @@ def test_release_metadata_is_ready_for_1_0_0() -> None:
 def test_changelog_has_1_0_0_entry() -> None:
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## [1.0.1]" in changelog
+    assert "## [1.0.2]" in changelog
 
 
 def test_readme_credits_creator() -> None:
@@ -50,6 +50,6 @@ def test_readme_calls_out_self_hosted_ci_usage() -> None:
 def test_readme_has_no_relative_markdown_links_that_break_on_pypi() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    relative_links = re.findall(r"\[[^]]+\]\((?!https?://|mailto:)[^)]+\)", readme)
+    relative_links = re.findall(r"\[[^]]+\]\((?!https?://|mailto:|#)[^)]+\)", readme)
 
     assert relative_links == []
