@@ -6,6 +6,9 @@ operate as a long-lived registered runner daemon.
 
 Creator: Amine El Omari
 
+`bud_runner` is designed for machines you manage, including dedicated lab hosts
+and self-hosted CI runners.
+
 ## What it does
 
 - Runs test case lists from local automation or CI.
@@ -198,5 +201,6 @@ Technical, security, and contribution questions: `dev@embedlabs.net`.
 Copyright (C) 2026 Mohamed Amine El Omari Alaoui, operating under the name
 EmbedLabs.
 
-See [`LICENSE`](LICENSE), [`CONTRIBUTING.md`](CONTRIBUTING.md), and
-[`CLA.md`](CLA.md).
+- [Full licence](https://github.com/MbedLabs/bud-runner/blob/main/LICENSE)
+- [Contributing](https://github.com/MbedLabs/bud-runner/blob/main/CONTRIBUTING.md)
+- [Contributor License Agreement](https://github.com/MbedLabs/bud-runner/blob/main/CLA.md)
