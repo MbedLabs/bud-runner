@@ -27,4 +27,4 @@ If you are contributing on behalf of your employer, ensure your employer authori
 
 ## Commercial licensing
 
-For use cases that cannot comply with AGPL-3.0, contact EmbedLabs at dev@embedlabs.net.
+For commercial licensing of the hosted Bud (Test Management Platform) and Bloom (Product Lifecycle Management) applications — and for any use cases that cannot comply with AGPL-3.0 — contact sales@embedlabs.de.

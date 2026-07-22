@@ -2,6 +2,14 @@
 
 All notable changes to `bud_runner` will be documented in this file.
 
+## [1.0.2] — 2026-07-22
+
+### Changed
+- Commercial licensing wording updated to explicitly clarify and reference the hosted Bud (Test Management Platform) and Bloom (Product Lifecycle Management) applications; contact now `sales@embedlabs.de` in LICENSE, CONTRIBUTING, and CLA
+
+### Fixed
+- `bud_runner` README relative-link validation allows `#`-prefixed anchor links (PyPI supports same-page anchors)
+
 ## [1.0.1] — 2026-07-19
 
 ### Changed
