@@ -19,6 +19,13 @@ and self-hosted CI runners.
 - Runs a heartbeat and local control daemon.
 - Spools failed result uploads for later retry.
 
+## Compatibility
+
+| `bud_runner` | Intended `budtestlibrary` pairing | Notes |
+|---|---|---|
+| `1.0.2` | `1.0.2` | Multipart artifact uploads and formatting fixes |
+| `1.0.1` | `1.0.1` | Timeout fixes and PyPI release structure |
+
 ## Installation
 
 ```bash
