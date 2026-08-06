@@ -640,6 +640,31 @@ class BudAPIClient:
             logger.error(f"Heartbeat network error: {e}")
             return {"status": "error", "message": str(e)}
 
+    def claim_next_run(self) -> Optional[Dict[str, Any]]:
+        """
+        Take the next run the backend has queued for this runner.
+
+        The claim is sent with the runner token rather than the session's
+        default bearer: the backend only hands a queued run to the station it
+        was queued for, and a user token is not that station.
+
+        Returns:
+            The claimed run and its test selection, or None if nothing is queued.
+        """
+        headers = {}
+        if self._auth.runner_token:
+            headers["Authorization"] = f"Bearer {self._auth.runner_token}"
+
+        response = self._session.post(
+            f"{self._api_url}/runners/claim-run",
+            headers=headers,
+            timeout=30,
+        )
+        if response.status_code == 204:
+            return None
+        response.raise_for_status()
+        return response.json()
+
     # ==================== Health ====================
 
     def health_check(self) -> bool:
