@@ -116,6 +116,27 @@ def _upload_payload_with_retry(
         raise
 
 
+def _upload_artifacts(client: BudAPIClient, patterns: List[str], test_run_id: int) -> None:
+    """Upload files matching the given paths or globs against a test run."""
+    files: List[Path] = []
+    for pattern in patterns:
+        literal = Path(pattern)
+        if literal.is_file():
+            files.append(literal)
+            continue
+        matches = sorted(m for m in Path().glob(pattern) if m.is_file())
+        if not matches:
+            typer.echo(f"⚠ No artifact matched: {pattern}", err=True)
+        files.extend(matches)
+
+    for path in files:
+        try:
+            client.upload_artifact(str(path), run_id=test_run_id)
+            typer.echo(f"✓ Uploaded artifact: {path.name}")
+        except Exception as exc:
+            typer.echo(f"⚠ Could not upload {path}: {exc}", err=True)
+
+
 def _flush_spooled_results(
     client: BudAPIClient,
     auth: AuthManager,
@@ -343,6 +364,12 @@ def run_tests(
         "--upload/--no-upload",
         help="Upload results to backend",
     ),
+    artifacts: List[str] = typer.Option(
+        [],
+        "--artifact",
+        "-A",
+        help="File or glob to upload with the results. Repeatable.",
+    ),
     test_timeout: int = typer.Option(
         300,
         "--test-timeout",
@@ -463,6 +490,14 @@ def run_tests(
                     typer.echo(
                         f"✓ Test run {test_run_id} marked as {final_status} "
                         f"({passed_tcs} out of {total_tcs} TC passed)."
+                    )
+
+                if artifacts and test_run_id:
+                    _upload_artifacts(client, artifacts, test_run_id)
+                elif artifacts:
+                    typer.echo(
+                        "⚠ Artifacts need a test run: pass --test-run-id.",
+                        err=True,
                     )
             else:
                 typer.echo("✗ Result upload failed", err=True)
