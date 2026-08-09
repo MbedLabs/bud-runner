@@ -9,6 +9,7 @@ Provides methods for:
 """
 
 import copy
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -640,7 +641,7 @@ class BudAPIClient:
             logger.error(f"Heartbeat network error: {e}")
             return {"status": "error", "message": str(e)}
 
-    def claim_next_run(self) -> Optional[Dict[str, Any]]:
+    def claim_next_run(self, claim_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Take the next run the backend has queued for this runner.
 
@@ -651,7 +652,8 @@ class BudAPIClient:
         Returns:
             The claimed run and its test selection, or None if nothing is queued.
         """
-        headers = {}
+        claim_id = claim_id or str(uuid.uuid4())
+        headers = {"Idempotency-Key": claim_id}
         if self._auth.runner_token:
             headers["Authorization"] = f"Bearer {self._auth.runner_token}"
 
@@ -662,6 +664,28 @@ class BudAPIClient:
         )
         if response.status_code == 204:
             return None
+        response.raise_for_status()
+        return response.json()
+
+    def complete_claimed_run(
+        self,
+        run_id: int,
+        claim_id: str,
+        *,
+        exit_code: int,
+        error: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Send the idempotent terminal answer for a claimed execution."""
+        headers = {"Idempotency-Key": claim_id}
+        if self._auth.runner_token:
+            headers["Authorization"] = f"Bearer {self._auth.runner_token}"
+
+        response = self._session.post(
+            f"{self._api_url}/runners/runs/{run_id}/complete",
+            headers=headers,
+            json={"exit_code": exit_code, "error": error},
+            timeout=30,
+        )
         response.raise_for_status()
         return response.json()
 
