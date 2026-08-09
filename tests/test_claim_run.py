@@ -22,6 +22,7 @@ def _custom_modules_in_tmp(tmp_path, monkeypatch):
 
 def _claimed(run_id=7, selected=None, test_case_list="Suite.CASES"):
     return {
+        "claim_id": "11111111-1111-4111-8111-111111111111",
         "run": {"id": run_id, "name": "Custom run", "test_case_list": test_case_list},
         "selected_tests": selected,
     }
@@ -123,9 +124,13 @@ def test_claim_uses_the_runner_token():
     response.json.return_value = _claimed()
 
     with patch.object(client._session, "post", return_value=response) as post:
-        client.claim_next_run()
+        client.claim_next_run("11111111-1111-4111-8111-111111111111")
 
     assert post.call_args.kwargs["headers"]["Authorization"] == "Bearer runner-token"
+    assert (
+        post.call_args.kwargs["headers"]["Idempotency-Key"]
+        == "11111111-1111-4111-8111-111111111111"
+    )
 
 
 def test_an_empty_queue_is_not_an_error():
@@ -145,10 +150,42 @@ def test_a_rejected_claim_raises():
             client.claim_next_run()
 
 
+def test_completion_sends_the_claim_key_and_terminal_answer():
+    client = BudAPIClient(_auth())
+    response = MagicMock(status_code=200)
+    response.json.return_value = {"status": "Completed"}
+
+    with patch.object(client._session, "post", return_value=response) as post:
+        completed = client.complete_claimed_run(
+            7,
+            "11111111-1111-4111-8111-111111111111",
+            exit_code=1,
+            error="executor crashed",
+        )
+
+    assert completed["status"] == "Completed"
+    assert post.call_args.args[0].endswith("/runners/runs/7/complete")
+    assert (
+        post.call_args.kwargs["headers"]["Idempotency-Key"]
+        == "11111111-1111-4111-8111-111111111111"
+    )
+    assert post.call_args.kwargs["json"] == {
+        "exit_code": 1,
+        "error": "executor crashed",
+    }
+
+
 # ==================== the command ====================
 
 
-def _invoke(args, claim_side_effect=None, claim_return=None):
+def _invoke(
+    args,
+    claim_side_effect=None,
+    claim_return=None,
+    run_return=0,
+    run_side_effect=None,
+    complete_side_effect=None,
+):
     with patch("bud_runner.cli.AuthManager", return_value=_auth()):
         with patch("bud_runner.cli.BudAPIClient") as MockClient:
             client = MockClient.return_value
@@ -156,7 +193,13 @@ def _invoke(args, claim_side_effect=None, claim_return=None):
                 client.claim_next_run.side_effect = claim_side_effect
             else:
                 client.claim_next_run.return_value = claim_return
-            with patch("bud_runner.cli._run_claimed", return_value=0) as run_claimed:
+            if complete_side_effect is not None:
+                client.complete_claimed_run.side_effect = complete_side_effect
+            with patch(
+                "bud_runner.cli._run_claimed",
+                return_value=run_return,
+                side_effect=run_side_effect,
+            ) as run_claimed:
                 result = CliRunner().invoke(app, ["claim-run", *args])
     return result, client, run_claimed
 
@@ -167,6 +210,12 @@ def test_claims_once_and_exits():
     assert result.exit_code == 0, result.stdout
     assert client.claim_next_run.call_count == 1
     assert run_claimed.call_count == 1
+    client.complete_claimed_run.assert_called_once_with(
+        7,
+        "11111111-1111-4111-8111-111111111111",
+        exit_code=0,
+        error=None,
+    )
     assert "Claimed run 7" in result.stdout
 
 
@@ -186,8 +235,50 @@ def test_polling_survives_a_backend_blip():
         result, client, run_claimed = _invoke(["--interval", "5"], claim_side_effect=calls)
 
     assert client.claim_next_run.call_count == 2
+    claim_ids = [call.args[0] for call in client.claim_next_run.call_args_list]
+    assert claim_ids[0] == claim_ids[1]
     assert run_claimed.call_count == 1
-    assert "Could not claim a run" in result.stdout + result.stderr
+    assert "Could not claim a run" in result.output
+
+
+def test_a_nonzero_test_exit_is_acknowledged_as_finished():
+    result, client, _ = _invoke([], claim_return=_claimed(), run_return=1)
+
+    assert result.exit_code == 0, result.stdout
+    client.complete_claimed_run.assert_called_once_with(
+        7,
+        "11111111-1111-4111-8111-111111111111",
+        exit_code=1,
+        error=None,
+    )
+
+
+def test_an_executor_error_is_acknowledged_before_the_command_fails():
+    result, client, _ = _invoke(
+        [], claim_return=_claimed(), run_side_effect=RuntimeError("executor crashed")
+    )
+
+    assert result.exit_code == 1
+    client.complete_claimed_run.assert_called_once_with(
+        7,
+        "11111111-1111-4111-8111-111111111111",
+        exit_code=1,
+        error="RuntimeError: executor crashed",
+    )
+
+
+def test_polling_retries_the_answer_without_running_or_claiming_again():
+    with patch("bud_runner.cli.time.sleep", side_effect=[None, KeyboardInterrupt]):
+        result, client, run_claimed = _invoke(
+            ["--interval", "5"],
+            claim_return=_claimed(),
+            complete_side_effect=[requests.ConnectionError("refused"), {}],
+        )
+
+    assert result.exit_code == 1
+    assert client.claim_next_run.call_count == 1
+    assert client.complete_claimed_run.call_count == 2
+    assert run_claimed.call_count == 1
 
 
 def test_a_one_shot_claim_reports_a_failure():
@@ -202,4 +293,4 @@ def test_registration_is_required():
         result = CliRunner().invoke(app, ["claim-run"])
 
     assert result.exit_code == 2
-    assert "register" in result.stdout + result.stderr
+    assert "register" in result.output

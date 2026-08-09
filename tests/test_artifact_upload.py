@@ -130,7 +130,7 @@ def test_run_tests_needs_a_test_run_id(tmp_path):
     result, client = _run_cli(tmp_path, ["-A", str(shot)])
 
     client.upload_artifact.assert_not_called()
-    assert "Artifacts need a test run" in result.stdout + result.stderr
+    assert "Artifacts need a test run" in result.output
 
 
 def test_a_failed_artifact_does_not_fail_the_run(tmp_path):
@@ -144,4 +144,4 @@ def test_a_failed_artifact_does_not_fail_the_run(tmp_path):
     )
 
     assert result.exit_code == 0
-    assert "Could not upload" in result.stdout + result.stderr
+    assert "Could not upload" in result.output

@@ -646,24 +646,62 @@ def claim_run(
     for pattern in artifacts:
         passthrough.extend(["--artifact", pattern])
 
+    claim_id = str(uuid.uuid4())
     while True:
         try:
-            claimed = client.claim_next_run()
+            claimed = client.claim_next_run(claim_id)
         except Exception as exc:
             # A poller outlives the backend it talks to; a blip is not the end
             # of the shift. A one-shot claim has nobody to retry for it.
             typer.echo(f"⚠ Could not claim a run: {exc}", err=True)
             if interval <= 0:
                 raise typer.Exit(code=1)
-            claimed = None
+            time.sleep(interval)
+            continue
 
         if claimed:
             run = claimed["run"]
             typer.echo(f"✓ Claimed run {run['id']}: {run['name']}")
-            code = _run_claimed(claimed, passthrough, workspace)
+            execution_error = None
+            try:
+                code = _run_claimed(claimed, passthrough, workspace)
+            except Exception as exc:
+                code = 1
+                execution_error = f"{type(exc).__name__}: {exc}"
+                typer.echo(
+                    f"✗ Run {run['id']} could not execute: {execution_error}",
+                    err=True,
+                )
+
+            while True:
+                try:
+                    client.complete_claimed_run(
+                        run["id"],
+                        claimed["claim_id"],
+                        exit_code=code,
+                        error=execution_error,
+                    )
+                    break
+                except Exception as exc:
+                    typer.echo(
+                        f"⚠ Could not acknowledge run {run['id']}: {exc}",
+                        err=True,
+                    )
+                    if interval <= 0:
+                        raise typer.Exit(code=1)
+                    # Do not claim or execute more work until Bud has the
+                    # terminal answer for this run.
+                    time.sleep(interval)
+
             typer.echo(f"Run {run['id']} finished with exit code {code}")
+            claim_id = str(uuid.uuid4())
+            if execution_error is not None and interval <= 0:
+                raise typer.Exit(code=1)
         elif interval <= 0:
             typer.echo("Nothing queued.")
+        else:
+            # A successful empty response proves this key did not claim work.
+            claim_id = str(uuid.uuid4())
 
         if interval <= 0:
             return
