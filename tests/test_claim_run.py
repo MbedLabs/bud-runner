@@ -242,15 +242,35 @@ def test_polling_survives_a_backend_blip():
 
 
 def test_a_nonzero_test_exit_is_acknowledged_as_finished():
+    """Acknowledged as finished, and still a non-zero exit for CI."""
     result, client, _ = _invoke([], claim_return=_claimed(), run_return=1)
 
-    assert result.exit_code == 0, result.stdout
+    assert result.exit_code == 1, result.stdout
     client.complete_claimed_run.assert_called_once_with(
         7,
         "11111111-1111-4111-8111-111111111111",
         exit_code=1,
         error=None,
     )
+
+
+def test_the_commands_code_is_the_runs_own():
+    """run-tests exits 2 for a config error and 1 for failures; keep them apart."""
+    result, _, _ = _invoke([], claim_return=_claimed(), run_return=2)
+
+    assert result.exit_code == 2
+
+
+def test_a_poller_does_not_exit_when_a_run_fails():
+    with patch("bud_runner.cli.time.sleep", side_effect=[KeyboardInterrupt]):
+        result, client, run_claimed = _invoke(
+            ["--interval", "5"], claim_return=_claimed(), run_return=1
+        )
+
+    assert result.exit_code == 130  # this test's own interrupt: still looping
+
+    assert client.complete_claimed_run.call_count == 1
+    assert run_claimed.call_count == 1
 
 
 def test_an_executor_error_is_acknowledged_before_the_command_fails():
@@ -275,7 +295,7 @@ def test_polling_retries_the_answer_without_running_or_claiming_again():
             complete_side_effect=[requests.ConnectionError("refused"), {}],
         )
 
-    assert result.exit_code == 1
+    assert result.exit_code == 130  # this test's own interrupt: still looping
     assert client.claim_next_run.call_count == 1
     assert client.complete_claimed_run.call_count == 2
     assert run_claimed.call_count == 1
