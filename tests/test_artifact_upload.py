@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
-from bud_runner.cli import _upload_artifacts, app
+from bud_runner.cli import _discover_artifacts, _upload_artifacts, app
 from tests.test_flatten_results import _FakeAssertion, _FakeMethodResult, _FakeRunResult
+
+
+def _uploaded(client):
+    return [call.args[0] for call in client.upload_artifact.call_args_list]
 
 
 def _results():
@@ -20,8 +25,10 @@ def _results():
     ]
 
 
-def _run_cli(tmp_path, extra_args, artifact_side_effect=None):
+def _run_cli(tmp_path, extra_args, artifact_side_effect=None, monkeypatch=None):
     """Drive run-tests with the backend mocked, as the other CLI tests do."""
+    if monkeypatch is not None:
+        monkeypatch.chdir(tmp_path)
     out = tmp_path / "report.xml"
     mock_exec = MagicMock()
     mock_exec.run_test_list.return_value = _results()
@@ -106,21 +113,24 @@ def test_one_failure_does_not_stop_the_rest(tmp_path):
     assert client.upload_artifact.call_count == 2
 
 
-def test_run_tests_uploads_artifacts_after_the_results(tmp_path):
+def test_run_tests_uploads_artifacts_after_the_results(tmp_path, monkeypatch):
     shot = tmp_path / "failure.png"
     shot.write_text("x")
 
-    result, client = _run_cli(tmp_path, ["--test-run-id", "42", "-A", str(shot)])
+    result, client = _run_cli(
+        tmp_path, ["--test-run-id", "42", "-A", str(shot)], monkeypatch=monkeypatch
+    )
 
     assert result.exit_code == 0, result.stdout
-    client.upload_artifact.assert_called_once_with(str(shot), run_id=42)
+    assert str(shot) in _uploaded(client)
 
 
-def test_run_tests_uploads_nothing_when_none_requested(tmp_path):
-    result, client = _run_cli(tmp_path, ["--test-run-id", "42"])
+def test_the_report_is_uploaded_without_being_asked_for(tmp_path, monkeypatch):
+    """Every run produces one; a run whose report is not in Bud is not evidence."""
+    result, client = _run_cli(tmp_path, ["--test-run-id", "42"], monkeypatch=monkeypatch)
 
     assert result.exit_code == 0
-    client.upload_artifact.assert_not_called()
+    assert [Path(p).name for p in _uploaded(client)] == ["report.xml"]
 
 
 def test_run_tests_needs_a_test_run_id(tmp_path):
@@ -145,3 +155,100 @@ def test_a_failed_artifact_does_not_fail_the_run(tmp_path):
 
     assert result.exit_code == 0
     assert "Could not upload" in result.output
+
+
+# ==================== what a run leaves behind ====================
+
+
+def test_discovers_logs_beside_the_run(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "bench.log").write_text("x")
+    (tmp_path / "stderr.err").write_text("x")
+    (tmp_path / "notes.md").write_text("x")
+
+    found = [p.name for p in _discover_artifacts(tmp_path / "bud-artifacts")]
+
+    assert sorted(found) == ["bench.log", "stderr.err"]
+
+
+def test_discovers_packet_captures(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "can.pcapng").write_text("x")
+    (tmp_path / "bus.trace").write_text("x")
+
+    found = [p.name for p in _discover_artifacts(tmp_path / "bud-artifacts")]
+
+    assert sorted(found) == ["bus.trace", "can.pcapng"]
+
+
+def test_takes_everything_in_the_artifact_directory(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    artifacts = tmp_path / "bud-artifacts"
+    (artifacts / "plots").mkdir(parents=True)
+    (artifacts / "screenshot.png").write_text("x")
+    (artifacts / "plots" / "voltage.svg").write_text("x")
+
+    found = [p.name for p in _discover_artifacts(artifacts)]
+
+    # The directory exists to be uploaded, so its shape is not second-guessed.
+    assert sorted(found) == ["screenshot.png", "voltage.svg"]
+
+
+def test_finds_nothing_when_the_run_left_nothing(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    assert _discover_artifacts(tmp_path / "bud-artifacts") == []
+
+
+def test_never_walks_the_workspace(tmp_path, monkeypatch):
+    """A bench workspace is a repository; sweeping it would upload the source."""
+    monkeypatch.chdir(tmp_path)
+    nested = tmp_path / "node_modules" / "pkg"
+    nested.mkdir(parents=True)
+    # Named to match a discovery pattern: only the depth keeps it out.
+    (nested / "install.log").write_text("x")
+    (tmp_path / "vendor").mkdir()
+    (tmp_path / "vendor" / "debug.trace").write_text("x")
+    (tmp_path / "voltage_suite.py").write_text("x")
+
+    assert _discover_artifacts(tmp_path / "bud-artifacts") == []
+
+
+def test_a_run_sends_its_report_and_what_it_left(tmp_path, monkeypatch):
+    (tmp_path / "bud-artifacts").mkdir()
+    (tmp_path / "bud-artifacts" / "failure.png").write_text("x")
+    (tmp_path / "bench.log").write_text("x")
+
+    result, client = _run_cli(tmp_path, ["--test-run-id", "42"], monkeypatch=monkeypatch)
+
+    assert result.exit_code == 0, result.stdout
+    assert sorted(Path(p).name for p in _uploaded(client)) == [
+        "bench.log",
+        "failure.png",
+        "report.xml",
+    ]
+
+
+def test_the_report_is_not_sent_twice_when_named_explicitly(tmp_path, monkeypatch):
+    out = tmp_path / "report.xml"
+
+    result, client = _run_cli(
+        tmp_path, ["--test-run-id", "42", "-A", str(out)], monkeypatch=monkeypatch
+    )
+
+    assert result.exit_code == 0
+    assert [Path(p).name for p in _uploaded(client)] == ["report.xml"]
+
+
+def test_a_discovered_file_that_will_not_upload_does_not_fail_the_run(tmp_path, monkeypatch):
+    (tmp_path / "huge.pcap").write_text("x")
+
+    result, _ = _run_cli(
+        tmp_path,
+        ["--test-run-id", "42"],
+        artifact_side_effect=RuntimeError("413 Payload Too Large"),
+        monkeypatch=monkeypatch,
+    )
+
+    assert result.exit_code == 0
+    assert "Could not upload" in result.stdout + result.stderr

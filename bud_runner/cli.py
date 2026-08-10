@@ -129,12 +129,37 @@ def _upload_artifacts(client: BudAPIClient, patterns: List[str], test_run_id: in
             typer.echo(f"⚠ No artifact matched: {pattern}", err=True)
         files.extend(matches)
 
+    seen = set()
     for path in files:
+        key = path.resolve()
+        if key in seen:
+            continue
+        seen.add(key)
         try:
             client.upload_artifact(str(path), run_id=test_run_id)
             typer.echo(f"✓ Uploaded artifact: {path.name}")
         except Exception as exc:
             typer.echo(f"⚠ Could not upload {path}: {exc}", err=True)
+
+
+# Logs, screenshots, plots, traces and packet captures a suite may leave behind.
+LOG_PATTERNS = ("*.log", "*.out", "*.err")
+CAPTURE_PATTERNS = ("*.pcap", "*.pcapng", "*.cap", "*.trace")
+
+
+def _discover_artifacts(artifact_dir: Path) -> List[Path]:
+    """Whatever the run left behind, if anything did.
+
+    Everything under the artifact directory, plus logs and captures written
+    beside the run. Scanning the whole workspace would sweep up the repository
+    itself, so only these two places are looked at.
+    """
+    found: List[Path] = []
+    if artifact_dir.is_dir():
+        found.extend(p for p in sorted(artifact_dir.rglob("*")) if p.is_file())
+    for pattern in LOG_PATTERNS + CAPTURE_PATTERNS:
+        found.extend(p for p in sorted(Path().glob(pattern)) if p.is_file())
+    return found
 
 
 def _custom_dir() -> Path:
@@ -421,6 +446,11 @@ def run_tests(
         "-A",
         help="File or glob to upload with the results. Repeatable.",
     ),
+    artifact_dir: Path = typer.Option(
+        Path("bud-artifacts"),
+        "--artifact-dir",
+        help="Directory whose contents are uploaded if it exists.",
+    ),
     test_timeout: int = typer.Option(
         300,
         "--test-timeout",
@@ -543,8 +573,16 @@ def run_tests(
                         f"({passed_tcs} out of {total_tcs} TC passed)."
                     )
 
-                if artifacts and test_run_id:
-                    _upload_artifacts(client, artifacts, test_run_id)
+                if test_run_id:
+                    # The report is the one artifact every run produces, so it
+                    # goes up without being asked for.
+                    to_upload: List[str] = []
+                    if format == OutputFormat.junit and output.is_file():
+                        to_upload.append(str(output))
+                    to_upload.extend(str(p) for p in _discover_artifacts(Path(artifact_dir)))
+                    to_upload.extend(artifacts)
+                    if to_upload:
+                        _upload_artifacts(client, to_upload, test_run_id)
                 elif artifacts:
                     typer.echo(
                         "⚠ Artifacts need a test run: pass --test-run-id.",
@@ -695,8 +733,9 @@ def claim_run(
 
             typer.echo(f"Run {run['id']} finished with exit code {code}")
             claim_id = str(uuid.uuid4())
-            if execution_error is not None and interval <= 0:
-                raise typer.Exit(code=1)
+            # A poller keeps going; a one-shot claim carries the code to CI.
+            if interval <= 0 and code != 0:
+                raise typer.Exit(code=code)
         elif interval <= 0:
             typer.echo("Nothing queued.")
         else:
