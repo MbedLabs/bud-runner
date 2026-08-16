@@ -14,7 +14,7 @@ def _pyproject() -> dict:
 def test_release_metadata_is_ready_for_1_0_0() -> None:
     project = _pyproject()["project"]
 
-    assert project["version"] == "1.0.2"
+    assert project["version"] == "1.0.3"
     assert project["authors"] == [
         {"name": "EmbedLabs", "email": "dev@embedlabs.net"},
         {"name": "Amine El Omari"},
@@ -32,7 +32,7 @@ def test_release_metadata_is_ready_for_1_0_0() -> None:
 def test_changelog_has_1_0_0_entry() -> None:
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## [1.0.2]" in changelog
+    assert "## [1.0.3]" in changelog
 
 
 def test_readme_credits_creator() -> None:
