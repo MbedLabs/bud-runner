@@ -23,6 +23,7 @@ and self-hosted CI runners.
 
 | `bud_runner` | Intended `budtestlibrary` pairing | Notes |
 |---|---|---|
+| `1.0.3` | `1.0.3` | Backend-queued runs, `--artifact` uploads, optional `addr` on `FlashEvent` |
 | `1.0.2` | `1.0.2` | Multipart artifact uploads and formatting fixes |
 | `1.0.1` | `1.0.1` | Timeout fixes and PyPI release structure |
 
