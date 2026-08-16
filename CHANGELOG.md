@@ -2,6 +2,20 @@
 
 All notable changes to `bud_runner` will be documented in this file.
 
+## [1.0.3] — 2026-08-16
+
+### Added
+- Run work queued by the backend for this station
+- Upload run artifacts with `--artifact`
+- Send the report and remaining files a run leaves behind
+
+### Fixed
+- Completed run claims are acknowledged idempotently
+
+### Changed
+- Version aligned with `budtestlibrary` 1.0.3, which adds an optional `addr`
+  target address to `FlashEvent.flash()` and `FlashEvent.execute()`
+
 ## [1.0.2] — 2026-07-22
 
 ### Changed

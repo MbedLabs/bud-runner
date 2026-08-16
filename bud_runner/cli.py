@@ -116,6 +116,103 @@ def _upload_payload_with_retry(
         raise
 
 
+def _upload_artifacts(client: BudAPIClient, patterns: List[str], test_run_id: int) -> None:
+    """Upload files matching the given paths or globs against a test run."""
+    files: List[Path] = []
+    for pattern in patterns:
+        literal = Path(pattern)
+        if literal.is_file():
+            files.append(literal)
+            continue
+        matches = sorted(m for m in Path().glob(pattern) if m.is_file())
+        if not matches:
+            typer.echo(f"⚠ No artifact matched: {pattern}", err=True)
+        files.extend(matches)
+
+    seen = set()
+    for path in files:
+        key = path.resolve()
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            client.upload_artifact(str(path), run_id=test_run_id)
+            typer.echo(f"✓ Uploaded artifact: {path.name}")
+        except Exception as exc:
+            typer.echo(f"⚠ Could not upload {path}: {exc}", err=True)
+
+
+# Logs, screenshots, plots, traces and packet captures a suite may leave behind.
+LOG_PATTERNS = ("*.log", "*.out", "*.err")
+CAPTURE_PATTERNS = ("*.pcap", "*.pcapng", "*.cap", "*.trace")
+
+
+def _discover_artifacts(artifact_dir: Path) -> List[Path]:
+    """Whatever the run left behind, if anything did.
+
+    Everything under the artifact directory, plus logs and captures written
+    beside the run. Scanning the whole workspace would sweep up the repository
+    itself, so only these two places are looked at.
+    """
+    found: List[Path] = []
+    if artifact_dir.is_dir():
+        found.extend(p for p in sorted(artifact_dir.rglob("*")) if p.is_file())
+    for pattern in LOG_PATTERNS + CAPTURE_PATTERNS:
+        found.extend(p for p in sorted(Path().glob(pattern)) if p.is_file())
+    return found
+
+
+def _custom_dir() -> Path:
+    """Directory for generated test case lists."""
+    custom_dir = Path(tempfile.gettempdir()) / "bud" / "custom"
+    custom_dir.mkdir(parents=True, exist_ok=True)
+    return custom_dir
+
+
+def _write_custom_test_list(test_paths: List[str], test_run_id: int) -> str:
+    """Write a claimed selection as a test case list module.
+
+    A custom run arrives as a list of module.Class paths, which is what a test
+    case list already holds. Writing one means the selection is executed by the
+    loader every other run goes through. The run id keeps the module name
+    unique, so a second run is not served the first one's import cache.
+    """
+    module = f"bud_custom_{test_run_id}"
+    body = "CUSTOM_TEST_LIST = [\n" + "".join(f"    {path!r},\n" for path in test_paths) + "]\n"
+    (_custom_dir() / f"{module}.py").write_text(body, encoding="utf-8")
+    return f"{module}.CUSTOM_TEST_LIST"
+
+
+def _run_claimed(
+    claimed: dict,
+    passthrough: List[str],
+    workspace: Optional[Path],
+) -> int:
+    """Execute a claimed run through the existing run-tests command."""
+    run = claimed["run"]
+    selected = claimed.get("selected_tests")
+    test_case_list = (
+        _write_custom_test_list(selected, run["id"]) if selected else run["test_case_list"]
+    )
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "bud_runner",
+        "run-tests",
+        "--test-case-list",
+        test_case_list,
+        "--test-run-id",
+        str(run["id"]),
+        *passthrough,
+    ]
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join([str(_custom_dir()), *sys.path])
+
+    return subprocess.run(cmd, cwd=workspace, env=env).returncode
+
+
 def _flush_spooled_results(
     client: BudAPIClient,
     auth: AuthManager,
@@ -343,6 +440,17 @@ def run_tests(
         "--upload/--no-upload",
         help="Upload results to backend",
     ),
+    artifacts: List[str] = typer.Option(
+        [],
+        "--artifact",
+        "-A",
+        help="File or glob to upload with the results. Repeatable.",
+    ),
+    artifact_dir: Path = typer.Option(
+        Path("bud-artifacts"),
+        "--artifact-dir",
+        help="Directory whose contents are uploaded if it exists.",
+    ),
     test_timeout: int = typer.Option(
         300,
         "--test-timeout",
@@ -464,6 +572,22 @@ def run_tests(
                         f"✓ Test run {test_run_id} marked as {final_status} "
                         f"({passed_tcs} out of {total_tcs} TC passed)."
                     )
+
+                if test_run_id:
+                    # The report is the one artifact every run produces, so it
+                    # goes up without being asked for.
+                    to_upload: List[str] = []
+                    if format == OutputFormat.junit and output.is_file():
+                        to_upload.append(str(output))
+                    to_upload.extend(str(p) for p in _discover_artifacts(Path(artifact_dir)))
+                    to_upload.extend(artifacts)
+                    if to_upload:
+                        _upload_artifacts(client, to_upload, test_run_id)
+                elif artifacts:
+                    typer.echo(
+                        "⚠ Artifacts need a test run: pass --test-run-id.",
+                        err=True,
+                    )
             else:
                 typer.echo("✗ Result upload failed", err=True)
                 raise typer.Exit(code=1)
@@ -484,6 +608,143 @@ def run_tests(
     except Exception as e:
         typer.echo(f"✗ Error running tests: {e}", err=True)
         raise typer.Exit(code=1)
+
+
+@app.command(name="claim-run")
+def claim_run(
+    backend_url: Optional[str] = typer.Option(
+        None,
+        "--backend-url",
+        "-b",
+        help="Backend URL to claim runs from",
+    ),
+    username: Optional[str] = typer.Option(
+        None,
+        "--username",
+        "-u",
+        help="Runner account to claim as",
+    ),
+    workspace: Optional[Path] = typer.Option(
+        None,
+        "--workspace",
+        "-w",
+        help="Directory holding this station's test modules (default: current directory)",
+    ),
+    interval: int = typer.Option(
+        0,
+        "--interval",
+        "-i",
+        help="Seconds between polls. 0 claims once and exits.",
+    ),
+    artifacts: List[str] = typer.Option(
+        [],
+        "--artifact",
+        "-A",
+        help="File or glob to upload with each claimed run. Repeatable.",
+    ),
+    test_timeout: int = typer.Option(
+        300,
+        "--test-timeout",
+        help="Max seconds per individual test (default: 300)",
+    ),
+    suite_timeout: int = typer.Option(
+        1800,
+        "--suite-timeout",
+        help="Max seconds for the full suite (default: 1800)",
+    ),
+):
+    """
+    Run whatever the backend has queued for this test station.
+
+    The station asks for its next run and executes it with run-tests, so a
+    custom selection takes the same path as any other run. Nothing connects
+    inward to the bench.
+    """
+    auth = AuthManager(username=username, backend_url=backend_url)
+    if not auth.backend_url:
+        typer.echo(
+            "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    if not auth.runner_token:
+        typer.echo(
+            "✗ No runner token. Run 'bud_runner register' on this station first.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    client = BudAPIClient(auth)
+
+    passthrough = ["--test-timeout", str(test_timeout), "--suite-timeout", str(suite_timeout)]
+    if backend_url:
+        passthrough.extend(["--backend-url", backend_url])
+    if username:
+        passthrough.extend(["--username", username])
+    for pattern in artifacts:
+        passthrough.extend(["--artifact", pattern])
+
+    claim_id = str(uuid.uuid4())
+    while True:
+        try:
+            claimed = client.claim_next_run(claim_id)
+        except Exception as exc:
+            # A poller outlives the backend it talks to; a blip is not the end
+            # of the shift. A one-shot claim has nobody to retry for it.
+            typer.echo(f"⚠ Could not claim a run: {exc}", err=True)
+            if interval <= 0:
+                raise typer.Exit(code=1)
+            time.sleep(interval)
+            continue
+
+        if claimed:
+            run = claimed["run"]
+            typer.echo(f"✓ Claimed run {run['id']}: {run['name']}")
+            execution_error = None
+            try:
+                code = _run_claimed(claimed, passthrough, workspace)
+            except Exception as exc:
+                code = 1
+                execution_error = f"{type(exc).__name__}: {exc}"
+                typer.echo(
+                    f"✗ Run {run['id']} could not execute: {execution_error}",
+                    err=True,
+                )
+
+            while True:
+                try:
+                    client.complete_claimed_run(
+                        run["id"],
+                        claimed["claim_id"],
+                        exit_code=code,
+                        error=execution_error,
+                    )
+                    break
+                except Exception as exc:
+                    typer.echo(
+                        f"⚠ Could not acknowledge run {run['id']}: {exc}",
+                        err=True,
+                    )
+                    if interval <= 0:
+                        raise typer.Exit(code=1)
+                    # Do not claim or execute more work until Bud has the
+                    # terminal answer for this run.
+                    time.sleep(interval)
+
+            typer.echo(f"Run {run['id']} finished with exit code {code}")
+            claim_id = str(uuid.uuid4())
+            # A poller keeps going; a one-shot claim carries the code to CI.
+            if interval <= 0 and code != 0:
+                raise typer.Exit(code=code)
+        elif interval <= 0:
+            typer.echo("Nothing queued.")
+        else:
+            # A successful empty response proves this key did not claim work.
+            claim_id = str(uuid.uuid4())
+
+        if interval <= 0:
+            return
+        time.sleep(interval)
 
 
 @app.command(name="list-tests")

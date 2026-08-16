@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bud-runner"
-version = "1.0.2"
+version = "1.0.3"
 description = "CLI tool for test execution and Bud Test Management Platform integration"
 readme = "README.md"
 license = {text = "AGPL-3.0-only"}
@@ -37,7 +37,9 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "typer>=0.9.0",
+    # 0.16.0 is the floor that works with Click >= 8.2, which tightened
+    # boolean-flag validation and broke Typer 0.12.x at CLI build time.
+    "typer>=0.16.0",
     "requests>=2.28.0",
     "rich>=13.0.0",
 ]
