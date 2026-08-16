@@ -9,6 +9,7 @@ Provides methods for:
 """
 
 import copy
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -639,6 +640,54 @@ class BudAPIClient:
             logger = logging.getLogger(__name__)
             logger.error(f"Heartbeat network error: {e}")
             return {"status": "error", "message": str(e)}
+
+    def claim_next_run(self, claim_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Take the next run the backend has queued for this runner.
+
+        The claim is sent with the runner token rather than the session's
+        default bearer: the backend only hands a queued run to the station it
+        was queued for, and a user token is not that station.
+
+        Returns:
+            The claimed run and its test selection, or None if nothing is queued.
+        """
+        claim_id = claim_id or str(uuid.uuid4())
+        headers = {"Idempotency-Key": claim_id}
+        if self._auth.runner_token:
+            headers["Authorization"] = f"Bearer {self._auth.runner_token}"
+
+        response = self._session.post(
+            f"{self._api_url}/runners/claim-run",
+            headers=headers,
+            timeout=30,
+        )
+        if response.status_code == 204:
+            return None
+        response.raise_for_status()
+        return response.json()
+
+    def complete_claimed_run(
+        self,
+        run_id: int,
+        claim_id: str,
+        *,
+        exit_code: int,
+        error: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Send the idempotent terminal answer for a claimed execution."""
+        headers = {"Idempotency-Key": claim_id}
+        if self._auth.runner_token:
+            headers["Authorization"] = f"Bearer {self._auth.runner_token}"
+
+        response = self._session.post(
+            f"{self._api_url}/runners/runs/{run_id}/complete",
+            headers=headers,
+            json={"exit_code": exit_code, "error": error},
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
 
     # ==================== Health ====================
 

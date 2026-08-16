@@ -15,6 +15,7 @@ and self-hosted CI runners.
 - Produces JUnit XML, JSON, or text output.
 - Creates and updates Bud test runs.
 - Uploads test results and artifacts to Bud.
+- Runs work the backend has queued for a test station.
 - Registers persistent runner identities.
 - Runs a heartbeat and local control daemon.
 - Spools failed result uploads for later retry.
@@ -23,6 +24,7 @@ and self-hosted CI runners.
 
 | `bud_runner` | Intended `budtestlibrary` pairing | Notes |
 |---|---|---|
+| `1.0.3` | `1.0.3` | Backend-queued runs, `--artifact` uploads, optional `addr` on `FlashEvent` |
 | `1.0.2` | `1.0.2` | Multipart artifact uploads and formatting fixes |
 | `1.0.1` | `1.0.1` | Timeout fixes and PyPI release structure |
 
@@ -79,6 +81,42 @@ python -m bud_runner run-tests \
 If an upload returns `401 Unauthorized` and credentials were supplied,
 `bud_runner` logs in again through the Bud authentication API, refreshes the
 cached user token, and retries once.
+
+### Upload artifacts with the results
+
+`--artifact` (`-A`) takes a file path or glob and is repeatable. Matching files
+are uploaded alongside the results, so logs, captures, and reports stay attached
+to the run:
+
+```bash
+python -m bud_runner run-tests \
+  --test-case-list <Module.ClassName> \
+  --artifact "logs/*.log" \
+  --artifact capture.png \
+  --upload
+```
+
+A file that fails to upload is reported but does not fail the run.
+
+### Run work queued by Bud
+
+`claim-run` asks the backend for this station's next queued run and executes it
+through the same path as any other run. With `--interval 0` (the default) it
+claims once and exits, which suits a cron entry or a one-shot CI job; a non-zero
+interval polls continuously:
+
+```bash
+python -m bud_runner claim-run \
+  --backend-url "https://<your-bud-instance-url>" \
+  --username "station-01@example.com" \
+  --workspace ./tests \
+  --interval 30 \
+  --artifact "logs/*.log"
+```
+
+`--workspace` points at the directory holding this station's test modules and
+defaults to the current directory. `--test-timeout` and `--suite-timeout` cap a
+single test and the full suite, at 300 and 1800 seconds respectively.
 
 ### Create a Bud test run
 
@@ -145,6 +183,7 @@ Do not put passwords, user tokens, runner tokens, or registration secrets in
 | Command | Purpose |
 |---|---|
 | `run-tests` | Execute tests, generate reports, and optionally upload results |
+| `claim-run` | Run work the backend has queued for this test station |
 | `list-tests` | Resolve and list discovered tests without executing them |
 | `add-test-run` | Create a Bud test run |
 | `register` | Register or re-register a runner identity |
