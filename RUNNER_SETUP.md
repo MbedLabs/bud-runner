@@ -10,11 +10,13 @@ pip install bud-runner
 ```
 
 ## 2. Environment Configuration
-Define your backend URL and registration secret. The `RUNNER_API_KEY` is a shared secret configured on your Bud backend instance.
+Define your backend URL and this station's enrolment key. The key is not shared between
+benches: a Bud administrator mints one per station under **Test Stations** → **Enrolment
+keys**, it is shown once, and it pins to the first station that registers with it.
 
 ```bash
 export BUD_BACKEND_URL="https://<your-bud-backend-domain>"
-export RUNNER_API_KEY="<your-registration-secret>"
+export RUNNER_API_KEY="<the-enrolment-key-minted-in-bud>"
 ```
 
 ## 3. Register the Runner
@@ -42,7 +44,7 @@ budBackend=https://<your-bud-instance-url>
 budRunnerAccount=<new-runner-name>
 ```
 
-Keep runner secrets out of the repository. Tokens and registration secrets must
+Keep runner secrets out of the repository. Tokens and enrolment keys must
 live in `~/.bud/config.json` or environment variables, not `app.properties`.
 The daemon port is also stored in `~/.bud/config.json`.
 

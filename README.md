@@ -132,8 +132,17 @@ python -m bud_runner add-test-run \
 
 ### Register a runner
 
+Each station enrols with its own key. A Bud administrator mints it under **Test
+Stations** → **Enrolment keys**; it is shown once, and pins to the first station that
+registers with it. There is no shared secret across benches.
+
+The administrator also names the station when minting the key, and that name wins: if it
+differs from the `--username` passed here, registration returns the name Bud assigned and
+the runner stores that one. A later rename in Bud is picked up on the next heartbeat.
+
+
 ```bash
-export RUNNER_API_KEY="<registration-secret>"
+export RUNNER_API_KEY="<enrolment-key-minted-in-bud>"
 export BUD_BACKEND_URL="https://<your-bud-instance-url>"
 
 python -m bud_runner register \
@@ -165,7 +174,7 @@ export BUD_BACKEND_URL="https://<your-bud-instance-url>"
 export BUD_TOKEN="<user-token>"
 export BUD_RUNNER_ACCOUNT="lab-station-01"
 export BUD_RUNNER_TOKEN="<runner-token>"
-export RUNNER_API_KEY="<registration-secret>"
+export RUNNER_API_KEY="<enrolment-key-minted-in-bud>"
 ```
 
 Project-level, non-secret context can be stored in `app.properties`:
@@ -175,7 +184,7 @@ budBackend=https://<your-bud-instance-url>
 budRunnerAccount=lab-station-01
 ```
 
-Do not put passwords, user tokens, runner tokens, or registration secrets in
+Do not put passwords, user tokens, runner tokens, or enrolment keys in
 `app.properties`.
 
 ## Main commands
