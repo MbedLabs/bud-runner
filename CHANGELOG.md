@@ -2,7 +2,7 @@
 
 All notable changes to `bud_runner` will be documented in this file.
 
-## [Unreleased]
+## [1.1.0] — 2026-09-09
 
 ### Changed
 - The station takes the name Bud assigned it. An administrator names a Test Station when minting its enrolment key, and that name wins over `--username`: registration now stores what the backend returned rather than what was sent, and a later rename in Bud is adopted on the next heartbeat and written to `~/.bud/`.
