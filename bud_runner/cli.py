@@ -874,8 +874,10 @@ def register(
         None,
         "--api-key",
         envvar="RUNNER_API_KEY",
-        help="Shared secret sent as X-API-Key for POST /api/runners/register (matches backend RUNNER_API_KEY). "
-        "Falls back to RUNNER_API_KEY env var.",
+        help="This station's enrolment key, minted by a Bud administrator under "
+        "Test Stations, sent as X-API-Key for POST /api/runners/register. A key pins "
+        "to the first station that registers with it. Falls back to the RUNNER_API_KEY "
+        "env var.",
     ),
     no_start: bool = typer.Option(
         False,
@@ -903,7 +905,8 @@ def register(
     if not auth.runner_api_key:
         typer.echo(
             "✗ RUNNER_API_KEY is not configured. Pass --api-key or export "
-            "RUNNER_API_KEY (the shared secret from the Bud backend).",
+            "RUNNER_API_KEY (this station's enrolment key, minted by a Bud "
+            "administrator under Test Stations).",
             err=True,
         )
         raise typer.Exit(code=2)
