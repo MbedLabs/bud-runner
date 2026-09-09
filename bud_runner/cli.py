@@ -942,8 +942,9 @@ def register(
             password=password,
             socket_port=socket_port,
         )
+        username = result.get("account") or username
 
-        typer.echo(f"✓ Registered successfully. Identity saved to ~/.bud/config.json")
+        typer.echo(f"✓ Registered as {username}. Identity saved to ~/.bud/config.json")
         if generated_password:
             typer.echo("Generated password for this runner account. Save it somewhere secure:")
             typer.echo(password)
