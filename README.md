@@ -136,6 +136,10 @@ Each station enrols with its own key. A Bud administrator mints it under **Test
 Stations** → **Enrolment keys**; it is shown once, and pins to the first station that
 registers with it. There is no shared secret across benches.
 
+The administrator also names the station when minting the key, and that name wins: if it
+differs from the `--username` passed here, registration returns the name Bud assigned and
+the runner stores that one. A later rename in Bud is picked up on the next heartbeat.
+
 
 ```bash
 export RUNNER_API_KEY="<enrolment-key-minted-in-bud>"

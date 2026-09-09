@@ -5,6 +5,7 @@ All notable changes to `bud_runner` will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- The station takes the name Bud assigned it. An administrator names a Test Station when minting its enrolment key, and that name wins over `--username`: registration now stores what the backend returned rather than what was sent, and a later rename in Bud is adopted on the next heartbeat and written to `~/.bud/`.
 - The documentation no longer describes `RUNNER_API_KEY` as a shared secret configured on the backend. Bud stopped accepting a shared key: an administrator mints one enrolment key per station in the interface, it is shown once, and it pins to the first station that registers with it. The variable and the `--api-key` option are unchanged — only what you put in them, and where it comes from.
 
 ## [1.0.3] — 2026-08-16
