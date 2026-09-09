@@ -58,7 +58,7 @@ class RunnerManager:
             socket_port: Socket port for communication.
 
         Returns:
-            Registration response with token.
+            Registration response with token, under the account name Bud assigned.
         """
         # Register with backend
         result = self._client.register_runner(
@@ -67,9 +67,11 @@ class RunnerManager:
             socket_port=socket_port,
         )
 
+        account = result.get("account") or username
+
         # Save secret identity to machine vault
         self._auth.save_identity(
-            username=username,
+            username=account,
             token=result.get("token"),
             port=socket_port,
         )
@@ -78,7 +80,7 @@ class RunnerManager:
         self._auth.save_to_properties()
 
         return {
-            "account": username,
+            "account": account,
             "token_saved": True,
             "vault_updated": True,
             "socket_port": socket_port,
@@ -129,6 +131,23 @@ class RunnerManager:
         else:
             return f"UNKNOWN: {cmd}"
 
+    def _adopt_renamed_account(self, reported: Optional[str]) -> None:
+        """Take the account name Bud reports when an administrator has changed it.
+
+        The station is identified by its token, so a rename does not interrupt
+        it; only the name it knows itself by has to catch up.
+        """
+
+        current = self._auth.runner_account
+        if not reported or reported == current:
+            return
+        logger.info("Renamed in Bud: %s is now %s", current, reported)
+        self._auth.save_identity(
+            username=reported,
+            token=self._auth.runner_token,
+            port=self._auth.socket_port,
+        )
+
     async def _heartbeat_loop(self, interval: int, location: Optional[str] = None) -> None:
         """Background heartbeat loop."""
         while self._running:
@@ -137,6 +156,7 @@ class RunnerManager:
                 result = await asyncio.to_thread(self._client.heartbeat, location=location)
 
                 if result.get("status") == "ok":
+                    self._adopt_renamed_account(result.get("account"))
                     logger.debug("✓ Heartbeat sent")
                 else:
                     logger.warning(f"✗ Heartbeat failed: {result.get('message')}")
