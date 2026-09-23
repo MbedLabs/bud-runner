@@ -119,6 +119,34 @@ python -m bud_runner claim-run \
 defaults to the current directory. `--test-timeout` and `--suite-timeout` cap a
 single test and the full suite, at 300 and 1800 seconds respectively.
 
+### Report a Robot Framework run
+
+`run-robot` runs Robot Framework with the Bud listener attached; every argument
+it does not know goes to `robot` unchanged, and Robot's exit code is returned.
+Install the extra first: `python -m pip install "bud-runner[robot]"`.
+
+```bash
+python -m bud_runner run-robot \
+  --backend-url "https://<your-bud-instance-url>" \
+  --outputdir robot-results \
+  --include smoke \
+  tests/
+```
+
+Each Robot test becomes one Bud result (the suite's full name as the test class,
+the test name as the method); SKIP counts as skipped. Each library keyword call
+inside a test becomes one assertion, with expected and actual filled in for
+BuiltIn's `Should ...` keywords. A `bloom:<TC id>` tag such as `bloom:EFR-TC-001`
+links the result to that Bloom test case; tests without one are shown in Bud and
+not synced. output.xml, log.html and report.html are attached to the run. A
+failed upload is spooled and replayed by the next bud-runner command.
+
+The listener also works without the wrapper:
+`robot --listener "bud_runner.robot_listener.BudListener;backend=https://bud.example" tests/`.
+Use the semicolon separator so the URL's colons are kept. Other listener
+arguments: `test_run_id`, `product_id`, `suite_name`, `ref_sw_under_test`,
+`upload=false`, `artifacts=false`.
+
 ### Create a Bud test run
 
 ```bash
@@ -194,6 +222,7 @@ Do not put passwords, user tokens, runner tokens, or enrolment keys in
 |---|---|
 | `run-tests` | Execute tests, generate reports, and optionally upload results |
 | `claim-run` | Run work the backend has queued for this test station |
+| `run-robot` | Run Robot Framework with the Bud listener and report the run |
 | `list-tests` | Resolve and list discovered tests without executing them |
 | `add-test-run` | Create a Bud test run |
 | `register` | Register or re-register a runner identity |

@@ -747,6 +747,76 @@ def claim_run(
         time.sleep(interval)
 
 
+@app.command(
+    name="run-robot",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def run_robot(
+    ctx: typer.Context,
+    backend_url: Optional[str] = typer.Option(
+        None, "--backend-url", "-b", help="Backend URL for result upload"
+    ),
+    test_run_id: Optional[int] = typer.Option(
+        None, "--test-run-id", help="Existing TestRun id to attach the results to."
+    ),
+    product_id: Optional[int] = typer.Option(
+        None, "--product-id", help="Product id for a run Bud creates from the upload."
+    ),
+    ref_software_under_test: Optional[str] = typer.Option(
+        None, "--ref-sw-under-test", help="Git ref of the software under test."
+    ),
+    suite_name: Optional[str] = typer.Option(
+        None, "--suite-name", help="Suite name in Bud (default: the Robot root suite name)."
+    ),
+    upload_results: bool = typer.Option(True, "--upload/--no-upload", help="Upload results to Bud"),
+    upload_artifacts: bool = typer.Option(
+        True,
+        "--artifacts/--no-artifacts",
+        help="Upload output.xml, log.html and report.html with the results",
+    ),
+):
+    """
+    Run Robot Framework with the Bud listener attached.
+
+    Every argument Bud does not know is passed to robot unchanged, for example
+    ``bud-runner run-robot --backend-url https://bud tests/``. Robot's exit code is
+    returned as is, so CI still fails on failed tests.
+    """
+    try:
+        import robot
+    except ImportError:
+        typer.echo("✗ Robot Framework is not installed: pip install 'bud-runner[robot]'", err=True)
+        raise typer.Exit(code=2)
+
+    if upload_results:
+        auth = AuthManager(backend_url=backend_url)
+        if not auth.backend_url:
+            typer.echo(
+                "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        try:
+            _flush_spooled_results(BudAPIClient(auth), auth, None, None)
+        except Exception as exc:
+            typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
+
+    options = {
+        "backend": backend_url,
+        "test_run_id": test_run_id,
+        "product_id": product_id,
+        "ref_sw_under_test": ref_software_under_test,
+        "suite_name": suite_name,
+        "upload": "true" if upload_results else "false",
+        "artifacts": "true" if upload_artifacts else "false",
+    }
+    listener = "bud_runner.robot_listener.BudListener" + "".join(
+        f";{key}={value}" for key, value in options.items() if value is not None
+    )
+    rc = robot.run_cli(["--listener", listener, *ctx.args], exit=False)
+    raise typer.Exit(code=rc)
+
+
 @app.command(name="list-tests")
 def list_tests(
     test_case_list: str = typer.Option(
