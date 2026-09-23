@@ -314,6 +314,7 @@ class BudAPIClient:
         failed_tests: Optional[int] = None,
         duration_seconds: Optional[float] = None,
         product_id: Optional[int] = None,
+        skipped_tests: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Update a test run with results or status.
@@ -327,6 +328,7 @@ class BudAPIClient:
             failed_tests: Number of failed tests.
             duration_seconds: Total suite duration.
             product_id: Associated product ID.
+            skipped_tests: Number of skipped tests.
 
         Returns:
             Updated test run details.
@@ -346,6 +348,8 @@ class BudAPIClient:
             payload["duration_seconds"] = duration_seconds
         if product_id is not None:
             payload["product_id"] = product_id
+        if skipped_tests is not None:
+            payload["skipped_tests"] = skipped_tests
 
         response = self._session.patch(
             f"{self._api_url}/test-runs/{run_id}",
@@ -465,8 +469,12 @@ class BudAPIClient:
             payload["product_id"] = product_id
         return payload
 
-    def upload_results_payload(self, payload: Dict[str, Any]) -> bool:
-        """Upload a pre-built results payload."""
+    def upload_results_payload(self, payload: Dict[str, Any]) -> Any:
+        """Upload a pre-built results payload.
+
+        Returns the server's answer (it names the run the results went to), or True
+        when the answer is not JSON.
+        """
         request_payload = copy.deepcopy(payload)
 
         headers = {}
@@ -481,7 +489,10 @@ class BudAPIClient:
         )
         if response.status_code not in (200, 201):
             response.raise_for_status()
-        return True
+        try:
+            return response.json()
+        except ValueError:
+            return True
 
     def login_user(self, username: str, password: str) -> str:
         """Authenticate a Bud user and return a fresh JWT access token."""
