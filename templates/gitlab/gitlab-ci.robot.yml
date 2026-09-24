@@ -1,0 +1,44 @@
+# Bud Robot Framework Pipeline Template (GitLab CI)
+#
+# The GitLab counterpart of templates/github/bud-robot.yml. Copy this file to
+# your repository root as .gitlab-ci.yml and list `bud-runner[robot]` in
+# requirements.txt. Set ROBOT_ARGS as a pipeline variable to pass extra robot
+# arguments, for example `--include smoke`.
+
+stages:
+  - test
+
+variables:
+  BUD_BACKEND_URL: "BUD_BACKEND_URL"
+  GIT_DEPTH: "1"
+
+default:
+  interruptible: false
+
+bud-robot:
+  stage: test
+  tags:
+    - teststations
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  before_script:
+    - python3 -m pip install --upgrade pip
+    - python3 -m pip install -r requirements.txt
+  script:
+    - |
+      python3 -m bud_runner run-robot \
+        --backend-url "$BUD_BACKEND_URL" \
+        --outputdir robot-results \
+        --xunit xunit.xml \
+        $ROBOT_ARGS \
+        tests/
+  artifacts:
+    when: always
+    expire_in: 30 days
+    name: "robot-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID"
+    paths:
+      - "robot-results/"
+    reports:
+      junit:
+        - "robot-results/xunit.xml"
