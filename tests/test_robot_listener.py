@@ -75,6 +75,11 @@ def test_a_robot_run_maps_to_bud_results(tmp_path):
     assert body["ref_software_under_test"] == "fw-2.4.1"
     assert body["product_id"] == 4 and body["runner_account"] == "bench-1"
     assert body["test_run_id"] is None
+    assert listener.payload("bench-1", 12)["product_id"] == 4
+    unset = BudListener(upload="false")
+    unset.results = listener.results
+    assert unset.payload(None, 12)["product_id"] == 12
+    assert "product_id" not in unset.payload(None, None)
 
 
 class FakeClient:
@@ -106,7 +111,7 @@ def fake_backend(monkeypatch, tmp_path):
         return client
 
     monkeypatch.setattr(api_client, "BudAPIClient", client_factory)
-    monkeypatch.setattr(auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account="bench-1"))
+    monkeypatch.setattr(auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account="bench-1", product_id=12))
     spooled = []
     monkeypatch.setattr(cli, "_spool_results_payload", lambda payload: spooled.append(payload) or "spool.json")
     return SimpleNamespace(made=made, spooled=spooled, factory=client_factory)
@@ -116,6 +121,8 @@ def test_close_uploads_results_skips_and_reports(tmp_path, fake_backend):
     _run(tmp_path, BudListener(backend="https://bud.example"))
     calls = fake_backend.made[0].calls
     assert calls[0][0] == "results" and len(calls[0][1]["results"]) == 3
+    assert calls[0][1]["product_id"] == 12
+    assert calls[0][1]["test_suite_name"] == "Bench"
     assert calls[1] == ("update", 42, {"skipped_tests": 1})
     assert sorted(c[1] for c in calls[2:]) == ["log.html", "output.xml", "report.html"]
     assert all(c[2] == 42 for c in calls[2:])
@@ -130,7 +137,7 @@ def test_failed_upload_is_spooled(tmp_path, fake_backend):
 
 def test_close_never_raises_and_skips_empty_runs(monkeypatch, capsys):
     listener = BudListener(artifacts="no")
-    monkeypatch.setattr(auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account=None))
+    monkeypatch.setattr(auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account=None, product_id=None))
     monkeypatch.setattr(api_client, "BudAPIClient", lambda a: FakeClient(a))
     listener.close()
     assert "nothing uploaded" in capsys.readouterr().err

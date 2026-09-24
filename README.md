@@ -141,11 +141,14 @@ links the result to that Bloom test case; tests without one are shown in Bud and
 not synced. output.xml, log.html and report.html are attached to the run. A
 failed upload is spooled and replayed by the next bud-runner command.
 
-The listener also works without the wrapper:
-`robot --listener "bud_runner.robot_listener.BudListener;backend=https://bud.example" tests/`.
-Use the semicolon separator so the URL's colons are kept. Other listener
-arguments: `test_run_id`, `product_id`, `suite_name`, `ref_sw_under_test`,
-`upload=false`, `artifacts=false`.
+The listener also works on an existing `robot` command:
+`robot --listener bud_runner.robot_listener.BudListener tests/`. Like `run-tests`,
+it reads the backend, the station and the product from `app.properties`
+(`budBackend`, `budRunnerAccount`, `productId`) and the `BUD_*` environment, so Bud
+names the run `<product> - <root suite>`. Listener arguments override them:
+`backend`, `product_id`, `suite_name`, `test_run_id`, `ref_sw_under_test`,
+`upload=false`, `artifacts=false`, separated by semicolons so a URL's colons are
+kept (`BudListener;backend=https://bud.example`).
 
 ### Create a Bud test run
 

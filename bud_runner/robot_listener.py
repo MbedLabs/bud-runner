@@ -199,8 +199,14 @@ class BudListener:
     def report_file(self, path) -> None:
         self.files.append(Path(path))
 
-    def payload(self, runner_account: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """The ResultsUpload body for the collected run, or None when nothing ran."""
+    def payload(
+        self, runner_account: Optional[str] = None, default_product_id: Optional[int] = None
+    ) -> Optional[Dict[str, Any]]:
+        """The ResultsUpload body for the collected run, or None when nothing ran.
+
+        The product is the listener's ``product_id`` option, else the one bud-runner
+        reads from app.properties (``productId``), as ``run-tests`` does.
+        """
         if not self.results:
             return None
         body: Dict[str, Any] = {
@@ -212,8 +218,9 @@ class BudListener:
             or self.metadata.get("Software Under Test")
             or self.metadata.get("ref_sw_under_test"),
         }
-        if self.product_id is not None:
-            body["product_id"] = self.product_id
+        product_id = self.product_id if self.product_id is not None else default_product_id
+        if product_id is not None:
+            body["product_id"] = product_id
         return body
 
     def close(self) -> None:
@@ -231,7 +238,7 @@ class BudListener:
 
         auth = AuthManager(backend_url=self.backend)
         client = BudAPIClient(auth)
-        body = self.payload(auth.runner_account)
+        body = self.payload(auth.runner_account, auth.product_id)
         if body is None:
             print("[bud] The Robot run produced no test results; nothing uploaded.", file=sys.stderr)
             return
