@@ -6,6 +6,7 @@ All notable changes to `bud_runner` will be documented in this file.
 
 ### Added
 - `run-robot` and `bud_runner.robot_listener.BudListener`: a Robot Framework run is reported to Bud. Each test becomes a result, each library keyword call an assertion (expected and actual for BuiltIn's `Should ...` keywords), a `bloom:<TC id>` tag the Bloom identity, SKIP a skipped test; output.xml, log.html and report.html are attached to the run. Robot's exit code is unchanged; a failed upload is spooled. Robot Framework 7 or later, as the `robot` extra.
+- `templates/`: CI jobs for GitHub Actions and GitLab CI, for Python test case lists (`run-tests`) and Robot Framework suites (`run-robot`).
 - `update_test_run` takes `skipped_tests`; `upload_results_payload` returns the server's answer, which names the run.
 
 ## [1.1.0] — 2026-09-09

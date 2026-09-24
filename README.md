@@ -237,6 +237,9 @@ Run `python -m bud_runner <command> --help` for complete options.
 
 ## CI example
 
+Ready-to-copy jobs for GitHub Actions and GitLab CI, for Python test case lists
+and for Robot Framework suites, are in the `templates/` folder of the bud-runner repository.
+
 ```yaml
 name: Run tests
 
