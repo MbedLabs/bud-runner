@@ -135,8 +135,13 @@ python -m bud_runner run-robot \
 
 Each Robot test becomes one Bud result (the suite's full name as the test class,
 the test name as the method); SKIP counts as skipped. Each library keyword call
-inside a test becomes one assertion, with expected and actual filled in for
-BuiltIn's `Should ...` keywords. A `bloom:<TC id>` tag such as `bloom:PRJ-TC-001`
+inside a test becomes one entry: a check (a library keyword whose name contains
+"Should") is an assertion named `Assert` plus what it checks (`AssertEqual`,
+`AssertIn`, `AssertTrue`, `AssertEmpty`, ...), with expected and actual for BuiltIn's
+checks; a keyword that checks nothing, such as `Log`, or a failure that a TRY or a
+keyword such as `Run Keyword And Ignore Error` handled, is an information entry; a
+keyword that fails, or is not found, is a failed entry; `Skip` is a skipped entry. Each entry carries its .robot file, line and call,
+and a failure the Robot call chain as its traceback. A `bloom:<TC id>` tag such as `bloom:PRJ-TC-001`
 links the result to that Bloom test case; tests without one are shown in Bud and
 not synced. output.xml, log.html and report.html are attached to the run. A
 failed upload is spooled and replayed by the next bud-runner command.
