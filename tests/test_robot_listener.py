@@ -50,7 +50,9 @@ def test_a_robot_run_maps_to_bud_results(tmp_path):
     assert _run(tmp_path, listener) == 1
 
     measured, failed, skipped = listener.results
-    assert (measured["test_class"], measured["test_method"]) == ("Bench", "Measures within limit")
+    assert (measured["test_class"], measured["test_method"]) == ("Bench.Measures within limit", "Measures within limit")
+    assert "test_case_file" not in measured["metadata"] and "test_case_class" not in measured["metadata"]
+    assert len({r["test_class"] for r in listener.results}) == 3
     assert measured["passed"] is True and measured["error_message"] is None
     assert measured["metadata"]["tc_id"] == "PRJ-TC-001"
     assert measured["metadata"]["robot_tags"] == ["bench", "bloom:PRJ-TC-001"]

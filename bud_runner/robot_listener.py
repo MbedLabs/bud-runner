@@ -2,8 +2,8 @@
 
 Attach it with ``robot --listener "bud_runner.robot_listener.BudListener;backend=https://bud"``
 (the semicolon separator keeps the colons of a URL intact) or run
-``bud-runner run-robot``. Each Robot test becomes one Bud result (the suite's full
-name as the test class, the test name as the method). Inside a test, each library
+``bud-runner run-robot``. Each Robot test becomes one Bud test case and result (its
+full name as the test class, its name as the method). Inside a test, each library
 keyword call becomes one entry: a check (a library keyword whose name contains the
 word "Should") is an assertion named ``Assert`` plus what it checks (AssertEqual,
 AssertIn, AssertTrue, AssertEmpty, ...), never "Should"; a keyword that checks
@@ -439,6 +439,9 @@ class BudListener:
             metadata["tc_id"] = tc_ids[0]
         if skipped:
             metadata["skipped"] = True
+        full_name = getattr(result, "full_name", None) or (
+            f"{result.parent.full_name}.{result.name}" if result.parent else result.name
+        )
         if result.status == "FAIL" and self._assertions is not None:
             if not any(e.get("passed") is False for e in self._assertions):
                 fallback = _entry("Fail", False, result.message, None)
@@ -447,7 +450,7 @@ class BudListener:
                 self._assertions.append(fallback)
         self.results.append(
             {
-                "test_class": result.parent.full_name if result.parent else (self.root_suite or "Robot"),
+                "test_class": full_name,
                 "test_method": result.name,
                 "passed": result.status in ("PASS", "SKIP"),
                 "duration_seconds": _elapsed(result),

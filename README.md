@@ -133,8 +133,8 @@ python -m bud_runner run-robot \
   tests/
 ```
 
-Each Robot test becomes one Bud result (the suite's full name as the test class,
-the test name as the method); SKIP counts as skipped. Each library keyword call
+Each Robot test becomes one Bud test case (its full name as the test class, its
+name as the method); SKIP counts as skipped. Each library keyword call
 inside a test becomes one entry: a check (a library keyword whose name contains
 "Should") is an assertion named `Assert` plus what it checks (`AssertEqual`,
 `AssertIn`, `AssertTrue`, `AssertEmpty`, ...), with expected and actual for BuiltIn's
