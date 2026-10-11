@@ -9,6 +9,12 @@ All notable changes to `bud_runner` will be documented in this file.
 - `templates/`: CI jobs for GitHub Actions and GitLab CI, for Python test case lists (`run-tests`) and Robot Framework suites (`run-robot`).
 - `update_test_run` takes `skipped_tests`; `upload_results_payload` returns the server's answer, which names the run.
 
+### Changed
+- Execution submissions and artifact uploads use the station token when a user session is also configured. A queued selection keeps the backend and station account resolved before entering its test workspace, and the station acknowledges completion after execution and uploads.
+
+### Fixed
+- An unavailable selected test class fails the selection before execution instead of being silently skipped and reported as a successful zero-test run.
+
 ## [1.1.0] — 2026-09-09
 
 ### Changed

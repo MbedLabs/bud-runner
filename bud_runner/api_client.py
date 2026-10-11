@@ -259,6 +259,8 @@ class BudAPIClient:
         Returns:
             Dictionary with test run details including ID and URL.
         """
+        if not self._auth.runner_token:
+            raise RuntimeError("Station authentication is required to create test runs")
         payload = {
             "test_case_list": test_case_list,
             "test_suite_name": test_suite_name,
@@ -279,6 +281,7 @@ class BudAPIClient:
         response = self._session.post(
             f"{self._api_url}/test-runs",
             json=payload,
+            headers={"Authorization": f"Bearer {self._auth.runner_token}"},
             timeout=30,
         )
         response.raise_for_status()
@@ -333,6 +336,8 @@ class BudAPIClient:
         Returns:
             Updated test run details.
         """
+        if not self._auth.runner_token:
+            raise RuntimeError("Station authentication is required to update test runs")
         payload = {}
         if status:
             payload["status"] = status
@@ -354,6 +359,7 @@ class BudAPIClient:
         response = self._session.patch(
             f"{self._api_url}/test-runs/{run_id}",
             json=payload,
+            headers={"Authorization": f"Bearer {self._auth.runner_token}"},
             timeout=30,
         )
         response.raise_for_status()
@@ -477,7 +483,13 @@ class BudAPIClient:
         """
         request_payload = copy.deepcopy(payload)
 
-        headers = {}
+        if not self._auth.runner_token and not self._auth.runner_api_key:
+            raise RuntimeError("Station authentication is required to submit test results")
+        headers = {
+            "Authorization": (
+                f"Bearer {self._auth.runner_token}" if self._auth.runner_token else None
+            )
+        }
         if self._auth.runner_api_key:
             headers["X-API-Key"] = self._auth.runner_api_key
 
@@ -539,8 +551,9 @@ class BudAPIClient:
 
             # Remove Content-Type header for multipart upload
             headers = {k: v for k, v in self._session.headers.items() if k != "Content-Type"}
-            if self._auth.token:
-                headers["Authorization"] = f"Bearer {self._auth.token}"
+            artifact_token = self._auth.runner_token or self._auth.token
+            if artifact_token:
+                headers["Authorization"] = f"Bearer {artifact_token}"
 
             response = self._session.post(
                 f"{self._api_url}/uploads",
