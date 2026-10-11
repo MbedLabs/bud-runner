@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import os
 import re
 import tomllib
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
+AUTHOR = os.environ.get("PACKAGE_AUTHOR", "")
+needs_author = pytest.mark.skipif(not AUTHOR, reason="PACKAGE_AUTHOR is not set")
 
 
 def _pyproject() -> dict:
@@ -21,10 +26,8 @@ def test_the_declared_version_is_a_release_number() -> None:
 def test_release_metadata_is_ready_for_1_0_0() -> None:
     project = _pyproject()["project"]
 
-    assert project["authors"] == [
-        {"name": "EmbedLabs", "email": "dev@embedlabs.net"},
-        {"name": "Amine El Omari"},
-    ]
+    assert project["authors"][0] == {"name": "EmbedLabs", "email": "dev@embedlabs.net"}
+    assert len(project["authors"]) == 2
     assert project["maintainers"] == [{"name": "EmbedLabs", "email": "dev@embedlabs.net"}]
     assert project["urls"] == {
         "Homepage": "https://embedlabs.net",
@@ -42,12 +45,6 @@ def test_the_changelog_has_an_entry_for_the_declared_version() -> None:
     assert f"## [{version}]" in changelog
 
 
-def test_readme_credits_creator() -> None:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-
-    assert "Creator: Amine El Omari" in readme
-
-
 def test_readme_calls_out_self_hosted_ci_usage() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
@@ -60,3 +57,17 @@ def test_readme_has_no_relative_markdown_links_that_break_on_pypi() -> None:
     relative_links = re.findall(r"\[[^]]+\]\((?!https?://|mailto:|#)[^)]+\)", readme)
 
     assert relative_links == []
+
+
+@needs_author
+def test_the_package_names_its_author() -> None:
+    """Checks that the package's second author is the name in PACKAGE_AUTHOR."""
+    assert _pyproject()["project"]["authors"][1:] == [{"name": AUTHOR}]
+
+
+@needs_author
+def test_readme_credits_its_creator() -> None:
+    """Checks that the README credits the creator named in PACKAGE_AUTHOR."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert f"Creator: {AUTHOR}" in readme

@@ -194,8 +194,9 @@ class TestExecutor:
         test_classes = []
         for test_path in test_list:
             test_class = self._load_test_class(test_path)
-            if test_class:
-                test_classes.append(test_class)
+            if test_class is None:
+                raise ImportError(f"Cannot load selected test '{test_path}'")
+            test_classes.append(test_class)
 
         return test_classes
 

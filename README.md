@@ -70,6 +70,9 @@ python -m bud_runner run-tests \
 
 ### Run and upload results
 
+Register the Test Station with its enrolment key first, as described below. Registration
+stores the station token used to create runs and submit execution results.
+
 ```bash
 python -m bud_runner run-tests \
   --test-case-list <Module.ClassName> \
@@ -79,9 +82,10 @@ python -m bud_runner run-tests \
   --upload
 ```
 
-If an upload returns `401 Unauthorized` and credentials were supplied,
-`bud_runner` logs in again through the Bud authentication API, refreshes the
-cached user token, and retries once.
+Run creation, execution updates and raw result uploads use the station's credentials.
+The client selects the station token for execution submissions and artifact uploads
+when a user session is also configured. Result
+uploads can also use an enrolment key already bound to that station.
 
 ### Upload artifacts with the results
 
@@ -118,6 +122,13 @@ python -m bud_runner claim-run \
 `--workspace` points at the directory holding this station's test modules and
 defaults to the current directory. `--test-timeout` and `--suite-timeout` cap a
 single test and the full suite, at 300 and 1800 seconds respectively.
+
+Registration must supply a station token, either stored locally or provided as
+`BUD_RUNNER_TOKEN`. The backend and station account resolved from `app.properties`
+remain available to the child execution when `--workspace` changes its directory.
+Only the selected classes run. If a selected class cannot be imported, execution
+fails before running any class and reports the failure to Bud. Result upload does
+not release the station's claim; the final completion acknowledgement does.
 
 ### Report a Robot Framework run
 
@@ -156,6 +167,9 @@ names the run `<product> - <root suite>`. Listener arguments override them:
 kept (`BudListener;backend=https://bud.example`).
 
 ### Create a Bud test run
+
+This command requires the registered station's token, stored by registration or supplied
+as `BUD_RUNNER_TOKEN`.
 
 ```bash
 python -m bud_runner add-test-run \
@@ -264,7 +278,8 @@ jobs:
       - name: Execute tests
         env:
           BUD_BACKEND_URL: ${{ secrets.BUD_BACKEND_URL }}
-          BUD_TOKEN: ${{ secrets.BUD_TOKEN }}
+          BUD_RUNNER_TOKEN: ${{ secrets.BUD_RUNNER_TOKEN }}
+          BUD_RUNNER_ACCOUNT: station-01
         run: |
           python -m bud_runner run-tests \
             --test-case-list <Module.ClassName> \

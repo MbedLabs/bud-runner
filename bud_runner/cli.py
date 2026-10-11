@@ -677,10 +677,9 @@ def claim_run(
     client = BudAPIClient(auth)
 
     passthrough = ["--test-timeout", str(test_timeout), "--suite-timeout", str(suite_timeout)]
-    if backend_url:
-        passthrough.extend(["--backend-url", backend_url])
-    if username:
-        passthrough.extend(["--username", username])
+    passthrough.extend(["--backend-url", auth.backend_url])
+    if auth.runner_account:
+        passthrough.extend(["--username", auth.runner_account])
     for pattern in artifacts:
         passthrough.extend(["--artifact", pattern])
 
