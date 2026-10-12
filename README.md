@@ -152,8 +152,8 @@ inside a test becomes one entry: a check (a library keyword whose name contains
 checks; a keyword that checks nothing, such as `Log`, or a failure that a TRY or a
 keyword such as `Run Keyword And Ignore Error` handled, is an information entry; a
 keyword that fails, or is not found, is a failed entry; `Skip` is a skipped entry. Each entry carries its .robot file, line and call,
-and a failure the Robot call chain as its traceback. A `bloom:<TC id>` tag such as `bloom:PRJ-TC-001`
-links the result to that Bloom test case; tests without one are shown in Bud and
+and a failure the Robot call chain as its traceback. A `bloom:<project>-<number>` tag such as `bloom:PRJ-001`
+links the result to that Bloom test case (`PRJ-TC-001`; the full id is accepted too); tests without one are shown in Bud and
 not synced. output.xml, log.html and report.html are attached to the run. A
 failed upload is spooled and replayed by the next bud-runner command.
 
@@ -188,8 +188,8 @@ it as its actual (pytest shortens long values unless run with `-vv`), or the boo
 for `not`, `and`, `or` and other comparisons. A failed assert carries pytest's
 explanation as its message and pytest's traceback; any other exception is a failed
 entry named after its class; a fixture error fails the test; `pytest.skip` and
-xfail are skipped. Mark a test with `@pytest.mark.bloom("PRJ-TC-001")` to link it to
-that Bloom test case; tests without the marker are shown in Bud and not synced.
+xfail are skipped. Mark a test with `@pytest.mark.bloom("PRJ-001")` to link it to
+the Bloom test case `PRJ-TC-001` (the full id is accepted too); tests without the marker are shown in Bud and not synced.
 
 The `bud_assert` fixture offers budtestlibrary's assertion methods with the same
 arguments (`assertEqual`, `assertNotEqual`, `assertIn`, `assertNotIn`, `assertTrue`,
@@ -200,7 +200,7 @@ arguments (`assertEqual`, `assertNotEqual`, `assertIn`, `assertNotIn`, `assertTr
 import pytest
 
 
-@pytest.mark.bloom("PRJ-TC-001")
+@pytest.mark.bloom("PRJ-001")
 def test_supply_voltage(bud_assert):
     voltage = 3.29
     bud_assert.assertInTolerance(voltage, 3.3, absolute_tolerance=0.05, msg="3V3 rail")
@@ -247,7 +247,8 @@ is failed with the error and its traceback, which the scenario's result carries 
 and a step without a step definition is failed with an "Undefined step" message. A hook error fails the scenario, with its traceback. A
 scenario skipped with a reason (`scenario.skip("...")` in a hook) counts as skipped;
 a scenario left out by `--tags` is not reported. Tag a scenario or its feature with
-`@bloom:PRJ-TC-001` to link it to that Bloom test case.
+`@bloom:PRJ-001` to link it to the Bloom test case `PRJ-TC-001` (the full id is accepted
+too).
 
 Like `run-tests`, the upload reads the backend, the station and the product from
 `app.properties` and the `BUD_*` environment; `--test-run-id`, `--product-id`,

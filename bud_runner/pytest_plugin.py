@@ -13,7 +13,7 @@ budtestlibrary's assertion methods (``assertEqual``, ``assertIn``, ``assertInRan
 it, unless ``abort_on_fail=True`` stops it there; in a test marked xfail it is the
 expected failure. An exception is a failed entry named
 after its class, with pytest's traceback; ``pytest.skip`` and xfail make a skipped
-result. A ``@pytest.mark.bloom("<TC id>")`` marker becomes the Bloom identity. At the
+result. A ``@pytest.mark.bloom("PRJ-001")`` marker becomes the Bloom test case ``PRJ-TC-001``. At the
 end of the session the run is uploaded; pytest's exit code is not changed, and an
 upload failure spools the payload for the next bud-runner invocation and prints a
 warning.
@@ -33,6 +33,7 @@ import _pytest
 import pluggy
 import pytest
 
+from bud_runner.reporting import bloom_tc_id
 from bud_runner.robot_listener import _relative
 
 PLUGIN_NAME = "bud-reporter"
@@ -405,7 +406,7 @@ class BudReporter:
         }
         marker = item.get_closest_marker(BLOOM_MARKER)
         if marker is not None and marker.args and str(marker.args[0]).strip():
-            metadata["tc_id"] = str(marker.args[0]).strip()
+            metadata["tc_id"] = bloom_tc_id(str(marker.args[0]))
         error = None
         if failed:
             error = state.error or failed[0].longreprtext or outcome

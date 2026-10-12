@@ -90,7 +90,7 @@ def before_scenario(context, scenario):
         raise RuntimeError("hook broke")
 '''
 
-SECOND_FEATURE = """@bloom:PRJ-TC-003
+SECOND_FEATURE = """@bloom:PRJ-003
 Feature: Bench clock
   Scenario: Clock runs
     Given a bench
@@ -243,7 +243,7 @@ def test_the_payload_names_the_suite_product_and_run(project):
     assert formatter.payload(None, 12)["test_suite_name"] == "features"
     assert formatter.payload(None, 12)["product_id"] == 12
     assert _by_method(formatter)["Clock runs"]["metadata"]["tc_id"] == "PRJ-TC-003"
-    assert _by_method(formatter)["Clock runs"]["metadata"]["behave_tags"] == ["bloom:PRJ-TC-003"]
+    assert _by_method(formatter)["Clock runs"]["metadata"]["behave_tags"] == ["bloom:PRJ-003"]
     behave_main(["-f", "tests.test_behave_formatter:Capture", "-o", os.devnull, "--no-summary", "-D", "bud_upload=false"])
     assert CAPTURED[-1].payload(None, None)["test_suite_name"] == "features"
     rc, formatter = _run("-D", "bud_upload=false", "-D", "bud_suite_name=Bench")

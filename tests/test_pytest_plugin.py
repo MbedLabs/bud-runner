@@ -62,7 +62,7 @@ def test_expected_failure():
 
 
 class TestGroup:
-    @pytest.mark.bloom("PRJ-TC-002")
+    @pytest.mark.bloom("PRJ-002")
     def test_method(self):
         assert 2 > 1
 
