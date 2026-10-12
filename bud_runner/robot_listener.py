@@ -141,7 +141,7 @@ def assert_name(name: str) -> str:
 
 
 def _relative(source: Any) -> Optional[str]:
-    """The .robot file as a path relative to the working directory when it is below it."""
+    """A source file as a path relative to the working directory when it is below it."""
     if not source:
         return None
     path = str(source)
@@ -508,36 +508,13 @@ class BudListener:
             print(f"[bud] Could not report the Robot run to Bud: {exc}", file=sys.stderr)
 
     def _send(self) -> None:
-        from bud_runner.api_client import BudAPIClient
-        from bud_runner.auth import AuthManager
-        from bud_runner.cli import _spool_results_payload
+        from bud_runner.reporting import send_run
 
-        auth = AuthManager(backend_url=self.backend)
-        client = BudAPIClient(auth)
-        body = self.payload(auth.runner_account, auth.product_id)
-        if body is None:
-            print("[bud] The Robot run produced no test results; nothing uploaded.", file=sys.stderr)
-            return
-        try:
-            response = client.upload_results_payload(body)
-        except Exception as exc:
-            spool = _spool_results_payload(body)
-            print(f"[bud] Upload failed ({exc}); results spooled to {spool}", file=sys.stderr)
-            return
-        run_id = self.test_run_id
-        if isinstance(response, dict) and response.get("test_run_id"):
-            run_id = response["test_run_id"]
-        print(f"[bud] Robot results uploaded to Bud run {run_id}", file=sys.stderr)
-        if run_id and self.skipped:
-            try:
-                client.update_test_run(run_id=run_id, skipped_tests=self.skipped)
-            except Exception as exc:
-                print(f"[bud] Could not record skipped tests: {exc}", file=sys.stderr)
-        if run_id and self.upload_artifacts:
-            for path in self.files:
-                if not path.is_file():
-                    continue
-                try:
-                    client.upload_artifact(str(path), run_id=run_id)
-                except Exception as exc:
-                    print(f"[bud] Could not upload {path.name}: {exc}", file=sys.stderr)
+        send_run(
+            self.payload,
+            framework="Robot",
+            backend=self.backend,
+            test_run_id=self.test_run_id,
+            skipped=self.skipped,
+            files=self.files if self.upload_artifacts else (),
+        )

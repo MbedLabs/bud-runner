@@ -48,6 +48,9 @@ dependencies = [
 robot = [
     "robotframework>=7.0",
 ]
+pytest = [
+    "pytest>=7.0",
+]
 dev = [
     "robotframework>=7.0",
     "pytest>=7.0.0",

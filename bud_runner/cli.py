@@ -816,6 +816,92 @@ def run_robot(
     raise typer.Exit(code=rc)
 
 
+def _pytest_pycache_dir() -> Path:
+    """Directory for the bytecode of a ``run-pytest`` session."""
+    candidates = [
+        Path.home() / ".bud" / "pycache",
+        Path(tempfile.gettempdir()) / "bud" / "pycache",
+    ]
+    for cache_dir in candidates:
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            return cache_dir
+        except OSError:
+            continue
+    raise RuntimeError("Could not create a writable bytecode cache directory")
+
+
+@app.command(
+    name="run-pytest",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def run_pytest(
+    ctx: typer.Context,
+    backend_url: Optional[str] = typer.Option(
+        None, "--backend-url", "-b", help="Backend URL for result upload"
+    ),
+    test_run_id: Optional[int] = typer.Option(
+        None, "--test-run-id", help="Existing TestRun id to attach the results to."
+    ),
+    product_id: Optional[int] = typer.Option(
+        None, "--product-id", help="Product id for a run Bud creates from the upload."
+    ),
+    ref_software_under_test: Optional[str] = typer.Option(
+        None, "--ref-sw-under-test", help="Git ref of the software under test."
+    ),
+    suite_name: Optional[str] = typer.Option(
+        None, "--suite-name", help="Suite name in Bud (default: the pytest rootdir name)."
+    ),
+    upload_results: bool = typer.Option(True, "--upload/--no-upload", help="Upload results to Bud"),
+):
+    """
+    Run pytest with the Bud plugin attached.
+
+    Every argument Bud does not know is passed to pytest unchanged, for example
+    ``bud-runner run-pytest --backend-url https://bud tests/ -k smoke``. The session runs
+    with pytest's assertion pass hook on and compiles its bytecode into
+    ``~/.bud/pycache``, where every rewritten test module has the hook, and passing
+    assert statements are reported too. pytest's exit code is returned as is.
+    """
+    try:
+        import pytest
+    except ImportError:
+        typer.echo("✗ pytest is not installed: pip install 'bud-runner[pytest]'", err=True)
+        raise typer.Exit(code=2)
+
+    if upload_results:
+        auth = AuthManager(backend_url=backend_url)
+        if not auth.backend_url:
+            typer.echo(
+                "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        try:
+            _flush_spooled_results(BudAPIClient(auth), auth, None, None)
+        except Exception as exc:
+            typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
+
+    options = {
+        "--bud-backend-url": backend_url,
+        "--bud-test-run-id": test_run_id,
+        "--bud-product-id": product_id,
+        "--bud-ref-sw-under-test": ref_software_under_test,
+        "--bud-suite-name": suite_name,
+    }
+    args = ["-p", "bud_runner.pytest_plugin", "-o", "enable_assertion_pass_hook=true"]
+    args += [f"{key}={value}" for key, value in options.items() if value is not None]
+    if not upload_results:
+        args.append("--bud-no-upload")
+    previous_prefix = sys.pycache_prefix
+    sys.pycache_prefix = str(_pytest_pycache_dir())
+    try:
+        rc = pytest.main([*args, *ctx.args])
+    finally:
+        sys.pycache_prefix = previous_prefix
+    raise typer.Exit(code=int(rc))
+
+
 @app.command(name="list-tests")
 def list_tests(
     test_case_list: str = typer.Option(
