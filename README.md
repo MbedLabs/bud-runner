@@ -226,6 +226,40 @@ with `--bud-backend-url`, `--bud-test-run-id`, `--bud-product-id`,
 `--bud-suite-name`, `--bud-ref-sw-under-test` and `--bud-no-upload`; clear the
 test modules' `__pycache__` the first time.
 
+### Report a Behave run
+
+`run-behave` runs Behave with the Bud formatter attached; every argument it does not
+know goes to `behave` unchanged, and Behave's exit code is returned. Install the
+extra first: `python -m pip install "bud-runner[behave]"` (Behave 1.2.6 or later).
+
+```bash
+python -m bud_runner run-behave \
+  --backend-url "https://<your-bud-instance-url>" \
+  features/ --tags=@smoke
+```
+
+Each feature becomes one Bud test case (its name as the test class) and each
+scenario one result of it (its name as the method); each Scenario Outline row is its
+own result. Each step becomes one entry named after its text, with its .feature file,
+line and the step as written: a Then step (and the And or But steps that follow it)
+is a check and a Given or When step an information entry; a step that fails or raises
+is failed with the error and its traceback, which the scenario's result carries too,
+and a step without a step definition is failed with an "Undefined step" message. A hook error fails the scenario, with its traceback. A
+scenario skipped with a reason (`scenario.skip("...")` in a hook) counts as skipped;
+a scenario left out by `--tags` is not reported. Tag a scenario or its feature with
+`@bloom:PRJ-TC-001` to link it to that Bloom test case.
+
+Like `run-tests`, the upload reads the backend, the station and the product from
+`app.properties` and the `BUD_*` environment; `--test-run-id`, `--product-id`,
+`--suite-name` (default: the feature's name when one feature ran, else the features
+directory) and `--ref-sw-under-test` override them. A failed upload is spooled and
+replayed by the next bud-runner command. The formatter writes nothing to the console:
+without `-f` in the arguments, `run-behave` also shows Behave's `pretty` output. The
+formatter also works on an existing `behave` command:
+`behave -f bud_runner.behave_formatter:BudFormatter -o /dev/null -f pretty features/`,
+with the options as userdata: `-D bud_backend_url=...`, `bud_test_run_id`,
+`bud_product_id`, `bud_suite_name`, `bud_ref_sw_under_test`, `bud_upload=false`.
+
 ### Create a Bud test run
 
 This command requires the registered station's token, stored by registration or supplied
@@ -306,6 +340,7 @@ Do not put passwords, user tokens, runner tokens, or enrolment keys in
 | `claim-run` | Run work the backend has queued for this test station |
 | `run-robot` | Run Robot Framework with the Bud listener and report the run |
 | `run-pytest` | Run pytest with the Bud plugin and report the run |
+| `run-behave` | Run Behave with the Bud formatter and report the run |
 | `list-tests` | Resolve and list discovered tests without executing them |
 | `add-test-run` | Create a Bud test run |
 | `register` | Register or re-register a runner identity |
