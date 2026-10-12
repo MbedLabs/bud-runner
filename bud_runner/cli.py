@@ -902,6 +902,86 @@ def run_pytest(
     raise typer.Exit(code=int(rc))
 
 
+def _names_a_formatter(args: List[str]) -> bool:
+    """Whether Behave arguments choose an output format (``-f``/``--format``)."""
+    for arg in args:
+        if arg in ("-f", "--format") or arg.startswith("--format="):
+            return True
+        if arg.startswith("-f") and not arg.startswith("--"):
+            return True
+    return False
+
+
+@app.command(
+    name="run-behave",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def run_behave(
+    ctx: typer.Context,
+    backend_url: Optional[str] = typer.Option(
+        None, "--backend-url", "-b", help="Backend URL for result upload"
+    ),
+    test_run_id: Optional[int] = typer.Option(
+        None, "--test-run-id", help="Existing TestRun id to attach the results to."
+    ),
+    product_id: Optional[int] = typer.Option(
+        None, "--product-id", help="Product id for a run Bud creates from the upload."
+    ),
+    ref_software_under_test: Optional[str] = typer.Option(
+        None, "--ref-sw-under-test", help="Git ref of the software under test."
+    ),
+    suite_name: Optional[str] = typer.Option(
+        None,
+        "--suite-name",
+        help="Suite name in Bud (default: the feature name, or the features directory).",
+    ),
+    upload_results: bool = typer.Option(True, "--upload/--no-upload", help="Upload results to Bud"),
+):
+    """
+    Run Behave with the Bud formatter attached.
+
+    Every argument Bud does not know is passed to behave unchanged, for example
+    ``bud-runner run-behave --backend-url https://bud features/ --tags=@smoke``. The Bud
+    formatter writes nothing to the console; without ``-f`` in the arguments Behave's
+    ``pretty`` output is shown as well. Behave's exit code is returned as is.
+    """
+    try:
+        from behave.__main__ import main as behave_main
+    except ImportError:
+        typer.echo("✗ Behave is not installed: pip install 'bud-runner[behave]'", err=True)
+        raise typer.Exit(code=2)
+
+    if upload_results:
+        auth = AuthManager(backend_url=backend_url)
+        if not auth.backend_url:
+            typer.echo(
+                "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        try:
+            _flush_spooled_results(BudAPIClient(auth), auth, None, None)
+        except Exception as exc:
+            typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
+
+    userdata = {
+        "bud_backend_url": backend_url,
+        "bud_test_run_id": test_run_id,
+        "bud_product_id": product_id,
+        "bud_ref_sw_under_test": ref_software_under_test,
+        "bud_suite_name": suite_name,
+        "bud_upload": "true" if upload_results else "false",
+    }
+    args = ["-f", "bud_runner.behave_formatter:BudFormatter", "-o", os.devnull]
+    if not _names_a_formatter(ctx.args):
+        args += ["-f", "pretty"]
+    for key, value in userdata.items():
+        if value is not None:
+            args += ["-D", f"{key}={value}"]
+    rc = behave_main([*args, *ctx.args])
+    raise typer.Exit(code=int(rc or 0))
+
+
 @app.command(name="list-tests")
 def list_tests(
     test_case_list: str = typer.Option(
