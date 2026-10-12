@@ -1,9 +1,12 @@
-"""Upload of a test framework's run to Bud, shared by the framework adapters.
+"""What the framework adapters share: the Bloom test case of a tag, and the upload of a run.
 
-The Robot listener and the pytest plugin collect a run in their own way and hand the
-upload to ``send_run``: the results go to Bud with the station's credentials, a failed
-upload is spooled for the next bud-runner invocation, the skipped count and the run's
-files follow, and every problem is printed as a warning on stderr and nothing is raised.
+``bloom_tc_id`` reads the value of a ``bloom`` tag or marker as budtestlibrary's
+``BloomMetaData`` takes it, the project and the number (``PRJ-001``), and returns the
+Bloom test case id (``PRJ-TC-001``). The Robot listener, the pytest plugin and the
+Behave formatter collect a run in their own way and hand the upload to ``send_run``: the
+results go to Bud with the station's credentials, a failed upload is spooled for the
+next bud-runner invocation, the skipped count and the run's files follow, and every
+problem is printed as a warning on stderr and nothing is raised.
 """
 
 import sys
@@ -11,6 +14,17 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional
 
 BodyBuilder = Callable[[Optional[str], Optional[int]], Optional[Dict[str, Any]]]
+
+
+def bloom_tc_id(value: str) -> str:
+    """The Bloom test case id a ``bloom`` tag names, as ``BloomMetaData.get_full_tc_id``
+    builds it: ``PRJ-001`` becomes ``PRJ-TC-001``. A value that names the type
+    (``PRJ-TC-001``, in any case) or has no project part is returned as written."""
+    text = str(value).strip()
+    project, dash, rest = text.partition("-")
+    if not dash or not project or not rest or rest.upper().startswith("TC-"):
+        return text
+    return f"{project}-TC-{rest}"
 
 
 def send_run(

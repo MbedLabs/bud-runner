@@ -171,6 +171,18 @@ def test_close_never_raises_and_skips_empty_runs(monkeypatch, capsys):
     assert listener.upload_artifacts is False
 
 
+def test_a_short_bloom_tag_names_the_test_case(tmp_path):
+    suite = tmp_path / "short.robot"
+    suite.write_text(
+        "*** Test Cases ***\nTagged\n    [Tags]    bloom:PRJ-002\n    Should Be Equal    1    1\n", encoding="utf-8"
+    )
+    listener = BudListener(upload="false")
+    robot.run(str(suite), listener=listener, outputdir=str(tmp_path / "out"), stdout=StringIO(), stderr=StringIO())
+    (result,) = listener.results
+    assert result["metadata"]["tc_id"] == "PRJ-TC-002"
+    assert result["metadata"]["robot_tags"] == ["bloom:PRJ-002"]
+
+
 def test_assertion_mapping():
     other = assertion_for("Page Should Contain", "Browser", ["Welcome"], True, "")
     assert other["assertion_type"] == "AssertPageContain" and other["metadata"] == {}

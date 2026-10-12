@@ -11,7 +11,7 @@ nothing, or a failure that a TRY or a keyword such as Run Keyword And Ignore Err
 handled, is an information entry; a keyword that fails is a failed entry; ``Skip``
 is a skipped entry. Each entry carries its .robot
 file, line and call, and a failure the Robot call chain as its traceback, which the
-failed result carries too. A ``bloom:<TC id>`` tag becomes the Bloom identity, and
+failed result carries too. A ``bloom:PRJ-001`` tag becomes the Bloom test case ``PRJ-TC-001``, and
 output.xml, log.html and report.html are uploaded as run artifacts. Nothing here
 changes Robot's exit code: an upload failure spools the payload for the next
 bud-runner invocation and prints a warning.
@@ -21,6 +21,8 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from bud_runner.reporting import bloom_tc_id
 
 BLOOM_TAG = "bloom:"
 MAX_KEYWORD_DEPTH = 10
@@ -436,7 +438,7 @@ class BudListener:
             self.skipped += 1
         metadata: Dict[str, Any] = {"robot_status": result.status, "robot_tags": tags}
         if tc_ids and tc_ids[0]:
-            metadata["tc_id"] = tc_ids[0]
+            metadata["tc_id"] = bloom_tc_id(tc_ids[0])
         if skipped:
             metadata["skipped"] = True
         full_name = getattr(result, "full_name", None) or (

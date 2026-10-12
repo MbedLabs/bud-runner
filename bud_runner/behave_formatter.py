@@ -9,7 +9,7 @@ step is a check and a Given or When step an information entry; a step that fails
 raises is failed with the error and its traceback, which the scenario's result carries
 too, and a step without a step definition is failed with an "Undefined step" message. A hook error fails the scenario. A scenario skipped
 with a reason becomes a skipped result; a scenario left out by tag selection is not
-reported. A ``@bloom:<TC id>`` tag becomes the Bloom identity. Options come from
+reported. A ``@bloom:PRJ-001`` tag becomes the Bloom test case ``PRJ-TC-001``. Options come from
 Behave's userdata (``-D bud_backend_url=...``, ``bud_test_run_id``, ``bud_product_id``,
 ``bud_suite_name``, ``bud_ref_sw_under_test``, ``bud_upload``). When Behave closes the
 formatter the run is uploaded; Behave's exit code is not changed, and an upload
@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from behave.formatter.base import Formatter
 
+from bud_runner.reporting import bloom_tc_id
 from bud_runner.robot_listener import BLOOM_TAG, _entry, _flag, _relative, info_entry, skip_assertion
 
 NOT_RECORDED = {"skipped", "untested", "executing"}
@@ -158,7 +159,7 @@ class BudFormatter(Formatter):
         }
         tc_ids = [t[len(BLOOM_TAG) :].strip() for t in tags if t.lower().startswith(BLOOM_TAG)]
         if tc_ids and tc_ids[0]:
-            metadata["tc_id"] = tc_ids[0]
+            metadata["tc_id"] = bloom_tc_id(tc_ids[0])
         name = scenario.name.strip()
         entries = self._entries
         where = _where(location, name, f"{getattr(scenario, 'keyword', 'Scenario')}: {name}")
