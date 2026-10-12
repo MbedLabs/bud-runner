@@ -166,6 +166,66 @@ names the run `<product> - <root suite>`. Listener arguments override them:
 `upload=false`, `artifacts=false`, separated by semicolons so a URL's colons are
 kept (`BudListener;backend=https://bud.example`).
 
+### Report a pytest run
+
+`run-pytest` runs pytest with the Bud plugin attached; every argument it does not
+know goes to `pytest` unchanged, and pytest's exit code is returned. Install the
+extra first: `python -m pip install "bud-runner[pytest]"` (pytest 7.0 or later).
+
+```bash
+python -m bud_runner run-pytest \
+  --backend-url "https://<your-bud-instance-url>" \
+  tests/ -k smoke
+```
+
+Each pytest test becomes one Bud test case (its node id as the test class, its name
+as the method). Every `assert` in a test module or `conftest.py` becomes one
+assertion entry in the shape budtestlibrary sends: a single comparison is named
+after what it checks (`==` AssertEqual, `!=` AssertNotEqual, `in` AssertIn,
+`not in` AssertNotIn, `<` AssertLess, `>` AssertGreater) with its expected and
+actual values, any other expression is AssertTrue with the value as pytest displays
+it as its actual (pytest shortens long values unless run with `-vv`), or the boolean
+for `not`, `and`, `or` and other comparisons. A failed assert carries pytest's
+explanation as its message and pytest's traceback; any other exception is a failed
+entry named after its class; a fixture error fails the test; `pytest.skip` and
+xfail are skipped. Mark a test with `@pytest.mark.bloom("PRJ-TC-001")` to link it to
+that Bloom test case; tests without the marker are shown in Bud and not synced.
+
+The `bud_assert` fixture offers budtestlibrary's assertion methods with the same
+arguments (`assertEqual`, `assertNotEqual`, `assertIn`, `assertNotIn`, `assertTrue`,
+`assertFalse`, `assertGreater`, `assertLess`, `assertInRange`, `assertInTolerance`,
+`assertRegex`, `skipAssert`):
+
+```python
+import pytest
+
+
+@pytest.mark.bloom("PRJ-TC-001")
+def test_supply_voltage(bud_assert):
+    voltage = 3.29
+    bud_assert.assertInTolerance(voltage, 3.3, absolute_tolerance=0.05, msg="3V3 rail")
+    assert voltage > 3.0
+```
+
+As in budtestlibrary, a failed `bud_assert` check does not stop the test; the test
+fails at its end with the first failed check as its error. `abort_on_fail=True`
+stops the test at that check. In a test marked xfail, a failed check is the
+expected failure.
+
+Like `run-tests`, the upload reads the backend, the station and the product from
+`app.properties` and the `BUD_*` environment; `--test-run-id`, `--product-id`,
+`--suite-name` (default: the pytest rootdir name) and `--ref-sw-under-test`
+override them. A failed upload is spooled and replayed by the next bud-runner
+command. Assert statements are reported through pytest's assertion pass hook:
+`run-pytest` switches it on and compiles the session's bytecode into
+`~/.bud/pycache`, because pytest would otherwise reuse test modules it rewrote
+without the hook and leave their passing asserts out. The plugin also works on an
+existing `pytest` command:
+`pytest -p bud_runner.pytest_plugin -o enable_assertion_pass_hook=true tests/`,
+with `--bud-backend-url`, `--bud-test-run-id`, `--bud-product-id`,
+`--bud-suite-name`, `--bud-ref-sw-under-test` and `--bud-no-upload`; clear the
+test modules' `__pycache__` the first time.
+
 ### Create a Bud test run
 
 This command requires the registered station's token, stored by registration or supplied
@@ -245,6 +305,7 @@ Do not put passwords, user tokens, runner tokens, or enrolment keys in
 | `run-tests` | Execute tests, generate reports, and optionally upload results |
 | `claim-run` | Run work the backend has queued for this test station |
 | `run-robot` | Run Robot Framework with the Bud listener and report the run |
+| `run-pytest` | Run pytest with the Bud plugin and report the run |
 | `list-tests` | Resolve and list discovered tests without executing them |
 | `add-test-run` | Create a Bud test run |
 | `register` | Register or re-register a runner identity |
