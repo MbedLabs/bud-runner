@@ -252,3 +252,227 @@ def test_a_discovered_file_that_will_not_upload_does_not_fail_the_run(tmp_path, 
 
     assert result.exit_code == 0
     assert "Could not upload" in result.stdout + result.stderr
+
+
+def _step_results(*steps):
+    """Results whose steps attached files, in the shape budtestlibrary's attach_artifact leaves."""
+    return [
+        SimpleNamespace(
+            test_class="CaptureTest",
+            passed=True,
+            method_results=[
+                {
+                    "method_name": name,
+                    "passed": True,
+                    "assertions": [],
+                    "metadata": {"artifacts": entries},
+                }
+                for name, entries in steps
+            ],
+        )
+    ]
+
+
+def _run_steps(tmp_path, results, extra_args, answer=True, upload_effect=None):
+    """Drive run-tests with steps that attached files, the backend mocked."""
+    out = tmp_path / "report.xml"
+    mock_exec = MagicMock()
+    mock_exec.run_test_list.return_value = results
+    mock_rep = MagicMock()
+    mock_rep.generate.return_value = "<testsuites/>"
+    auth_ns = SimpleNamespace(backend_url="http://localhost:8000", product_id=None, token=None)
+    with patch("bud_runner.cli.TestExecutor", return_value=mock_exec):
+        with patch("bud_runner.cli.JUnitReporter", return_value=mock_rep):
+            with patch("bud_runner.cli.AuthManager", return_value=auth_ns):
+                with patch("bud_runner.cli._flush_spooled_results"):
+                    with patch("bud_runner.cli.BudAPIClient") as MockClient:
+                        client = MockClient.return_value
+                        client.build_results_payload.return_value = {"results": [{"a": 1}]}
+                        client.upload_results_payload.return_value = answer
+                        client.get_test_run.return_value = {"product_id": None}
+                        client.update_test_run.return_value = {}
+                        if upload_effect is not None:
+                            client.upload_artifact.side_effect = upload_effect
+                        result = CliRunner().invoke(
+                            app,
+                            [
+                                "run-tests",
+                                "-t",
+                                "dummy.suite",
+                                "--backend-url",
+                                "http://localhost:8000",
+                                "--format",
+                                "junit",
+                                "-o",
+                                str(out),
+                                *extra_args,
+                            ],
+                        )
+    return result, client
+
+
+def _step_calls(client):
+    return [
+        (
+            Path(c.args[0]).name,
+            c.kwargs.get("run_id"),
+            c.kwargs.get("test_case"),
+            c.kwargs.get("filename"),
+        )
+        for c in client.upload_artifact.call_args_list
+        if c.kwargs.get("test_case")
+    ]
+
+
+def test_files_a_step_attached_are_uploaded_with_their_step(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    capture = tmp_path / "traffic.pcap"
+    capture.write_text("x")
+    log = tmp_path / "boot.txt"
+    log.write_text("x")
+    results = _step_results(
+        ("bud_capture", [{"path": str(capture), "name": "traffic capture"}]),
+        ("bud_boot", [{"path": str(log), "name": "boot.txt"}]),
+    )
+    result, client = _run_steps(tmp_path, results, ["--test-run-id", "42"])
+    assert result.exit_code == 0, result.output
+    assert _step_calls(client) == [
+        ("traffic.pcap", 42, "CaptureTest.bud_capture", "traffic capture.pcap"),
+        ("boot.txt", 42, "CaptureTest.bud_boot", "boot.txt"),
+    ]
+    names = [Path(c.args[0]).name for c in client.upload_artifact.call_args_list]
+    assert names.index("traffic.pcap") < names.index("report.xml")
+    assert (
+        "✓ Uploaded step artifact: traffic capture.pcap (CaptureTest.bud_capture)" in result.output
+    )
+
+
+def test_step_artifacts_go_to_the_run_bud_created(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    capture = tmp_path / "traffic.pcap"
+    capture.write_text("x")
+    results = _step_results(("bud_capture", [{"path": str(capture), "name": "traffic.pcap"}]))
+    result, client = _run_steps(
+        tmp_path, results, ["--artifact", "traffic.pcap"], answer={"test_run_id": 77}
+    )
+    assert result.exit_code == 0, result.output
+    assert _step_calls(client) == [("traffic.pcap", 77, "CaptureTest.bud_capture", "traffic.pcap")]
+    assert "Artifacts need a test run" in result.output
+    assert len(client.upload_artifact.call_args_list) == 1
+
+
+def test_step_artifacts_without_any_run_are_reported(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    capture = tmp_path / "traffic.pcap"
+    capture.write_text("x")
+    results = _step_results(("bud_capture", [{"path": str(capture), "name": "traffic.pcap"}]))
+    result, client = _run_steps(tmp_path, results, [], answer=True)
+    assert result.exit_code == 0, result.output
+    assert "Step artifacts need a test run: 1 not uploaded." in result.output
+    client.upload_artifact.assert_not_called()
+
+
+def test_a_missing_step_artifact_is_warned_and_skipped(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    kept = tmp_path / "kept.log"
+    kept.write_text("x")
+    results = _step_results(
+        ("bud_gone", [{"path": str(tmp_path / "gone.log"), "name": "gone.log"}]),
+        ("bud_kept", [{"path": str(kept), "name": "kept.log"}]),
+    )
+    result, client = _run_steps(tmp_path, results, ["--test-run-id", "42"])
+    assert result.exit_code == 0, result.output
+    assert (
+        f"⚠ Step artifact not found: {tmp_path / 'gone.log'} (CaptureTest.bud_gone)"
+        in result.output
+    )
+    assert _step_calls(client) == [("kept.log", 42, "CaptureTest.bud_kept", "kept.log")]
+
+
+def test_a_step_artifact_that_fails_to_upload_does_not_fail_the_run(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    capture = tmp_path / "traffic.pcap"
+    capture.write_text("x")
+    results = _step_results(("bud_capture", [{"path": str(capture), "name": "traffic.pcap"}]))
+
+    def refuse(path, run_id=None, test_case=None, filename=None):
+        if test_case:
+            raise RuntimeError("storage full")
+        return {}
+
+    result, client = _run_steps(tmp_path, results, ["--test-run-id", "42"], upload_effect=refuse)
+    assert result.exit_code == 0, result.output
+    assert f"⚠ Could not upload {capture}: storage full" in result.output
+    assert _step_calls(client) == [("traffic.pcap", 42, "CaptureTest.bud_capture", "traffic.pcap")]
+
+
+def test_a_found_file_whose_step_upload_failed_still_goes_up_once(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    log = tmp_path / "bench.log"
+    log.write_text("x")
+    results = _step_results(("bud_bench", [{"path": str(log), "name": "bench.log"}]))
+
+    def refuse(path, run_id=None, test_case=None, filename=None):
+        if test_case:
+            raise RuntimeError("storage full")
+        return {}
+
+    result, client = _run_steps(tmp_path, results, ["--test-run-id", "42"], upload_effect=refuse)
+    assert result.exit_code == 0, result.output
+    plain = [
+        Path(c.args[0]).name
+        for c in client.upload_artifact.call_args_list
+        if not c.kwargs.get("test_case")
+    ]
+    assert plain.count("bench.log") == 1
+
+
+def test_a_file_both_found_and_attached_goes_up_once_with_its_step(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    log = tmp_path / "bench.log"
+    log.write_text("x")
+    results = _step_results(("bud_bench", [{"path": str(log), "name": "bench.log"}]))
+    result, client = _run_steps(tmp_path, results, ["--test-run-id", "42"])
+    assert result.exit_code == 0, result.output
+    names = [Path(c.args[0]).name for c in client.upload_artifact.call_args_list]
+    assert names.count("bench.log") == 1
+    assert _step_calls(client) == [("bench.log", 42, "CaptureTest.bud_bench", "bench.log")]
+
+
+def test_nothing_is_sent_without_upload(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    capture = tmp_path / "traffic.pcap"
+    capture.write_text("x")
+    results = _step_results(("bud_capture", [{"path": str(capture), "name": "traffic.pcap"}]))
+    result, client = _run_steps(tmp_path, results, ["--no-upload", "--test-run-id", "42"])
+    assert result.exit_code == 0, result.output
+    client.upload_artifact.assert_not_called()
+
+
+def test_display_names_and_the_step_list():
+    from bud_runner.cli import _display_name, _step_artifacts
+
+    pcap = Path("/data/traffic.pcap")
+    assert _display_name("traffic capture", pcap) == "traffic capture.pcap"
+    assert _display_name("capture v1.2", pcap) == "capture v1.2.pcap"
+    assert _display_name("traffic.PCAP", pcap) == "traffic.PCAP"
+    assert _display_name("bad\nname\t", pcap) == "badname.pcap"
+    assert _display_name(None, pcap) == "traffic.pcap"
+    assert _display_name("", Path("/data/notes")) == "notes"
+    long = _display_name("x" * 300, pcap)
+    assert len(long) == 255 and long.endswith(".pcap")
+    steps = _step_artifacts(
+        _step_results(
+            (
+                "bud_a",
+                [{"path": "/data/a.log", "name": "a.log"}, {"name": "no path"}, "not a dict"],
+            ),
+            ("bud_b", [{"path": "/data/a.log", "name": "again"}, {"path": "/data/b.log"}]),
+        )
+    )
+    assert [(p.name, n, t) for p, n, t in steps] == [
+        ("a.log", "a.log", "CaptureTest.bud_a"),
+        ("b.log", "b.log", "CaptureTest.bud_b"),
+    ]
+    tabbed = _step_artifacts(_step_results(("bud_value[a\tb]", [{"path": "/data/c.log"}])))
+    assert tabbed[0][2] == "CaptureTest.bud_value[ab]"
