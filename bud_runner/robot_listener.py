@@ -517,6 +517,5 @@ class BudListener:
             framework="Robot",
             backend=self.backend,
             test_run_id=self.test_run_id,
-            skipped=self.skipped,
             files=self.files if self.upload_artifacts else (),
         )

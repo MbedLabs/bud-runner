@@ -284,13 +284,13 @@ def fake_backend(monkeypatch, tmp_path):
     return SimpleNamespace(made=made, spooled=spooled, factory=client_factory)
 
 
-def test_the_run_is_uploaded_with_the_skipped_count(project, fake_backend, capsys):
+def test_the_run_is_uploaded_without_a_skipped_count_when_no_feature_is_all_skipped(project, fake_backend, capsys):
     rc, formatter = _run("-D", "bud_backend_url=https://bud.example")
     assert rc == 1
     calls = fake_backend.made[0].calls
     assert calls[0][0] == "results" and len(calls[0][1]["results"]) == 8
     assert calls[0][1]["product_id"] == 12 and calls[0][1]["runner_account"] == "bench-1"
-    assert calls[1] == ("update", 42, {"skipped_tests": 1})
+    assert [c[0] for c in calls] == ["results"]
     assert "Behave results uploaded to Bud run 42" in capsys.readouterr().err
 
 

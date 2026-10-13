@@ -5,8 +5,8 @@
 Bloom test case id (``PRJ-TC-001``). The Robot listener, the pytest plugin and the
 Behave formatter collect a run in their own way and hand the upload to ``send_run``: the
 results go to Bud with the station's credentials, a failed upload is spooled for the
-next bud-runner invocation, the skipped count and the run's files follow, and every
-problem is printed as a warning on stderr and nothing is raised.
+next bud-runner invocation, the number of skipped test cases and the run's files follow,
+and every problem is printed as a warning on stderr and nothing is raised.
 """
 
 import sys
@@ -27,13 +27,23 @@ def bloom_tc_id(value: str) -> str:
     return f"{project}-TC-{rest}"
 
 
+def skipped_test_cases(results: Iterable[Dict[str, Any]]) -> int:
+    """The test cases whose results are all skipped, counted as Bud counts its run: results
+    grouped by ``test_class``, a test case skipped when every result has ``metadata.skipped``."""
+    cases: Dict[str, bool] = {}
+    for result in results:
+        skipped = bool((result.get("metadata") or {}).get("skipped"))
+        name = str(result.get("test_class"))
+        cases[name] = cases.get(name, True) and skipped
+    return sum(1 for all_skipped in cases.values() if all_skipped)
+
+
 def send_run(
     build_body: BodyBuilder,
     *,
     framework: str,
     backend: Optional[str] = None,
     test_run_id: Optional[int] = None,
-    skipped: int = 0,
     files: Iterable[Path] = (),
 ) -> None:
     """Upload one collected run to Bud.
@@ -62,6 +72,7 @@ def send_run(
     if isinstance(response, dict) and response.get("test_run_id"):
         run_id = response["test_run_id"]
     print(f"[bud] {framework} results uploaded to Bud run {run_id}", file=sys.stderr)
+    skipped = skipped_test_cases(body.get("results") or [])
     if run_id and skipped:
         try:
             client.update_test_run(run_id=run_id, skipped_tests=skipped)
