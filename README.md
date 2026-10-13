@@ -103,6 +103,17 @@ python -m bud_runner run-tests \
 
 A file that fails to upload is reported but does not fail the run.
 
+Files a step registers with budtestlibrary's `self.attach_artifact(path, name)`
+(budtestlibrary with `attach_artifact`) are uploaded too, before the run's other
+artifacts and without `--artifact`, each marked in Bud with the step it came from
+(`<TestClass>.<step>`) and shown under the name given to `attach_artifact`, the
+file's extension added when the name has none. They go to `--test-run-id`, or to
+the run Bud created for the results; `claim-run` uploads them the same way. A file
+that is gone by the time of the upload is reported and skipped; a file a step
+attached that run-tests would also send (the report, `--artifact-dir`, `--artifact`,
+or the logs and captures beside the run) goes up once, as the step's. A step artifact named `.pdf` or `.xml` counts as one of the run's reports
+when the run is published to Bloom.
+
 ### Run work queued by Bud
 
 `claim-run` asks the backend for this station's next queued run and executes it

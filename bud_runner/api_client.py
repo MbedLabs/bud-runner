@@ -529,6 +529,7 @@ class BudAPIClient:
         file_path: str,
         run_id: Optional[int] = None,
         test_case: Optional[str] = None,
+        filename: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Upload an artifact (trace file, log, etc.) to the backend.
@@ -537,12 +538,13 @@ class BudAPIClient:
             file_path: Path to the local file to upload.
             run_id: Optional test run ID to associate.
             test_case: Optional test case name to associate.
+            filename: Name the artifact is shown and downloaded under (default: the file's name).
 
         Returns:
             Upload response with artifact ID and URL.
         """
         with open(file_path, "rb") as f:
-            files = {"file": f}
+            files = {"file": (filename, f)} if filename else {"file": f}
             data = {}
             if run_id:
                 data["run_id"] = run_id

@@ -15,12 +15,12 @@ import time
 import uuid
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Iterable, List, Optional, Tuple
 
 import requests
 import typer
 
-from bud_runner.api_client import BudAPIClient
+from bud_runner.api_client import BudAPIClient, _flatten_results
 from bud_runner.auth import AuthManager
 from bud_runner.junit_reporter import JUnitReporter
 from bud_runner.runner_manager import RunnerManager
@@ -101,23 +101,24 @@ def _upload_payload_with_retry(
     payload: dict,
     username: Optional[str],
     password: Optional[str],
-) -> None:
-    """Upload a result payload with the same 401 refresh flow as live uploads."""
+) -> Any:
+    """Upload a result payload with the same 401 refresh flow as live uploads; the server's answer."""
     try:
-        client.upload_results_payload(payload)
+        return client.upload_results_payload(payload)
     except requests.HTTPError as exc:
         status_code = exc.response.status_code if exc.response is not None else None
         if status_code == 401 and username and password:
             typer.echo("401 during upload, refreshing token with provided credentials...")
             fresh_token = client.login_user(username, password)
             auth.save_user_token(username, fresh_token)
-            client.upload_results_payload(payload)
-            return
+            return client.upload_results_payload(payload)
         raise
 
 
-def _upload_artifacts(client: BudAPIClient, patterns: List[str], test_run_id: int) -> None:
-    """Upload files matching the given paths or globs against a test run."""
+def _upload_artifacts(
+    client: BudAPIClient, patterns: List[str], test_run_id: int, exclude: Iterable[Path] = ()
+) -> None:
+    """Upload files matching the given paths or globs against a test run, except ``exclude``."""
     files: List[Path] = []
     for pattern in patterns:
         literal = Path(pattern)
@@ -129,7 +130,7 @@ def _upload_artifacts(client: BudAPIClient, patterns: List[str], test_run_id: in
             typer.echo(f"⚠ No artifact matched: {pattern}", err=True)
         files.extend(matches)
 
-    seen = set()
+    seen = set(exclude)
     for path in files:
         key = path.resolve()
         if key in seen:
@@ -145,6 +146,63 @@ def _upload_artifacts(client: BudAPIClient, patterns: List[str], test_run_id: in
 # Logs, screenshots, plots, traces and packet captures a suite may leave behind.
 LOG_PATTERNS = ("*.log", "*.out", "*.err")
 CAPTURE_PATTERNS = ("*.pcap", "*.pcapng", "*.cap", "*.trace")
+
+
+def _display_name(name: Any, path: Path) -> str:
+    """The name a step artifact is shown under in Bud: the name given to ``attach_artifact``
+    without control characters, ending with the file's extension, at most 255 characters."""
+    text = "".join(ch for ch in str(name or "") if ord(ch) >= 32).strip() or path.name
+    suffix = path.suffix
+    if suffix and not text.lower().endswith(suffix.lower()):
+        text += suffix
+    if len(text) > 255:
+        text = text[: 255 - len(suffix)] + suffix if suffix else text[:255]
+    return text
+
+
+def _step_artifacts(results: List[Any]) -> List[Tuple[Path, str, str]]:
+    """The files steps attached with budtestlibrary's ``attach_artifact``, from each result's
+    ``metadata["artifacts"]``, as (path, display name, test case ``<class>.<step>``); a file
+    attached more than once is listed once, with the first step that attached it."""
+    found: List[Tuple[Path, str, str]] = []
+    seen = set()
+    for row in _flatten_results(results):
+        entries = (row.get("metadata") or {}).get("artifacts") or []
+        if not isinstance(entries, list):
+            continue
+        step = f"{row.get('test_class')}.{row.get('test_method')}"
+        test_case = "".join(ch for ch in step if ord(ch) >= 32)[:255]
+        for entry in entries:
+            if not isinstance(entry, dict) or not entry.get("path"):
+                continue
+            path = Path(str(entry["path"]))
+            key = path.resolve()
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append((path, _display_name(entry.get("name"), path), test_case))
+    return found
+
+
+def _upload_step_artifacts(
+    client: BudAPIClient, steps: List[Tuple[Path, str, str]], test_run_id: int
+) -> set:
+    """Upload the files steps attached, each marked with its step; a missing file is skipped.
+    The resolved paths of the files that were uploaded."""
+    sent = set()
+    for path, name, test_case in steps:
+        if not path.is_file():
+            typer.echo(f"⚠ Step artifact not found: {path} ({test_case})", err=True)
+            continue
+        try:
+            client.upload_artifact(
+                str(path), run_id=test_run_id, test_case=test_case, filename=name
+            )
+            typer.echo(f"✓ Uploaded step artifact: {name} ({test_case})")
+            sent.add(path.resolve())
+        except Exception as exc:
+            typer.echo(f"⚠ Could not upload {path}: {exc}", err=True)
+    return sent
 
 
 def _discover_artifacts(artifact_dir: Path) -> List[Path]:
@@ -540,9 +598,10 @@ def run_tests(
                 ref_software_under_test=ref_software_under_test,
             )
             ok = True
+            answer: Any = None
             if payload:
                 try:
-                    _upload_payload_with_retry(client, auth, payload, username, password)
+                    answer = _upload_payload_with_retry(client, auth, payload, username, password)
                 except Exception as exc:
                     spool_file = _spool_results_payload(payload)
                     typer.echo(
@@ -573,6 +632,17 @@ def run_tests(
                         f"({passed_tcs} out of {total_tcs} TC passed)."
                     )
 
+                steps = _step_artifacts(results)
+                step_run_id = test_run_id
+                if not step_run_id and isinstance(answer, dict):
+                    step_run_id = answer.get("test_run_id")
+                sent_steps: set = set()
+                if steps and step_run_id:
+                    sent_steps = _upload_step_artifacts(client, steps, int(step_run_id))
+                elif steps:
+                    typer.echo(
+                        f"⚠ Step artifacts need a test run: {len(steps)} not uploaded.", err=True
+                    )
                 if test_run_id:
                     # The report is the one artifact every run produces, so it
                     # goes up without being asked for.
@@ -582,7 +652,7 @@ def run_tests(
                     to_upload.extend(str(p) for p in _discover_artifacts(Path(artifact_dir)))
                     to_upload.extend(artifacts)
                     if to_upload:
-                        _upload_artifacts(client, to_upload, test_run_id)
+                        _upload_artifacts(client, to_upload, test_run_id, exclude=sent_steps)
                 elif artifacts:
                     typer.echo(
                         "⚠ Artifacts need a test run: pass --test-run-id.",
