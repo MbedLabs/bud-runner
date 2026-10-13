@@ -261,6 +261,44 @@ formatter also works on an existing `behave` command:
 with the options as userdata: `-D bud_backend_url=...`, `bud_test_run_id`,
 `bud_product_id`, `bud_suite_name`, `bud_ref_sw_under_test`, `bud_upload=false`.
 
+### Import a Cucumber JSON report
+
+`import-cucumber` reads the Cucumber JSON report that cucumber-js
+(`--format json:report.json`), Cucumber-JVM (`--plugin json:report.json`) or
+Cucumber-Ruby (`--format json --out report.json`) writes, and uploads it as a Bud run.
+It needs no extra package.
+
+```bash
+python -m bud_runner import-cucumber \
+  --backend-url "https://<your-bud-instance-url>" \
+  --report report.json
+```
+
+The mapping is the one `run-behave` uses. Each feature becomes one Bud test case and
+each scenario, every Scenario Outline row included, one result of it; when two
+scenarios of a feature share a name, `(line N)` is added to each. Background steps
+count as the scenario's own. Each step becomes one entry named after its text, with
+its .feature file, line and the step as written: a Then step is a check and a Given or
+When step an information entry; And, But and `*` take the type of the step before. A
+step that fails, is ambiguous, undefined or pending is failed with the runner's
+message, and its stack trace is the traceback; a failed hook is a failed `HookError`
+entry. As Cucumber computes it, a scenario's status is its worst step's: a scenario
+with a skipped step, or with no steps, counts as skipped. Tag a scenario or its
+feature with `@bloom:PRJ-001` to link it to the Bloom test case `PRJ-TC-001` (the full
+id is accepted too); the scenario's own tag comes first. Step keywords are recognised
+in English: in a feature written in another Gherkin language every step takes the
+type of the one before, so its Then steps are information entries.
+
+`--test-run-id`, `--product-id`, `--suite-name` (default: the feature's name when the
+report has one feature, else the features directory, else the report's file name) and
+`--ref-sw-under-test` set the run; the station, the product and the backend otherwise
+come from `app.properties` and the `BUD_*` environment, as for `run-tests`. The report
+file is attached to the run unless `--no-artifacts` is given; `--no-upload` only reads
+the report and prints its summary. Exit code 0 when the report was read and reached
+Bud; 1 when the upload did not reach Bud (the results are spooled and replayed by the
+next bud-runner command); 2 when the report cannot be read or no backend is
+configured, and nothing is sent.
+
 ### Create a Bud test run
 
 This command requires the registered station's token, stored by registration or supplied
@@ -342,6 +380,7 @@ Do not put passwords, user tokens, runner tokens, or enrolment keys in
 | `run-robot` | Run Robot Framework with the Bud listener and report the run |
 | `run-pytest` | Run pytest with the Bud plugin and report the run |
 | `run-behave` | Run Behave with the Bud formatter and report the run |
+| `import-cucumber` | Import a Cucumber JSON report into Bud |
 | `list-tests` | Resolve and list discovered tests without executing them |
 | `add-test-run` | Create a Bud test run |
 | `register` | Register or re-register a runner identity |
