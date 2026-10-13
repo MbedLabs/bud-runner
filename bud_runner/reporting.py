@@ -45,12 +45,13 @@ def send_run(
     backend: Optional[str] = None,
     test_run_id: Optional[int] = None,
     files: Iterable[Path] = (),
-) -> None:
-    """Upload one collected run to Bud.
+) -> bool:
+    """Upload one collected run to Bud; True when the results reached Bud.
 
     ``build_body`` receives the station's runner account and the product id bud-runner
     reads from app.properties and returns the ResultsUpload body, or None when nothing
-    ran. ``framework`` names the run in the messages (``Robot``, ``pytest``).
+    ran. ``framework`` names the run in the messages (``Robot``, ``pytest``). False when
+    nothing was sent or the results were spooled.
     """
     from bud_runner.api_client import BudAPIClient
     from bud_runner.auth import AuthManager
@@ -61,13 +62,13 @@ def send_run(
     body = build_body(auth.runner_account, auth.product_id)
     if body is None:
         print(f"[bud] The {framework} run produced no test results; nothing uploaded.", file=sys.stderr)
-        return
+        return False
     try:
         response = client.upload_results_payload(body)
     except Exception as exc:
         spool = _spool_results_payload(body)
         print(f"[bud] Upload failed ({exc}); results spooled to {spool}", file=sys.stderr)
-        return
+        return False
     run_id = test_run_id
     if isinstance(response, dict) and response.get("test_run_id"):
         run_id = response["test_run_id"]
@@ -79,7 +80,7 @@ def send_run(
         except Exception as exc:
             print(f"[bud] Could not record skipped tests: {exc}", file=sys.stderr)
     if not run_id:
-        return
+        return True
     for path in files:
         if not path.is_file():
             continue
@@ -87,3 +88,4 @@ def send_run(
             client.upload_artifact(str(path), run_id=run_id)
         except Exception as exc:
             print(f"[bud] Could not upload {path.name}: {exc}", file=sys.stderr)
+    return True

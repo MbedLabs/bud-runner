@@ -982,6 +982,84 @@ def run_behave(
     raise typer.Exit(code=int(rc or 0))
 
 
+@app.command(name="import-cucumber")
+def import_cucumber(
+    report: Path = typer.Option(..., "--report", help="Cucumber JSON report to import."),
+    backend_url: Optional[str] = typer.Option(
+        None, "--backend-url", "-b", help="Backend URL for result upload"
+    ),
+    test_run_id: Optional[int] = typer.Option(
+        None, "--test-run-id", help="Existing TestRun id to attach the results to."
+    ),
+    product_id: Optional[int] = typer.Option(
+        None, "--product-id", help="Product id for a run Bud creates from the upload."
+    ),
+    ref_software_under_test: Optional[str] = typer.Option(
+        None, "--ref-sw-under-test", help="Git ref of the software under test."
+    ),
+    suite_name: Optional[str] = typer.Option(
+        None,
+        "--suite-name",
+        help="Suite name in Bud (default: the feature name, or the features directory).",
+    ),
+    upload_results: bool = typer.Option(True, "--upload/--no-upload", help="Upload results to Bud"),
+    upload_artifacts: bool = typer.Option(
+        True, "--artifacts/--no-artifacts", help="Attach the report file to the Bud run"
+    ),
+):
+    """
+    Import a Cucumber JSON report into Bud.
+
+    Reads the report written by cucumber-js, Cucumber-JVM or Cucumber-Ruby and uploads it
+    as a Bud run, for example ``bud-runner import-cucumber --report report.json``. Exit
+    code 0 when the report was read and, with ``--upload``, reached Bud; 1 when the upload
+    did not reach Bud (the results are spooled); 2 when the report is unreadable or no
+    backend is configured.
+    """
+    from bud_runner.cucumber_importer import CucumberReport, CucumberReportError, read_report
+    from bud_runner.reporting import send_run
+
+    try:
+        features = read_report(report)
+    except CucumberReportError as exc:
+        typer.echo(f"✗ {report}: {exc}", err=True)
+        raise typer.Exit(code=2)
+    imported = CucumberReport(
+        features,
+        report_path=report,
+        test_run_id=test_run_id,
+        product_id=product_id,
+        suite_name=suite_name,
+        ref_sw_under_test=ref_software_under_test,
+    )
+    counts = imported.counts()
+    typer.echo(
+        f"Cucumber report {report.name}: {counts['features']} features, {counts['scenarios']} scenarios "
+        f"({counts['passed']} passed, {counts['failed']} failed, {counts['skipped']} skipped)"
+    )
+    if not upload_results or not imported.results:
+        raise typer.Exit(code=0)
+    auth = AuthManager(backend_url=backend_url)
+    if not auth.backend_url:
+        typer.echo(
+            "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    try:
+        _flush_spooled_results(BudAPIClient(auth), auth, None, None)
+    except Exception as exc:
+        typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
+    reached = send_run(
+        imported.payload,
+        framework="Cucumber",
+        backend=backend_url,
+        test_run_id=test_run_id,
+        files=[report] if upload_artifacts else (),
+    )
+    raise typer.Exit(code=0 if reached else 1)
+
+
 @app.command(name="list-tests")
 def list_tests(
     test_case_list: str = typer.Option(
