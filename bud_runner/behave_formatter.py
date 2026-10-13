@@ -246,7 +246,6 @@ class BudFormatter(Formatter):
                     framework="Behave",
                     backend=self.backend,
                     test_run_id=self.test_run_id,
-                    skipped=self.skipped,
                 )
             except Exception as exc:
                 print(f"[bud] Could not report the Behave run to Bud: {exc}", file=sys.stderr)
