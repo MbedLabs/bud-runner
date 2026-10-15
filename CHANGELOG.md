@@ -4,6 +4,8 @@ All notable changes to `bud_runner` will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-10-15
+
 ### Added
 - `run-tests` and `claim-run` accept `--verbose` / `-v` to set suite instances to DEBUG logging, including their per-step lifecycle messages. The default remains INFO.
 - `run-robot` and `bud_runner.robot_listener.BudListener`: a Robot Framework run is reported to Bud. Each test becomes a test case, each library keyword call an entry: a check (a name containing "Should") an assertion named `Assert` plus what it checks (AssertEqual, AssertIn, AssertTrue, AssertEmpty, ...), with expected and actual for BuiltIn's checks; a keyword that checks nothing, or a failure a TRY or Run Keyword And Ignore Error handled, an information entry; a failing or missing keyword a failed entry; `Skip` a skipped entry; each with its .robot file, line and call, and a failure with the call chain as traceback, a `bloom:PRJ-001` tag the Bloom test case `PRJ-TC-001` (the full id is accepted too), SKIP a skipped test; output.xml, log.html and report.html are attached to the run. Robot's exit code is unchanged; a failed upload is spooled. Robot Framework 7 or later, as the `robot` extra.
