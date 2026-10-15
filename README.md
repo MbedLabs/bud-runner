@@ -68,6 +68,15 @@ python -m bud_runner run-tests \
   --no-upload
 ```
 
+### Lifecycle logging
+
+`bud-runner run-tests --test-case-list Suite.CASES --verbose` sets the suite instance to DEBUG logging,
+including the per-step `setUp()` and `tearDown()` lifecycle messages from
+`budtestlibrary`. `-v` is the short form. `claim-run --verbose` forwards the same
+setting to each claimed execution. Without this flag test instances use INFO;
+assertion output and execution results keep their existing behavior.
+
+
 ### Run and upload results
 
 Register the Test Station with its enrolment key first, as described below. Registration

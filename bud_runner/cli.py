@@ -509,6 +509,12 @@ def run_tests(
         "--artifact-dir",
         help="Directory whose contents are uploaded if it exists.",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Show suite DEBUG output, including per-step lifecycle logs.",
+    ),
     test_timeout: int = typer.Option(
         300,
         "--test-timeout",
@@ -544,7 +550,7 @@ def run_tests(
     signal.signal(signal.SIGINT, _on_interrupt)
     signal.signal(signal.SIGTERM, _on_interrupt)
 
-    executor = TestExecutor(test_timeout=test_timeout, suite_timeout=suite_timeout)
+    executor = TestExecutor(test_timeout=test_timeout, suite_timeout=suite_timeout, verbose=verbose)
     reporter = JUnitReporter()
 
     typer.echo(f"Running tests from: {test_case_list}")
@@ -712,6 +718,12 @@ def claim_run(
         "-A",
         help="File or glob to upload with each claimed run. Repeatable.",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Show suite DEBUG output, including per-step lifecycle logs.",
+    ),
     test_timeout: int = typer.Option(
         300,
         "--test-timeout",
@@ -747,6 +759,8 @@ def claim_run(
     client = BudAPIClient(auth)
 
     passthrough = ["--test-timeout", str(test_timeout), "--suite-timeout", str(suite_timeout)]
+    if verbose:
+        passthrough.append("--verbose")
     passthrough.extend(["--backend-url", auth.backend_url])
     if auth.runner_account:
         passthrough.extend(["--username", auth.runner_account])
