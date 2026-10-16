@@ -57,11 +57,13 @@ def test_a_cucumber_run_maps_to_bud_results(name):
     results = _by_method(report)
     assert {r["test_class"] for r in report.results} == {"Bench supply"}
     measured = results["Voltage within limit"]
-    assert measured["passed"] is True and measured["error_message"] is None
+    assert measured['passed'] is True
+    assert measured['error_message'] is None
     assert measured["metadata"]["tc_id"] == "PRJ-TC-001"
     assert measured["metadata"]["cucumber_tags"] == ["bloom:PRJ-001", "smoke", "suite-tag"]
     assert measured["metadata"]["location"].endswith("features/bench.feature:7")
-    assert "test_case_file" not in measured["metadata"] and "skipped" not in measured["metadata"]
+    assert 'test_case_file' not in measured['metadata']
+    assert 'skipped' not in measured['metadata']
     steps = [(a["assertion_type"], a["passed"], bool(a.get("info"))) for a in measured["assertions"]]
     assert steps == [
         ("a bench", True, True),
@@ -70,7 +72,8 @@ def test_a_cucumber_run_maps_to_bud_results(name):
         ("the value is below 5", True, False),
     ]
     check = measured["assertions"][3]
-    assert check["code_context"] == "And the value is below 5" and check["source_line"] == 10
+    assert check['code_context'] == 'And the value is below 5'
+    assert check['source_line'] == 10
     assert check["source_function"] == "Voltage within limit"
     assert measured["duration_seconds"] >= 0
     assert report.counts() == {"features": 1, "scenarios": 8, "passed": 3, "failed": 5, "skipped": 0}
@@ -89,20 +92,25 @@ def test_failures_carry_the_runner_message_and_stack_trace(name, message):
     wrong = results["Wrong value"]
     failed = wrong["assertions"][2]
     assert (failed["assertion_type"], failed["passed"]) == ("the value is 3", False)
-    assert failed["message"] == message and wrong["error_message"] == message
-    assert failed["traceback"].startswith(message.split("\n")[0]) and len(failed["traceback"]) > len(message)
+    assert failed['message'] == message
+    assert wrong['error_message'] == message
+    assert failed['traceback'].startswith(message.split('\n')[0])
+    assert len(failed['traceback']) > len(message)
     assert wrong["traceback"] == failed["traceback"]
     raised = results["Step raises"]
-    assert raised["assertions"][1]["passed"] is False and raised["assertions"][1]["info"] is True
+    assert raised['assertions'][1]['passed'] is False
+    assert raised['assertions'][1]['info'] is True
     assert "bad value" in raised["error_message"]
     missing = results["Missing step"]
     assert missing["error_message"] == "Undefined step: When nobody wrote this"
     assert missing["metadata"]["cucumber_status"] == "undefined"
     pending = results["Pending step"]
-    assert pending["passed"] is False and pending["metadata"]["cucumber_status"] == "pending"
+    assert pending['passed'] is False
+    assert pending['metadata']['cucumber_status'] == 'pending'
     hook = results["Hook fails"]
     assert [(a["assertion_type"], a["passed"]) for a in hook["assertions"]] == [("HookError", False)]
-    assert "hook broke" in hook["error_message"] and hook["traceback"]
+    assert 'hook broke' in hook['error_message']
+    assert hook['traceback']
 
 
 def test_edge_cases_from_a_real_cucumber_js_report():
@@ -112,19 +120,25 @@ def test_edge_cases_from_a_real_cucumber_js_report():
     assert results["Own tag wins"]["metadata"]["cucumber_tags"] == ["bloom:PRJ-002", "bloom:PRJ-009"]
     assert results["Feature tag only"]["metadata"]["tc_id"] == "PRJ-TC-009"
     ambiguous = results["Ambiguous step"]
-    assert ambiguous["passed"] is False and ambiguous["error_message"] == "Ambiguous step: When I do twice"
+    assert ambiguous['passed'] is False
+    assert ambiguous['error_message'] == 'Ambiguous step: When I do twice'
     after = results["After hook fails"]
     assert after["passed"] is False
     assert [(a["assertion_type"], a["passed"]) for a in after["assertions"]] == [("a bench", True), ("HookError", False)]
     assert after["error_message"] == "Error: after broke"
     for name, reason in (("Skips itself", "Skipped by the runner"), ("Nothing in it", "Scenario has no steps")):
         skipped = results[name]
-        assert skipped["passed"] is True and skipped["metadata"]["skipped"] is True
-        assert skipped["metadata"]["cucumber_status"] == "skipped" and skipped["error_message"] == reason
-        assert skipped["assertions"][-1]["assertion_type"] == "Skip" and skipped["assertions"][-1]["skipped"] is True
-    assert "Same name (line 33)" in results and "Same name (line 34)" in results
+        assert skipped['passed'] is True
+        assert skipped['metadata']['skipped'] is True
+        assert skipped['metadata']['cucumber_status'] == 'skipped'
+        assert skipped['error_message'] == reason
+        assert skipped['assertions'][-1]['assertion_type'] == 'Skip'
+        assert skipped['assertions'][-1]['skipped'] is True
+    assert 'Same name (line 33)' in results
+    assert 'Same name (line 34)' in results
     german = results["Wert prüfen"]
-    assert german["test_class"] == "Prüfstand" and german["passed"] is True
+    assert german['test_class'] == 'Prüfstand'
+    assert german['passed'] is True
     assert all(a.get("info") for a in german["assertions"])
     assert report.counts() == {"features": 2, "scenarios": 9, "passed": 5, "failed": 2, "skipped": 2}
     assert reporting.skipped_test_cases(report.results) == 0
@@ -144,7 +158,8 @@ def _scenario(steps, after=()):
 
 def test_hooks_alone_make_no_steps_and_the_worst_status_wins():
     hook_only = _scenario([{"keyword": "Before", "hidden": True, "result": {"status": "passed", "duration": 1}}])
-    assert hook_only["passed"] is True and hook_only["metadata"]["skipped"] is True
+    assert hook_only['passed'] is True
+    assert hook_only['metadata']['skipped'] is True
     assert hook_only["error_message"] == "Scenario has no steps"
     undefined_then_failed_hook = _scenario(
         [{"keyword": "When ", "name": "a", "line": 3, "result": {"status": "undefined"}}],
@@ -157,9 +172,12 @@ def test_hooks_alone_make_no_steps_and_the_worst_status_wins():
 def test_the_payload_names_the_suite_product_and_run(tmp_path):
     report = _report("cucumber-jvm.json", test_run_id=7, product_id=4, ref_sw_under_test="v2.4.1")
     body = report.payload("bench-1", 12)
-    assert body["test_run_id"] == 7 and body["product_id"] == 4
-    assert body["runner_account"] == "bench-1" and body["ref_software_under_test"] == "v2.4.1"
-    assert body["test_suite_name"] == "Bench supply" and len(body["results"]) == 8
+    assert body['test_run_id'] == 7
+    assert body['product_id'] == 4
+    assert body['runner_account'] == 'bench-1'
+    assert body['ref_software_under_test'] == 'v2.4.1'
+    assert body['test_suite_name'] == 'Bench supply'
+    assert len(body['results']) == 8
     assert _report("cucumber-js-edges.json").payload(None, 12)["test_suite_name"] == "features"
     assert _report("cucumber-js-edges.json").payload(None, 12)["product_id"] == 12
     assert _report("cucumber-js.json", suite_name="Bench").payload(None, None)["test_suite_name"] == "Bench"
@@ -208,7 +226,8 @@ def test_a_report_that_is_not_utf8_is_refused(tmp_path, fake_backend):
     with pytest.raises(CucumberReportError, match="not UTF-8 text"):
         read_report(path)
     result = _import("--report", str(path))
-    assert result.exit_code == 2 and "not UTF-8 text" in result.output
+    assert result.exit_code == 2
+    assert 'not UTF-8 text' in result.output
     assert fake_backend.made == []
 
 
@@ -270,8 +289,10 @@ def test_import_uploads_the_report_and_attaches_it(fake_backend):
     assert "2 features, 9 scenarios (5 passed, 2 failed, 2 skipped)" in result.output
     assert fake_backend.flushed == ["client"]
     calls = fake_backend.made[0].calls
-    assert calls[0][0] == "results" and len(calls[0][1]["results"]) == 9
-    assert calls[0][1]["product_id"] == 12 and calls[0][1]["runner_account"] == "bench-1"
+    assert calls[0][0] == 'results'
+    assert len(calls[0][1]['results']) == 9
+    assert calls[0][1]['product_id'] == 12
+    assert calls[0][1]['runner_account'] == 'bench-1'
     assert calls[1:] == [("artifact", "cucumber-js-edges.json", 42)]
 
 
@@ -281,7 +302,8 @@ def test_import_without_artifacts_and_with_a_run_id(fake_backend):
     )
     assert result.exit_code == 0, result.output
     body = fake_backend.made[0].calls[0][1]
-    assert body["test_run_id"] == 7 and body["test_suite_name"] == "Bench"
+    assert body['test_run_id'] == 7
+    assert body['test_suite_name'] == 'Bench'
     assert [c[0] for c in fake_backend.made[0].calls] == ["results"]
 
 
@@ -289,7 +311,8 @@ def test_an_upload_that_does_not_reach_bud_exits_1_and_is_spooled(fake_backend):
     fake_backend.factory.fail = True
     result = _import("--report", str(FIXTURES / "cucumber-js.json"))
     assert result.exit_code == 1
-    assert len(fake_backend.spooled) == 1 and len(fake_backend.spooled[0]["results"]) == 8
+    assert len(fake_backend.spooled) == 1
+    assert len(fake_backend.spooled[0]['results']) == 8
 
 
 def test_a_malformed_report_exits_2_before_anything_is_sent(fake_backend, tmp_path):
@@ -298,28 +321,35 @@ def test_a_malformed_report_exits_2_before_anything_is_sent(fake_backend, tmp_pa
     result = _import("--report", str(bad))
     assert result.exit_code == 2
     assert f"✗ {bad}: not valid JSON" in result.output
-    assert fake_backend.flushed == [] and fake_backend.made == []
+    assert fake_backend.flushed == []
+    assert fake_backend.made == []
 
 
 def test_a_report_with_the_wrong_shape_inside_exits_2(fake_backend, tmp_path):
     bad = tmp_path / "report.json"
     bad.write_text('[{"name": "x", "elements": [{"steps": [{"name": "a", "result": "passed"}]}]}]', encoding="utf-8")
     result = _import("--report", str(bad))
-    assert result.exit_code == 2 and "result is not an object" in result.output
-    assert fake_backend.flushed == [] and fake_backend.made == []
+    assert result.exit_code == 2
+    assert 'result is not an object' in result.output
+    assert fake_backend.flushed == []
+    assert fake_backend.made == []
 
 
 def test_no_upload_and_empty_reports_send_nothing(fake_backend, tmp_path):
     result = _import("--report", str(FIXTURES / "cucumber-jvm.json"), "--no-upload")
-    assert result.exit_code == 0 and "1 features, 8 scenarios (3 passed, 5 failed, 0 skipped)" in result.output
+    assert result.exit_code == 0
+    assert '1 features, 8 scenarios (3 passed, 5 failed, 0 skipped)' in result.output
     empty = tmp_path / "empty.json"
     empty.write_text("[]", encoding="utf-8")
     result = _import("--report", str(empty))
-    assert result.exit_code == 0 and "0 features, 0 scenarios" in result.output
-    assert fake_backend.made == [] and fake_backend.flushed == []
+    assert result.exit_code == 0
+    assert '0 features, 0 scenarios' in result.output
+    assert fake_backend.made == []
+    assert fake_backend.flushed == []
 
 
 def test_import_needs_a_backend_to_upload(monkeypatch):
     monkeypatch.setattr(cli, "AuthManager", lambda backend_url=None: SimpleNamespace(backend_url=None))
     result = _import("--report", str(FIXTURES / "cucumber-js.json"))
-    assert result.exit_code == 2 and "No backend URL configured" in result.output
+    assert result.exit_code == 2
+    assert 'No backend URL configured' in result.output

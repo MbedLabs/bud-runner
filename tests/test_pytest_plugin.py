@@ -152,11 +152,13 @@ def test_a_pytest_run_maps_to_bud_results(pytester):
     assert len(reporter.results) == 15
     measured = results["test_measures"]
     assert measured["test_class"] == "test_bench.py::test_measures"
-    assert measured["passed"] is True and measured["error_message"] is None
+    assert measured['passed'] is True
+    assert measured['error_message'] is None
     assert measured["metadata"]["tc_id"] == "PRJ-TC-001"
     assert measured["metadata"]["pytest_outcome"] == "passed"
     assert "bloom" in measured["metadata"]["pytest_markers"]
-    assert "test_case_file" not in measured["metadata"] and "test_case_class" not in measured["metadata"]
+    assert 'test_case_file' not in measured['metadata']
+    assert 'test_case_class' not in measured['metadata']
     types = [a["assertion_type"] for a in measured["assertions"]]
     assert types == [
         "AssertEqual",
@@ -192,11 +194,13 @@ def test_assert_statements_and_bud_assert_give_the_same_records(pytester):
         "result": "3",
     }
     assert _core(plain_in) == _core(fixture_in)
-    assert plain_in["expected"] == "'b' in container" and plain_in["actual"] == "abc"
+    assert plain_in['expected'] == "'b' in container"
+    assert plain_in['actual'] == 'abc'
     assert plain_in["message"] == "contains b"
     assert (plain_true["expected"], plain_true["actual"]) == ("True", "3")
     assert set(plain_equal) == set(fixture_equal)
-    assert plain_equal["source_file"] == "test_bench.py" and plain_equal["source_line"] == 7
+    assert plain_equal['source_file'] == 'test_bench.py'
+    assert plain_equal['source_line'] == 7
     assert plain_equal["source_function"] == "test_measures"
     assert plain_equal["code_context"] == "assert measured == 3"
     assert fixture_equal["code_context"] == "bud_assert.assertEqual(measured, 3)"
@@ -230,11 +234,13 @@ def test_a_failed_assert_carries_expected_actual_message_and_traceback(pytester)
     assert failed["passed"] is False
     assert failed["metadata"]["pytest_outcome"] == "failed"
     (entry,) = failed["assertions"]
-    assert entry["passed"] is False and entry["assertion_type"] == "AssertEqual"
+    assert entry['passed'] is False
+    assert entry['assertion_type'] == 'AssertEqual'
     assert (entry["expected"], entry["actual"]) == ("[1, 3]", "[1, 2]")
     assert entry["message"].startswith("assert [1, 2] == [1, 3]")
     assert entry["code_context"] == "assert values == [1, 3]"
-    assert "test_bench.py" in entry["traceback"] and "AssertionError" in entry["traceback"]
+    assert 'test_bench.py' in entry['traceback']
+    assert 'AssertionError' in entry['traceback']
     assert failed["error_message"] == entry["message"]
     assert failed["traceback"] == entry["traceback"]
 
@@ -258,7 +264,8 @@ def test_a_failed_bud_assert_goes_on_and_fails_the_test(pytester):
     teardown = {r.nodeid.split("::")[-1]: r for r in rec.getreports("pytest_runtest_logreport") if r.when == "teardown"}
     assert teardown["test_teardown_check"].failed
     after = _by_method(reporter)["test_teardown_check"]
-    assert after["passed"] is False and after["metadata"]["pytest_outcome"] == "error"
+    assert after['passed'] is False
+    assert after['metadata']['pytest_outcome'] == 'error'
     assert after["error_message"] == "[AssertEqual] EXPECTED: 2 | ACTUAL: 1 | MESSAGE: after"
 
 
@@ -270,9 +277,12 @@ def test_a_failed_bud_assert_in_an_xfail_test_is_its_expected_failure(pytester):
     results = _by_method(reporter)
     for name in ("test_expected_soft_failure", "test_expected_strict_soft_failure", "test_expected_abort"):
         call, teardown = by_phase[(name, "call")], by_phase[(name, "teardown")]
-        assert call.skipped and hasattr(call, "wasxfail") and teardown.passed
+        assert call.skipped
+        assert hasattr(call, 'wasxfail')
+        assert teardown.passed
         result = results[name]
-        assert result["metadata"]["pytest_outcome"] == "xfailed" and result["metadata"]["skipped"] is True
+        assert result['metadata']['pytest_outcome'] == 'xfailed'
+        assert result['metadata']['skipped'] is True
         assert [(a["assertion_type"], a["passed"]) for a in result["assertions"]][0] == ("AssertEqual", False)
     assert results["test_expected_strict_soft_failure"]["error_message"] == "strict soft check"
     rec.assertoutcome(passed=4, skipped=5, failed=7)
@@ -284,10 +294,12 @@ def test_exceptions_skips_xfail_and_fixture_errors(pytester):
     raised = results["test_raises"]
     (entry,) = raised["assertions"]
     assert (entry["assertion_type"], entry["passed"], entry["message"]) == ("ValueError", False, "bad value")
-    assert entry["source_function"] == "test_raises" and "ValueError" in entry["traceback"]
+    assert entry['source_function'] == 'test_raises'
+    assert 'ValueError' in entry['traceback']
     assert raised["error_message"] == "bad value"
     skipped = results["test_skipped"]
-    assert skipped["passed"] is True and skipped["metadata"]["skipped"] is True
+    assert skipped['passed'] is True
+    assert skipped['metadata']['skipped'] is True
     assert skipped["metadata"]["pytest_outcome"] == "skipped"
     assert skipped["error_message"] == "not on this bench"
     assert [(a["assertion_type"], a["skipped"], a["message"]) for a in skipped["assertions"]] == [
@@ -295,12 +307,15 @@ def test_exceptions_skips_xfail_and_fixture_errors(pytester):
         ("Skip", True, "not on this bench"),
     ]
     xfail = results["test_expected_failure"]
-    assert xfail["metadata"]["pytest_outcome"] == "xfailed" and xfail["metadata"]["skipped"] is True
+    assert xfail['metadata']['pytest_outcome'] == 'xfailed'
+    assert xfail['metadata']['skipped'] is True
     assert [a["assertion_type"] for a in xfail["assertions"]] == ["Skip"]
     setup = results["test_setup_error"]
-    assert setup["passed"] is False and setup["metadata"]["pytest_outcome"] == "error"
+    assert setup['passed'] is False
+    assert setup['metadata']['pytest_outcome'] == 'error'
     (entry,) = setup["assertions"]
-    assert entry["assertion_type"] == "RuntimeError" and entry["metadata"] == {"phase": "setup"}
+    assert entry['assertion_type'] == 'RuntimeError'
+    assert entry['metadata'] == {'phase': 'setup'}
     assert setup["error_message"] == "fixture broke"
     assert reporter.skipped == 5
 
@@ -310,7 +325,8 @@ def test_the_payload_names_the_suite_product_and_run(pytester):
         pytester, "--bud-no-upload", "--bud-test-run-id=7", "--bud-product-id=4", "--bud-ref-sw-under-test=v2.4.1"
     )
     body = reporter.payload("bench-1", 12)
-    assert body["test_run_id"] == 7 and body["product_id"] == 4
+    assert body['test_run_id'] == 7
+    assert body['product_id'] == 4
     assert body["runner_account"] == "bench-1"
     assert body["ref_software_under_test"] == "v2.4.1"
     assert body["test_suite_name"] == pytester.path.name
@@ -357,8 +373,10 @@ def fake_backend(monkeypatch, tmp_path):
 def test_the_session_is_uploaded_with_the_skipped_count(pytester, fake_backend, capsys):
     _run(pytester, "--bud-backend-url=https://bud.example")
     calls = fake_backend.made[0].calls
-    assert calls[0][0] == "results" and len(calls[0][1]["results"]) == 15
-    assert calls[0][1]["product_id"] == 12 and calls[0][1]["runner_account"] == "bench-1"
+    assert calls[0][0] == 'results'
+    assert len(calls[0][1]['results']) == 15
+    assert calls[0][1]['product_id'] == 12
+    assert calls[0][1]['runner_account'] == 'bench-1'
     assert calls[1] == ("update", 42, {"skipped_tests": 5})
     assert "pytest results uploaded to Bud run 42" in capsys.readouterr().err
 
@@ -366,7 +384,8 @@ def test_the_session_is_uploaded_with_the_skipped_count(pytester, fake_backend, 
 def test_a_failed_upload_is_spooled(pytester, fake_backend):
     fake_backend.factory.fail = True
     _run(pytester, "--bud-test-run-id=7")
-    assert len(fake_backend.spooled) == 1 and fake_backend.spooled[0]["test_run_id"] == 7
+    assert len(fake_backend.spooled) == 1
+    assert fake_backend.spooled[0]['test_run_id'] == 7
     assert [c[0] for c in fake_backend.made[0].calls] == ["results"]
 
 
@@ -414,7 +433,8 @@ def test_run_pytest_command_passes_pytest_arguments_and_exit_code(monkeypatch, t
     )
     assert result.exit_code == 1
     assert seen["args"][:4] == ["-p", "bud_runner.pytest_plugin", "-o", "enable_assertion_pass_hook=true"]
-    assert "--bud-test-run-id=5" in seen["args"] and "--bud-suite-name=Bench" in seen["args"]
+    assert '--bud-test-run-id=5' in seen['args']
+    assert '--bud-suite-name=Bench' in seen['args']
     assert "--bud-no-upload" in seen["args"]
     assert seen["args"][-3:] == ["tests/", "-k", "smoke"]
     assert seen["prefix"] == str(tmp_path / ".bud" / "pycache")
@@ -428,7 +448,8 @@ def test_run_pytest_replays_the_spool_first_and_needs_a_backend(monkeypatch):
     monkeypatch.setattr(cli, "BudAPIClient", lambda a: "client")
     monkeypatch.setattr(cli, "_flush_spooled_results", lambda *a: flushed.append(a[0]))
     result = CliRunner().invoke(cli.app, ["run-pytest", "--backend-url", "https://bud.example", "tests/"])
-    assert result.exit_code == 0 and flushed == ["client"]
+    assert result.exit_code == 0
+    assert flushed == ['client']
     monkeypatch.setattr(cli, "AuthManager", lambda backend_url=None: SimpleNamespace(backend_url=None))
     result = CliRunner().invoke(cli.app, ["run-pytest", "tests/"])
     assert result.exit_code == 2

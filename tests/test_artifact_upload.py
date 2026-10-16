@@ -460,7 +460,8 @@ def test_display_names_and_the_step_list():
     assert _display_name(None, pcap) == "traffic.pcap"
     assert _display_name("", Path("/data/notes")) == "notes"
     long = _display_name("x" * 300, pcap)
-    assert len(long) == 255 and long.endswith(".pcap")
+    assert len(long) == 255
+    assert long.endswith('.pcap')
     steps = _step_artifacts(
         _step_results(
             (
