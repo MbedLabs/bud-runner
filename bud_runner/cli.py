@@ -27,13 +27,17 @@ from bud_runner.runner_manager import RunnerManager
 from bud_runner.test_executor import TestExecutor
 from bud_runner.versioning import read_package_version
 
-
-UPLOAD_NO_UPLOAD = '--upload/--no-upload'
-BACKEND_URL_FOR_RESULT_UPLOAD = 'Backend URL for result upload'
-EXISTING_TESTRUN_ID_TO_ATTACH_THE_RESULTS_TO = 'Existing TestRun id to attach the results to.'
-GIT_REF_OF_THE_SOFTWARE_UNDER_TEST = 'Git ref of the software under test.'
-PRODUCT_ID_FOR_A_RUN_BUD_CREATES_FROM_THE_UPLOAD = 'Product id for a run Bud creates from the upload.'
-UPLOAD_RESULTS_TO_BUD = 'Upload results to Bud'
+UPLOAD_NO_UPLOAD = "--upload/--no-upload"
+TEST_CASE_LIST_HELP = "Test case list module path (e.g., Bud_Test_Suite.CORE_TEST_CASES)"
+MISSING_BACKEND_URL = "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL."
+BACKEND_URL_HELP = "Backend URL"
+BACKEND_URL_FOR_RESULT_UPLOAD = "Backend URL for result upload"
+EXISTING_TESTRUN_ID_TO_ATTACH_THE_RESULTS_TO = "Existing TestRun id to attach the results to."
+GIT_REF_OF_THE_SOFTWARE_UNDER_TEST = "Git ref of the software under test."
+PRODUCT_ID_FOR_A_RUN_BUD_CREATES_FROM_THE_UPLOAD = (
+    "Product id for a run Bud creates from the upload."
+)
+UPLOAD_RESULTS_TO_BUD = "Upload results to Bud"
 
 app = typer.Typer(
     name="bud_runner",
@@ -305,7 +309,7 @@ def add_test_run(
         ...,
         "--test-case-list",
         "-t",
-        help="Test case list module path (e.g., Bud_Test_Suite.CORE_TEST_CASES)",
+        help=TEST_CASE_LIST_HELP,
     ),
     test_suite_name: str = typer.Option(
         ...,
@@ -381,9 +385,7 @@ def add_test_run(
     """
     auth = AuthManager(username=username, token=bud_token, backend_url=backend_url)
     if not auth.backend_url:
-        typer.echo(
-            "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True
-        )
+        typer.echo(MISSING_BACKEND_URL, err=True)
         raise typer.Exit(code=2)
     if not auth.token:
         typer.echo(
@@ -425,13 +427,115 @@ def add_test_run(
         raise typer.Exit(code=1)
 
 
+def _suite_product_id(client, test_run_id):
+    """Read the product associated with an existing run when available."""
+    final_product_id = None
+    if test_run_id:
+        try:
+            run_info = client.get_test_run(test_run_id)
+            final_product_id = run_info.get("product_id")
+        except Exception:
+            pass
+
+    return final_product_id
+
+
+def _publish_suite_artifacts(
+    client, results, test_run_id, answer, format, output, artifact_dir, artifacts
+):
+    """Upload step and suite artifacts associated with the result response."""
+    steps = _step_artifacts(results)
+    step_run_id = test_run_id
+    if not step_run_id and isinstance(answer, dict):
+        step_run_id = answer.get("test_run_id")
+    sent_steps: set = set()
+    if steps and step_run_id:
+        sent_steps = _upload_step_artifacts(client, steps, int(step_run_id))
+    elif steps:
+        typer.echo(f"⚠ Step artifacts need a test run: {len(steps)} not uploaded.", err=True)
+    if test_run_id:
+        to_upload: List[str] = []
+        if format == OutputFormat.junit and output.is_file():
+            to_upload.append(str(output))
+        to_upload.extend(str(p) for p in _discover_artifacts(Path(artifact_dir)))
+        to_upload.extend(artifacts)
+        if to_upload:
+            _upload_artifacts(client, to_upload, test_run_id, exclude=sent_steps)
+    elif artifacts:
+        typer.echo(
+            "⚠ Artifacts need a test run: pass --test-run-id.",
+            err=True,
+        )
+
+
+def _upload_suite_results(
+    results,
+    test_case_list,
+    auth,
+    credentials,
+    test_run_id,
+    software,
+    duration,
+    format,
+    output,
+    artifact_dir,
+    artifacts,
+):
+    """Upload suite results, complete the run and publish its artifacts."""
+    username, password = credentials
+    client = BudAPIClient(auth)
+    _flush_spooled_results(client, auth, username, password)
+    final_product_id = _suite_product_id(client, test_run_id)
+
+    payload = client.build_results_payload(
+        results,
+        test_run_id=test_run_id,
+        product_id=final_product_id or auth.product_id,
+        test_suite_name=test_case_list,
+        **software,
+    )
+    answer: Any = None
+    if payload:
+        try:
+            answer = _upload_payload_with_retry(client, auth, payload, username, password)
+        except Exception as exc:
+            spool_file = _spool_results_payload(payload)
+            typer.echo(
+                f"✗ Result upload failed: {exc}. Payload spooled to {spool_file}",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
+    suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
+    typer.echo(f"✓ Results uploaded to backend{suffix}")
+
+    if test_run_id:
+        final_status = "Completed"
+        client.update_test_run(
+            run_id=test_run_id,
+            status=final_status,
+            duration_seconds=duration,
+            product_id=final_product_id,
+        )
+        passed_tcs = sum(1 for r in results if r.passed)
+        total_tcs = len(results)
+        typer.echo(
+            f"✓ Test run {test_run_id} marked as {final_status} "
+            f"({passed_tcs} out of {total_tcs} TC passed)."
+        )
+
+    _publish_suite_artifacts(
+        client, results, test_run_id, answer, format, output, artifact_dir, artifacts
+    )
+
+
 @app.command()
 def run_tests(
     test_case_list: str = typer.Option(
         ...,
         "--test-case-list",
         "-t",
-        help="Test case list module path (e.g., Bud_Test_Suite.CORE_TEST_CASES)",
+        help=TEST_CASE_LIST_HELP,
     ),
     output: Path = typer.Option(
         Path("report_junit.xml"),
@@ -584,97 +688,29 @@ def run_tests(
             auth = AuthManager(username=username, backend_url=backend_url, bud_token=bud_token)
             if not auth.backend_url:
                 typer.echo(
-                    "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+                    MISSING_BACKEND_URL,
                     err=True,
                 )
                 raise typer.Exit(code=2)
 
-            client = BudAPIClient(auth)
-            _flush_spooled_results(client, auth, username, password)
-
-            # If we don't have a product_id yet, try to get it from the run if we have a run_id
-            final_product_id = None
-            if test_run_id:
-                try:
-                    run_info = client.get_test_run(test_run_id)
-                    final_product_id = run_info.get("product_id")
-                except Exception:
-                    pass
-
-            payload = client.build_results_payload(
+            _upload_suite_results(
                 results,
-                test_run_id=test_run_id,
-                product_id=final_product_id or auth.product_id,
-                test_suite_name=test_case_list,
-                url_test_software=url_test_software,
-                ref_test_software=ref_test_software,
-                url_software_under_test=url_software_under_test,
-                ref_software_under_test=ref_software_under_test,
+                test_case_list,
+                auth,
+                (username, password),
+                test_run_id,
+                {
+                    "url_test_software": url_test_software,
+                    "ref_test_software": ref_test_software,
+                    "url_software_under_test": url_software_under_test,
+                    "ref_software_under_test": ref_software_under_test,
+                },
+                duration,
+                format,
+                output,
+                artifact_dir,
+                artifacts,
             )
-            ok = True
-            answer: Any = None
-            if payload:
-                try:
-                    answer = _upload_payload_with_retry(client, auth, payload, username, password)
-                except Exception as exc:
-                    spool_file = _spool_results_payload(payload)
-                    typer.echo(
-                        f"✗ Result upload failed: {exc}. Payload spooled to {spool_file}",
-                        err=True,
-                    )
-                    raise typer.Exit(code=1)
-
-            if ok:
-                suffix = f" (test_run_id={test_run_id})" if test_run_id else ""
-                typer.echo(f"✓ Results uploaded to backend{suffix}")
-
-                # Final status only: POST /api/results already rolls up total_tests /
-                # passed_tests / failed_tests by test_class on the server. Do not PATCH
-                # method-row totals here — they would overwrite the TC-class contract.
-                if test_run_id:
-                    final_status = "Completed"
-                    client.update_test_run(
-                        run_id=test_run_id,
-                        status=final_status,
-                        duration_seconds=duration,
-                        product_id=final_product_id,
-                    )
-                    passed_tcs = sum(1 for r in results if r.passed)
-                    total_tcs = len(results)
-                    typer.echo(
-                        f"✓ Test run {test_run_id} marked as {final_status} "
-                        f"({passed_tcs} out of {total_tcs} TC passed)."
-                    )
-
-                steps = _step_artifacts(results)
-                step_run_id = test_run_id
-                if not step_run_id and isinstance(answer, dict):
-                    step_run_id = answer.get("test_run_id")
-                sent_steps: set = set()
-                if steps and step_run_id:
-                    sent_steps = _upload_step_artifacts(client, steps, int(step_run_id))
-                elif steps:
-                    typer.echo(
-                        f"⚠ Step artifacts need a test run: {len(steps)} not uploaded.", err=True
-                    )
-                if test_run_id:
-                    # The report is the one artifact every run produces, so it
-                    # goes up without being asked for.
-                    to_upload: List[str] = []
-                    if format == OutputFormat.junit and output.is_file():
-                        to_upload.append(str(output))
-                    to_upload.extend(str(p) for p in _discover_artifacts(Path(artifact_dir)))
-                    to_upload.extend(artifacts)
-                    if to_upload:
-                        _upload_artifacts(client, to_upload, test_run_id, exclude=sent_steps)
-                elif artifacts:
-                    typer.echo(
-                        "⚠ Artifacts need a test run: pass --test-run-id.",
-                        err=True,
-                    )
-            else:
-                typer.echo("✗ Result upload failed", err=True)
-                raise typer.Exit(code=1)
 
         # Print final Test Case level summary
         passed_tcs = sum(1 for r in results if r.passed)
@@ -692,6 +728,83 @@ def run_tests(
     except Exception as e:
         typer.echo(f"✗ Error running tests: {e}", err=True)
         raise typer.Exit(code=1)
+
+
+def _acknowledge_claimed_run(client, run, claim_id, code, execution_error, interval):
+    """Retry a terminal run acknowledgment before accepting more work."""
+    while True:
+        try:
+            client.complete_claimed_run(
+                run["id"],
+                claim_id,
+                exit_code=code,
+                error=execution_error,
+            )
+            break
+        except Exception as exc:
+            typer.echo(
+                f"⚠ Could not acknowledge run {run['id']}: {exc}",
+                err=True,
+            )
+            if interval <= 0:
+                raise typer.Exit(code=1)
+            time.sleep(interval)
+
+
+def _execute_claimed_run(client, claimed, passthrough, workspace, interval):
+    """Execute and acknowledge a claimed run before returning its exit code."""
+    run = claimed["run"]
+    execution_error = None
+    try:
+        code = _run_claimed(claimed, passthrough, workspace)
+    except Exception as exc:
+        code = 1
+        execution_error = f"{type(exc).__name__}: {exc}"
+        typer.echo(
+            f"✗ Run {run['id']} could not execute: {execution_error}",
+            err=True,
+        )
+
+    _acknowledge_claimed_run(client, run, claimed["claim_id"], code, execution_error, interval)
+
+    typer.echo(f"Run {run['id']} finished with exit code {code}")
+    return code
+
+
+def _exit_failed_claim(code, interval):
+    """Carry a failed one-shot execution's exit code back to CI."""
+    if interval <= 0 and code != 0:
+        raise typer.Exit(code=code)
+
+
+def _poll_claimed_runs(client, passthrough, workspace, interval):
+    """Claim work with stable retry identities and one-shot exit semantics."""
+    claim_id = str(uuid.uuid4())
+    while True:
+        try:
+            claimed = client.claim_next_run(claim_id)
+        except Exception as exc:
+            typer.echo(f"⚠ Could not claim a run: {exc}", err=True)
+            if interval <= 0:
+                raise typer.Exit(code=1)
+            time.sleep(interval)
+            continue
+
+        if claimed:
+            run = claimed["run"]
+            typer.echo(f"✓ Claimed run {run['id']}: {run['name']}")
+            code = _execute_claimed_run(client, claimed, passthrough, workspace, interval)
+
+            claim_id = str(uuid.uuid4())
+            _exit_failed_claim(code, interval)
+        elif interval <= 0:
+            typer.echo("Nothing queued.")
+        else:
+            claim_id = str(uuid.uuid4())
+
+        if interval <= 0:
+            return
+        time.sleep(interval)
 
 
 @app.command(name="claim-run")
@@ -753,7 +866,7 @@ def claim_run(
     auth = AuthManager(username=username, backend_url=backend_url)
     if not auth.backend_url:
         typer.echo(
-            "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+            MISSING_BACKEND_URL,
             err=True,
         )
         raise typer.Exit(code=2)
@@ -775,67 +888,7 @@ def claim_run(
     for pattern in artifacts:
         passthrough.extend(["--artifact", pattern])
 
-    claim_id = str(uuid.uuid4())
-    while True:
-        try:
-            claimed = client.claim_next_run(claim_id)
-        except Exception as exc:
-            # A poller outlives the backend it talks to; a blip is not the end
-            # of the shift. A one-shot claim has nobody to retry for it.
-            typer.echo(f"⚠ Could not claim a run: {exc}", err=True)
-            if interval <= 0:
-                raise typer.Exit(code=1)
-            time.sleep(interval)
-            continue
-
-        if claimed:
-            run = claimed["run"]
-            typer.echo(f"✓ Claimed run {run['id']}: {run['name']}")
-            execution_error = None
-            try:
-                code = _run_claimed(claimed, passthrough, workspace)
-            except Exception as exc:
-                code = 1
-                execution_error = f"{type(exc).__name__}: {exc}"
-                typer.echo(
-                    f"✗ Run {run['id']} could not execute: {execution_error}",
-                    err=True,
-                )
-
-            while True:
-                try:
-                    client.complete_claimed_run(
-                        run["id"],
-                        claimed["claim_id"],
-                        exit_code=code,
-                        error=execution_error,
-                    )
-                    break
-                except Exception as exc:
-                    typer.echo(
-                        f"⚠ Could not acknowledge run {run['id']}: {exc}",
-                        err=True,
-                    )
-                    if interval <= 0:
-                        raise typer.Exit(code=1)
-                    # Do not claim or execute more work until Bud has the
-                    # terminal answer for this run.
-                    time.sleep(interval)
-
-            typer.echo(f"Run {run['id']} finished with exit code {code}")
-            claim_id = str(uuid.uuid4())
-            # A poller keeps going; a one-shot claim carries the code to CI.
-            if interval <= 0 and code != 0:
-                raise typer.Exit(code=code)
-        elif interval <= 0:
-            typer.echo("Nothing queued.")
-        else:
-            # A successful empty response proves this key did not claim work.
-            claim_id = str(uuid.uuid4())
-
-        if interval <= 0:
-            return
-        time.sleep(interval)
+    _poll_claimed_runs(client, passthrough, workspace, interval)
 
 
 @app.command(
@@ -883,7 +936,7 @@ def run_robot(
         auth = AuthManager(backend_url=backend_url)
         if not auth.backend_url:
             typer.echo(
-                "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+                MISSING_BACKEND_URL,
                 err=True,
             )
             raise typer.Exit(code=2)
@@ -965,7 +1018,7 @@ def run_pytest(
         auth = AuthManager(backend_url=backend_url)
         if not auth.backend_url:
             typer.echo(
-                "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+                MISSING_BACKEND_URL,
                 err=True,
             )
             raise typer.Exit(code=2)
@@ -1047,7 +1100,7 @@ def run_behave(
         auth = AuthManager(backend_url=backend_url)
         if not auth.backend_url:
             typer.echo(
-                "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+                MISSING_BACKEND_URL,
                 err=True,
             )
             raise typer.Exit(code=2)
@@ -1134,7 +1187,7 @@ def import_cucumber(
     auth = AuthManager(backend_url=backend_url)
     if not auth.backend_url:
         typer.echo(
-            "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.",
+            MISSING_BACKEND_URL,
             err=True,
         )
         raise typer.Exit(code=2)
@@ -1158,7 +1211,7 @@ def list_tests(
         ...,
         "--test-case-list",
         "-t",
-        help="Test case list module path (e.g., Bud_Test_Suite.CORE_TEST_CASES)",
+        help=TEST_CASE_LIST_HELP,
     ),
     output_format: StatusOutputFormat = typer.Option(
         StatusOutputFormat.text,
@@ -1268,7 +1321,7 @@ def register(
         None,
         "--backend-url",
         "-b",
-        help="Backend URL",
+        help=BACKEND_URL_HELP,
     ),
     socket_port: int = typer.Option(
         53035,
@@ -1303,9 +1356,7 @@ def register(
     """
     auth = AuthManager(backend_url=backend_url, runner_api_key=api_key)
     if not auth.backend_url:
-        typer.echo(
-            "✗ No backend URL configured. Pass --backend-url or set BUD_BACKEND_URL.", err=True
-        )
+        typer.echo(MISSING_BACKEND_URL, err=True)
         raise typer.Exit(code=2)
     if not auth.runner_api_key:
         typer.echo(
@@ -1387,7 +1438,7 @@ def daemon(
         None,
         "--backend-url",
         "-b",
-        help="Backend URL",
+        help=BACKEND_URL_HELP,
     ),
     interval: int = typer.Option(
         60,
@@ -1474,13 +1525,46 @@ def _read_runner_package_version() -> str:
     return read_package_version()
 
 
+def _load_backend_version(client, status_payload):
+    """Record the backend version or its retrieval error."""
+    try:
+        status_payload["backend_version"] = client.get_version()
+    except Exception as e:
+        status_payload["backend_version"] = f"error: {e}"
+
+
+def _load_backend_runner_status(client, status_payload):
+    """Record the registered station's status or its retrieval error."""
+    try:
+        runner_status = client.get_runner_status()
+        status_payload["daemon"]["backend_runner_status"] = runner_status
+    except Exception as e:
+        status_payload["daemon"]["backend_runner_status_error"] = str(e)
+
+
+def _load_backend_status(auth, status_payload):
+    """Record health and available backend details when a URL is configured."""
+    if auth.backend_url:
+        client = BudAPIClient(auth)
+        try:
+            if client.health_check():
+                status_payload["backend_health"] = "ok"
+                _load_backend_version(client, status_payload)
+                if auth.runner_account and auth.token:
+                    _load_backend_runner_status(client, status_payload)
+            else:
+                status_payload["backend_health"] = "unreachable"
+        except Exception as e:
+            status_payload["backend_health"] = f"error: {e}"
+
+
 @app.command()
 def status(
     backend_url: Optional[str] = typer.Option(
         None,
         "--backend-url",
         "-b",
-        help="Backend URL",
+        help=BACKEND_URL_HELP,
     ),
     output_format: StatusOutputFormat = typer.Option(
         StatusOutputFormat.text,
@@ -1505,25 +1589,7 @@ def status(
         },
     }
 
-    if auth.backend_url:
-        client = BudAPIClient(auth)
-        try:
-            if client.health_check():
-                status_payload["backend_health"] = "ok"
-                try:
-                    status_payload["backend_version"] = client.get_version()
-                except Exception as e:
-                    status_payload["backend_version"] = f"error: {e}"
-                if auth.runner_account and auth.token:
-                    try:
-                        runner_status = client.get_runner_status()
-                        status_payload["daemon"]["backend_runner_status"] = runner_status
-                    except Exception as e:
-                        status_payload["daemon"]["backend_runner_status_error"] = str(e)
-            else:
-                status_payload["backend_health"] = "unreachable"
-        except Exception as e:
-            status_payload["backend_health"] = f"error: {e}"
+    _load_backend_status(auth, status_payload)
 
     if output_format == StatusOutputFormat.json:
         typer.echo(json.dumps(status_payload))
