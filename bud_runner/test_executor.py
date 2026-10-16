@@ -24,7 +24,7 @@ DEFAULT_TEST_TIMEOUT = 300  # seconds per individual test
 DEFAULT_SUITE_TIMEOUT = 1800  # seconds for the full suite (30 min)
 
 
-def _worker_run_test(test_class: Type, result_queue: multiprocessing.Queue):
+def _worker_run_test(test_class: Type, result_queue: multiprocessing.Queue, verbose: bool = False):
     """Worker function to run a test class in an isolated process."""
     result_dict = {
         "test_class": test_class.__name__,
@@ -52,7 +52,7 @@ def _worker_run_test(test_class: Type, result_queue: multiprocessing.Queue):
         import logging
 
         if hasattr(test_instance, "set_loglevel"):
-            test_instance.set_loglevel(logging.INFO)
+            test_instance.set_loglevel(logging.DEBUG if verbose else logging.INFO)
 
         # Run the test
         passed = test_instance.run()
@@ -140,6 +140,7 @@ class TestExecutor:
         base_path: Optional[str] = None,
         test_timeout: int = DEFAULT_TEST_TIMEOUT,
         suite_timeout: int = DEFAULT_SUITE_TIMEOUT,
+        verbose: bool = False,
     ):
         """
         Initialize the test executor.
@@ -152,6 +153,7 @@ class TestExecutor:
         self._base_path = base_path
         self._test_timeout = test_timeout
         self._suite_timeout = suite_timeout
+        self._verbose = verbose
         if base_path and base_path not in sys.path:
             sys.path.insert(0, base_path)
 
@@ -194,8 +196,9 @@ class TestExecutor:
         test_classes = []
         for test_path in test_list:
             test_class = self._load_test_class(test_path)
-            if test_class:
-                test_classes.append(test_class)
+            if test_class is None:
+                raise ImportError(f"Cannot load selected test '{test_path}'")
+            test_classes.append(test_class)
 
         return test_classes
 
@@ -304,7 +307,7 @@ class TestExecutor:
         ctx = multiprocessing.get_context("spawn")
         queue = ctx.Queue()
 
-        p = ctx.Process(target=_worker_run_test, args=(test_class, queue))
+        p = ctx.Process(target=_worker_run_test, args=(test_class, queue, self._verbose))
         p.start()
 
         # Read from the queue BEFORE joining to avoid deadlock.

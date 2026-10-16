@@ -107,11 +107,19 @@ class AuthManager:
         self._socket_port: int = 53035
         self._location: Optional[str] = None
 
-        # 1. Load from properties file
+        self._load_project_properties(properties_file)
+        self._load_from_env()
+        self._apply_arguments(
+            username, token, backend_url, runner_account, runner_token, runner_api_key
+        )
+        self._load_vault_identities(backend_url)
+
+    def _load_project_properties(self, properties_file: Optional[str]) -> None:
+        """Load explicit properties or the nearest five parent property files."""
         if properties_file:
             self._load_from_properties(properties_file)
         else:
-            # System Alignment: Search up parent directories for properties
+
             prop_files = []
             curr = Path.cwd().resolve()
             for _ in range(5):
@@ -122,14 +130,13 @@ class AuthManager:
                     break
                 curr = curr.parent
 
-            # Load in reverse (root first) so local files override
             for pf in reversed(prop_files):
                 self._load_from_properties(str(pf))
 
-        # 2. Override with environment variables
-        self._load_from_env()
-
-        # 3. Override with constructor arguments
+    def _apply_arguments(
+        self, username, token, backend_url, runner_account, runner_token, runner_api_key
+    ):
+        """Apply explicit authentication and backend arguments after environment values."""
         if backend_url:
             self._backend_url = backend_url
         if token:
@@ -145,7 +152,19 @@ class AuthManager:
         if runner_api_key:
             self._runner_api_key = runner_api_key
 
-        # 4. Fetch Secret from Vault (If account is known)
+    def _load_vault_identities(self, backend_url: Optional[str]) -> None:
+        """Resolve saved runner and user identities without replacing explicit credentials."""
+        self._load_vault_runner(backend_url)
+
+        if self._username and not self._token:
+            user_identity = self.vault.get_user(self._username)
+            if user_identity:
+                self._token = user_identity.get("token")
+                if not backend_url and not os.environ.get("BUD_BACKEND_URL"):
+                    self._backend_url = user_identity.get("backend", self._backend_url)
+
+    def _load_vault_runner(self, backend_url: Optional[str]) -> None:
+        """Apply the saved station identity without replacing supplied credentials."""
         if self._runner_account:
             identity = self.vault.get_runner(self._runner_account)
             if identity:
@@ -154,14 +173,6 @@ class AuthManager:
                 self._socket_port = identity.get("port", self._socket_port)
                 if not backend_url and not os.environ.get("BUD_BACKEND_URL"):
                     self._backend_url = identity.get("backend", self._backend_url)
-
-        # 5. Fetch cached user token from Vault (if username is known but user token is missing)
-        if self._username and not self._token:
-            user_identity = self.vault.get_user(self._username)
-            if user_identity:
-                self._token = user_identity.get("token")
-                if not backend_url and not os.environ.get("BUD_BACKEND_URL"):
-                    self._backend_url = user_identity.get("backend", self._backend_url)
 
     def _load_from_properties(self, filepath: str) -> None:
         """Load non-sensitive project metadata from a .properties file."""

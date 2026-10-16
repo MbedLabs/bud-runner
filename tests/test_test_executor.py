@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 import time
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +17,19 @@ from tests.fixtures import mock_tests
 @pytest.fixture
 def executor():
     return BudTestExecutor(test_timeout=10, suite_timeout=60)
+
+
+@pytest.mark.parametrize("has_valid_case", [False, True])
+def test_an_unavailable_selected_case_refuses_the_selection(executor, monkeypatch, has_valid_case):
+    module = ModuleType("selected_station_cases")
+    module.CASES = (["tests.fixtures.mock_tests.FastPassTest"] if has_valid_case else []) + [
+        "unavailable_station_suite.MissingCase"
+    ]
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    with patch.object(executor, "run_test_class") as execute:
+        with pytest.raises(ImportError, match="unavailable_station_suite.MissingCase"):
+            executor.run_test_list("selected_station_cases.CASES")
+    execute.assert_not_called()
 
 
 def test_per_test_timeout_kills_slow_worker():

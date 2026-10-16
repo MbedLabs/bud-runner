@@ -1,0 +1,66 @@
+# Bud Robot Framework Workflow Template
+#
+# Runs a Robot Framework suite through bud-runner's listener: each Robot test
+# becomes a Bud result, each library keyword an assertion, a `bloom:<TC id>` tag
+# links the result to Bloom, and output.xml, log.html and report.html are
+# attached to the Bud run. Copy this file to .github/workflows/ and list
+# `bud-runner[robot]` in requirements.txt.
+
+name: Bud Robot Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      robot_args:
+        description: "Extra robot arguments, for example --include smoke"
+        required: false
+        default: ""
+
+concurrency:
+  group: bud-robot-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BUD_BACKEND_URL: "BUD_BACKEND_URL"
+  BUD_RUNNER_API_KEY: ${{ secrets.BUD_RUNNER_API_KEY }}
+
+permissions:
+  contents: read
+
+jobs:
+  robot:
+    name: Bud Robot Run
+    runs-on: [self-hosted, teststations]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "Bud run: Robot suite"
+        env:
+          ROBOT_ARGS: ${{ github.event.inputs.robot_args }}
+        run: |
+          python -m bud_runner run-robot \
+            --backend-url "$BUD_BACKEND_URL" \
+            --outputdir robot-results \
+            $ROBOT_ARGS \
+            tests/
+
+      - name: Upload Robot results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: robot-results-${{ github.run_id }}
+          path: robot-results/
+          if-no-files-found: warn
+          retention-days: 30
