@@ -27,6 +27,14 @@ from bud_runner.runner_manager import RunnerManager
 from bud_runner.test_executor import TestExecutor
 from bud_runner.versioning import read_package_version
 
+
+UPLOAD_NO_UPLOAD = '--upload/--no-upload'
+BACKEND_URL_FOR_RESULT_UPLOAD = 'Backend URL for result upload'
+EXISTING_TESTRUN_ID_TO_ATTACH_THE_RESULTS_TO = 'Existing TestRun id to attach the results to.'
+GIT_REF_OF_THE_SOFTWARE_UNDER_TEST = 'Git ref of the software under test.'
+PRODUCT_ID_FOR_A_RUN_BUD_CREATES_FROM_THE_UPLOAD = 'Product id for a run Bud creates from the upload.'
+UPLOAD_RESULTS_TO_BUD = 'Upload results to Bud'
+
 app = typer.Typer(
     name="bud_runner",
     help="CLI tool for test execution and CI/CD integration with the Bud backend",
@@ -447,7 +455,7 @@ def run_tests(
         None,
         "--backend-url",
         "-b",
-        help="Backend URL for result upload",
+        help=BACKEND_URL_FOR_RESULT_UPLOAD,
     ),
     username: Optional[str] = typer.Option(
         None,
@@ -495,7 +503,7 @@ def run_tests(
     ),
     upload_results: bool = typer.Option(
         True,
-        "--upload/--no-upload",
+        UPLOAD_NO_UPLOAD,
         help="Upload results to backend",
     ),
     artifacts: List[str] = typer.Option(
@@ -837,21 +845,21 @@ def claim_run(
 def run_robot(
     ctx: typer.Context,
     backend_url: Optional[str] = typer.Option(
-        None, "--backend-url", "-b", help="Backend URL for result upload"
+        None, "--backend-url", "-b", help=BACKEND_URL_FOR_RESULT_UPLOAD
     ),
     test_run_id: Optional[int] = typer.Option(
-        None, "--test-run-id", help="Existing TestRun id to attach the results to."
+        None, "--test-run-id", help=EXISTING_TESTRUN_ID_TO_ATTACH_THE_RESULTS_TO
     ),
     product_id: Optional[int] = typer.Option(
-        None, "--product-id", help="Product id for a run Bud creates from the upload."
+        None, "--product-id", help=PRODUCT_ID_FOR_A_RUN_BUD_CREATES_FROM_THE_UPLOAD
     ),
     ref_software_under_test: Optional[str] = typer.Option(
-        None, "--ref-sw-under-test", help="Git ref of the software under test."
+        None, "--ref-sw-under-test", help=GIT_REF_OF_THE_SOFTWARE_UNDER_TEST
     ),
     suite_name: Optional[str] = typer.Option(
         None, "--suite-name", help="Suite name in Bud (default: the Robot root suite name)."
     ),
-    upload_results: bool = typer.Option(True, "--upload/--no-upload", help="Upload results to Bud"),
+    upload_results: bool = typer.Option(True, UPLOAD_NO_UPLOAD, help=UPLOAD_RESULTS_TO_BUD),
     upload_artifacts: bool = typer.Option(
         True,
         "--artifacts/--no-artifacts",
@@ -922,21 +930,21 @@ def _pytest_pycache_dir() -> Path:
 def run_pytest(
     ctx: typer.Context,
     backend_url: Optional[str] = typer.Option(
-        None, "--backend-url", "-b", help="Backend URL for result upload"
+        None, "--backend-url", "-b", help=BACKEND_URL_FOR_RESULT_UPLOAD
     ),
     test_run_id: Optional[int] = typer.Option(
-        None, "--test-run-id", help="Existing TestRun id to attach the results to."
+        None, "--test-run-id", help=EXISTING_TESTRUN_ID_TO_ATTACH_THE_RESULTS_TO
     ),
     product_id: Optional[int] = typer.Option(
-        None, "--product-id", help="Product id for a run Bud creates from the upload."
+        None, "--product-id", help=PRODUCT_ID_FOR_A_RUN_BUD_CREATES_FROM_THE_UPLOAD
     ),
     ref_software_under_test: Optional[str] = typer.Option(
-        None, "--ref-sw-under-test", help="Git ref of the software under test."
+        None, "--ref-sw-under-test", help=GIT_REF_OF_THE_SOFTWARE_UNDER_TEST
     ),
     suite_name: Optional[str] = typer.Option(
         None, "--suite-name", help="Suite name in Bud (default: the pytest rootdir name)."
     ),
-    upload_results: bool = typer.Option(True, "--upload/--no-upload", help="Upload results to Bud"),
+    upload_results: bool = typer.Option(True, UPLOAD_NO_UPLOAD, help=UPLOAD_RESULTS_TO_BUD),
 ):
     """
     Run pytest with the Bud plugin attached.
@@ -1003,23 +1011,23 @@ def _names_a_formatter(args: List[str]) -> bool:
 def run_behave(
     ctx: typer.Context,
     backend_url: Optional[str] = typer.Option(
-        None, "--backend-url", "-b", help="Backend URL for result upload"
+        None, "--backend-url", "-b", help=BACKEND_URL_FOR_RESULT_UPLOAD
     ),
     test_run_id: Optional[int] = typer.Option(
-        None, "--test-run-id", help="Existing TestRun id to attach the results to."
+        None, "--test-run-id", help=EXISTING_TESTRUN_ID_TO_ATTACH_THE_RESULTS_TO
     ),
     product_id: Optional[int] = typer.Option(
-        None, "--product-id", help="Product id for a run Bud creates from the upload."
+        None, "--product-id", help=PRODUCT_ID_FOR_A_RUN_BUD_CREATES_FROM_THE_UPLOAD
     ),
     ref_software_under_test: Optional[str] = typer.Option(
-        None, "--ref-sw-under-test", help="Git ref of the software under test."
+        None, "--ref-sw-under-test", help=GIT_REF_OF_THE_SOFTWARE_UNDER_TEST
     ),
     suite_name: Optional[str] = typer.Option(
         None,
         "--suite-name",
         help="Suite name in Bud (default: the feature name, or the features directory).",
     ),
-    upload_results: bool = typer.Option(True, "--upload/--no-upload", help="Upload results to Bud"),
+    upload_results: bool = typer.Option(True, UPLOAD_NO_UPLOAD, help=UPLOAD_RESULTS_TO_BUD),
 ):
     """
     Run Behave with the Bud formatter attached.
@@ -1070,23 +1078,23 @@ def run_behave(
 def import_cucumber(
     report: Path = typer.Option(..., "--report", help="Cucumber JSON report to import."),
     backend_url: Optional[str] = typer.Option(
-        None, "--backend-url", "-b", help="Backend URL for result upload"
+        None, "--backend-url", "-b", help=BACKEND_URL_FOR_RESULT_UPLOAD
     ),
     test_run_id: Optional[int] = typer.Option(
-        None, "--test-run-id", help="Existing TestRun id to attach the results to."
+        None, "--test-run-id", help=EXISTING_TESTRUN_ID_TO_ATTACH_THE_RESULTS_TO
     ),
     product_id: Optional[int] = typer.Option(
-        None, "--product-id", help="Product id for a run Bud creates from the upload."
+        None, "--product-id", help=PRODUCT_ID_FOR_A_RUN_BUD_CREATES_FROM_THE_UPLOAD
     ),
     ref_software_under_test: Optional[str] = typer.Option(
-        None, "--ref-sw-under-test", help="Git ref of the software under test."
+        None, "--ref-sw-under-test", help=GIT_REF_OF_THE_SOFTWARE_UNDER_TEST
     ),
     suite_name: Optional[str] = typer.Option(
         None,
         "--suite-name",
         help="Suite name in Bud (default: the feature name, or the features directory).",
     ),
-    upload_results: bool = typer.Option(True, "--upload/--no-upload", help="Upload results to Bud"),
+    upload_results: bool = typer.Option(True, UPLOAD_NO_UPLOAD, help=UPLOAD_RESULTS_TO_BUD),
     upload_artifacts: bool = typer.Option(
         True, "--artifacts/--no-artifacts", help="Attach the report file to the Bud run"
     ),

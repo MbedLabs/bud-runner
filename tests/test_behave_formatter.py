@@ -159,11 +159,13 @@ def test_a_behave_run_maps_to_bud_results(project):
     ]
     assert {r["test_class"] for r in formatter.results} == {"Bench supply"}
     measured = results["Voltage within limit"]
-    assert measured["passed"] is True and measured["error_message"] is None
+    assert measured['passed'] is True
+    assert measured['error_message'] is None
     assert measured["metadata"]["tc_id"] == "PRJ-TC-001"
     assert measured["metadata"]["behave_tags"] == ["bloom:PRJ-TC-001", "smoke"]
     assert measured["metadata"]["location"] == "features/bench.feature:6"
-    assert "test_case_file" not in measured["metadata"] and "test_case_class" not in measured["metadata"]
+    assert 'test_case_file' not in measured['metadata']
+    assert 'test_case_class' not in measured['metadata']
     assert _steps(measured) == [
         ("a bench", True, True, False),
         ("I measure 3", True, True, False),
@@ -190,11 +192,14 @@ def test_failures_carry_message_and_traceback(project):
         ("the value is 3", False, False, False),
     ]
     failed = wrong["assertions"][2]
-    assert failed["message"] == "expected 3" and wrong["error_message"] == "expected 3"
-    assert "AssertionError" in failed["traceback"] and "bench_steps.py" in failed["traceback"]
+    assert failed['message'] == 'expected 3'
+    assert wrong['error_message'] == 'expected 3'
+    assert 'AssertionError' in failed['traceback']
+    assert 'bench_steps.py' in failed['traceback']
     assert wrong["traceback"] == failed["traceback"]
     raised = results["Step raises"]
-    assert raised["passed"] is False and raised["error_message"] == "ValueError: bad value"
+    assert raised['passed'] is False
+    assert raised['error_message'] == 'ValueError: bad value'
     assert _steps(raised)[1] == ("I break", False, True, False)
     assert "ValueError: bad value" in raised["assertions"][1]["traceback"]
     assert "ValueError: bad value" in raised["traceback"]
@@ -209,7 +214,8 @@ def test_skips_hook_errors_and_tag_selection(project):
     results = _by_method(formatter)
     assert "Excluded by tags" not in results
     skipped = results["Skipped by hook"]
-    assert skipped["passed"] is True and skipped["metadata"]["skipped"] is True
+    assert skipped['passed'] is True
+    assert skipped['metadata']['skipped'] is True
     assert skipped["error_message"] == "not on this bench"
     assert _steps(skipped) == [("Skip", True, False, True)]
     assert formatter.skipped == 1
@@ -218,7 +224,8 @@ def test_skips_hook_errors_and_tag_selection(project):
     assert [(a["assertion_type"], a["passed"]) for a in hook["assertions"]] == [("HookError", False)]
     assert "RuntimeError: hook broke" in hook["error_message"]
     assert "Traceback (most recent call last)" in hook["traceback"]
-    assert "environment.py" in hook["traceback"] and "hook broke" in hook["traceback"]
+    assert 'environment.py' in hook['traceback']
+    assert 'hook broke' in hook['traceback']
     assert hook["assertions"][0]["traceback"] == hook["traceback"]
 
 
@@ -234,8 +241,10 @@ def test_the_payload_names_the_suite_product_and_run(project):
         "bud_ref_sw_under_test=v2.4.1",
     )
     body = formatter.payload("bench-1", 12)
-    assert body["test_run_id"] == 7 and body["product_id"] == 4
-    assert body["runner_account"] == "bench-1" and body["ref_software_under_test"] == "v2.4.1"
+    assert body['test_run_id'] == 7
+    assert body['product_id'] == 4
+    assert body['runner_account'] == 'bench-1'
+    assert body['ref_software_under_test'] == 'v2.4.1'
     assert body["test_suite_name"] == "Bench supply"
     assert len(body["results"]) == 8
     (project / "features" / "clock.feature").write_text(SECOND_FEATURE, encoding="utf-8")
@@ -288,8 +297,10 @@ def test_the_run_is_uploaded_without_a_skipped_count_when_no_feature_is_all_skip
     rc, formatter = _run("-D", "bud_backend_url=https://bud.example")
     assert rc == 1
     calls = fake_backend.made[0].calls
-    assert calls[0][0] == "results" and len(calls[0][1]["results"]) == 8
-    assert calls[0][1]["product_id"] == 12 and calls[0][1]["runner_account"] == "bench-1"
+    assert calls[0][0] == 'results'
+    assert len(calls[0][1]['results']) == 8
+    assert calls[0][1]['product_id'] == 12
+    assert calls[0][1]['runner_account'] == 'bench-1'
     assert [c[0] for c in calls] == ["results"]
     assert "Behave results uploaded to Bud run 42" in capsys.readouterr().err
 
@@ -297,7 +308,8 @@ def test_the_run_is_uploaded_without_a_skipped_count_when_no_feature_is_all_skip
 def test_a_failed_upload_is_spooled(project, fake_backend):
     fake_backend.factory.fail = True
     _run("-D", "bud_test_run_id=7")
-    assert len(fake_backend.spooled) == 1 and fake_backend.spooled[0]["test_run_id"] == 7
+    assert len(fake_backend.spooled) == 1
+    assert fake_backend.spooled[0]['test_run_id'] == 7
     assert [c[0] for c in fake_backend.made[0].calls] == ["results"]
 
 
@@ -330,10 +342,13 @@ def test_run_behave_command_passes_behave_arguments_and_exit_code(monkeypatch):
     args = seen["args"]
     assert args[:4] == ["-f", "bud_runner.behave_formatter:BudFormatter", "-o", os.devnull]
     assert args[4:6] == ["-f", "pretty"]
-    assert "bud_test_run_id=5" in args and "bud_suite_name=Bench" in args and "bud_upload=false" in args
+    assert 'bud_test_run_id=5' in args
+    assert 'bud_suite_name=Bench' in args
+    assert 'bud_upload=false' in args
     assert args[-2:] == ["features/", "--tags=@smoke"]
     CliRunner().invoke(cli.app, ["run-behave", "--no-upload", "-f", "progress", "features/"])
-    assert "pretty" not in seen["args"] and seen["args"][-3:] == ["-f", "progress", "features/"]
+    assert 'pretty' not in seen['args']
+    assert seen['args'][-3:] == ['-f', 'progress', 'features/']
 
 
 def test_run_behave_names_the_extra_when_behave_is_missing(monkeypatch):
@@ -352,7 +367,8 @@ def test_run_behave_replays_the_spool_first_and_needs_a_backend(monkeypatch):
     monkeypatch.setattr(cli, "BudAPIClient", lambda a: "client")
     monkeypatch.setattr(cli, "_flush_spooled_results", lambda *a: flushed.append(a[0]))
     result = CliRunner().invoke(cli.app, ["run-behave", "--backend-url", "https://bud.example", "features/"])
-    assert result.exit_code == 0 and flushed == ["client"]
+    assert result.exit_code == 0
+    assert flushed == ['client']
     monkeypatch.setattr(cli, "AuthManager", lambda backend_url=None: SimpleNamespace(backend_url=None))
     result = CliRunner().invoke(cli.app, ["run-behave", "features/"])
     assert result.exit_code == 2
