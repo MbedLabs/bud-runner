@@ -9,7 +9,6 @@ from typer.testing import CliRunner
 from bud_runner import api_client, auth, cli
 from bud_runner.pytest_plugin import PLUGIN_NAME, comparison
 
-pytest_plugins = ["pytester"]
 
 PLUGIN = ("-p", "bud_runner.pytest_plugin", "-o", "enable_assertion_pass_hook=true")
 

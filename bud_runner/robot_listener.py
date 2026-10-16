@@ -139,7 +139,9 @@ def assert_name(name: str) -> str:
     if rest and rest[0].lower() == "be":
         rest = rest[1:]
     parts = ["".join(ch for ch in w if ch.isalnum()) for w in subject + rest]
-    return "Assert" + ("Not" if negated else "") + "".join(p[:1].upper() + p[1:] for p in parts if p)
+    return (
+        "Assert" + ("Not" if negated else "") + "".join(p[:1].upper() + p[1:] for p in parts if p)
+    )
 
 
 def _relative(source: Any) -> Optional[str]:
@@ -159,7 +161,9 @@ def _call_text(name: str, args: Any) -> str:
     return "    ".join([name, *[str(a) for a in (args or ())]])
 
 
-def _entry(assertion_type: str, passed: bool, message: str, where: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _entry(
+    assertion_type: str, passed: bool, message: str, where: Optional[Dict[str, Any]]
+) -> Dict[str, Any]:
     where = where or {}
     return {
         "passed": passed,
@@ -375,9 +379,10 @@ class BudListener:
 
     def _note_failure(self, message: str, traceback: str) -> None:
         """Keep the first failure no TRY or keyword handled, with its deepest call chain."""
-        if self._failure is not None:
-            if self._failure_message != message or self._failure.count("\n") >= traceback.count("\n"):
-                return
+        if self._failure is not None and (
+            self._failure_message != message or self._failure.count("\n") >= traceback.count("\n")
+        ):
+            return
         self._failure = traceback
         self._failure_message = message
 
@@ -389,7 +394,9 @@ class BudListener:
         try:
             name = getattr(result, "name", None)
             if name in TOLERANT_KEYWORDS:
-                self._close_tolerant(result.status == "PASS", retries=name == "Wait Until Keyword Succeeds")
+                self._close_tolerant(
+                    result.status == "PASS", retries=name == "Wait Until Keyword Succeeds"
+                )
             self._record(result, where, start)
         finally:
             self._leave()
@@ -400,17 +407,14 @@ class BudListener:
         name, status = result.name, result.status
         if status == "NOT RUN":
             return
-        capped = self._depth >= MAX_KEYWORD_DEPTH or len(self._assertions) >= MAX_ASSERTIONS_PER_TEST
+        capped = (
+            self._depth >= MAX_KEYWORD_DEPTH or len(self._assertions) >= MAX_ASSERTIONS_PER_TEST
+        )
         if capped and (status != "FAIL" or len(self._assertions) >= 2 * MAX_ASSERTIONS_PER_TEST):
-            if status == "FAIL":
-                self._note_failure(result.message, self._traceback(result.message))
+            self._record_capped_failure(result)
             return
         if status == "SKIP":
-            if name in SKIP_KEYWORDS or is_check(name):
-                entry = skip_assertion(result.message, where)
-                if name not in SKIP_KEYWORDS:
-                    entry["assertion_type"] = assert_name(name)
-                self._assertions.append(entry)
+            self._record_skipped_keyword(result, where)
             return
         failed = status == "FAIL"
         inner_failure = any(e.get("passed") is False for e in self._assertions[start:])
@@ -422,7 +426,12 @@ class BudListener:
             self._note_failure(result.message, where["traceback"])
         if is_check(name):
             entry = assertion_for(
-                name, getattr(result, "owner", None), _resolve(list(result.args)), not failed, result.message, where
+                name,
+                getattr(result, "owner", None),
+                _resolve(list(result.args)),
+                not failed,
+                result.message,
+                where,
             )
         elif failed:
             entry = _entry(name, False, result.message, where)
@@ -430,9 +439,24 @@ class BudListener:
             entry = info_entry(name, result.message, where)
         self._assertions.append(entry)
 
+    def _record_capped_failure(self, result) -> None:
+        """Retain a capped keyword's failure traceback."""
+        if result.status == "FAIL":
+            self._note_failure(result.message, self._traceback(result.message))
+
+    def _record_skipped_keyword(self, result, where: Dict[str, Any]) -> None:
+        """Record a skipped check or explicit skip keyword."""
+        name = result.name
+        if name not in SKIP_KEYWORDS and not is_check(name):
+            return
+        entry = skip_assertion(result.message, where)
+        if name not in SKIP_KEYWORDS:
+            entry["assertion_type"] = assert_name(name)
+        self._assertions.append(entry)
+
     def end_test(self, data, result) -> None:
         tags = [str(t) for t in result.tags]
-        tc_ids = [t[len(BLOOM_TAG):].strip() for t in tags if t.lower().startswith(BLOOM_TAG)]
+        tc_ids = [t[len(BLOOM_TAG) :].strip() for t in tags if t.lower().startswith(BLOOM_TAG)]
         skipped = result.status == "SKIP"
         if skipped:
             self.skipped += 1
@@ -447,7 +471,9 @@ class BudListener:
         if result.status == "FAIL" and self._assertions is not None:
             if not any(e.get("passed") is False for e in self._assertions):
                 fallback = _entry("Fail", False, result.message, None)
-                fallback["traceback"] = self._failure or f"Traceback (most recent call last):\n{result.message}"
+                fallback["traceback"] = (
+                    self._failure or f"Traceback (most recent call last):\n{result.message}"
+                )
                 self._failure = fallback["traceback"]
                 self._assertions.append(fallback)
         self.results.append(

@@ -69,12 +69,16 @@ def _check_element(element: Any, feature: int) -> None:
     for key in LIST_KEYS:
         items = element.get(key, [])
         if not isinstance(items, list):
-            raise CucumberReportError(f"feature {feature} has an element whose {key} are not a list")
+            raise CucumberReportError(
+                f"feature {feature} has an element whose {key} are not a list"
+            )
         for item in items:
             if not isinstance(item, dict):
                 raise CucumberReportError(f"feature {feature} has {key} that are not objects")
             if key != "tags" and not isinstance(item.get("result", {}), dict):
-                raise CucumberReportError(f"feature {feature} has a {key} entry whose result is not an object")
+                raise CucumberReportError(
+                    f"feature {feature} has a {key} entry whose result is not an object"
+                )
 
 
 def feature_path(uri: Any) -> Optional[str]:
@@ -115,7 +119,9 @@ def _duration(item: Dict[str, Any]) -> float:
 
 
 def _tag_names(item: Dict[str, Any]) -> List[str]:
-    return [str(t.get("name", "")).lstrip("@") for t in item.get("tags") or [] if isinstance(t, dict)]
+    return [
+        str(t.get("name", "")).lstrip("@") for t in item.get("tags") or [] if isinstance(t, dict)
+    ]
 
 
 class CucumberReport:
@@ -172,6 +178,24 @@ class CucumberReport:
         for element, backgrounds in scenarios:
             self._scenario(name, path, feature_tags, element, backgrounds, names)
 
+    @staticmethod
+    def _scenario_error(failures, status, real_steps, metadata, path, line, name, entries):
+        """Record the scenario's first failure or skipped-step details."""
+        error: Optional[str] = None
+        if failures:
+            error = failures[0][0]
+        elif status == "skipped":
+            metadata["skipped"] = True
+            error = "Scenario has no steps" if not real_steps else "Skipped by the runner"
+            where = {
+                "source_file": path,
+                "source_line": line,
+                "source_function": name,
+                "code_context": f"Scenario: {name}",
+            }
+            entries.append(skip_assertion(error, where))
+        return error
+
     def _scenario(
         self,
         feature_name: str,
@@ -186,57 +210,24 @@ class CucumberReport:
         line = element.get("line")
         if names.count(name) > 1 and line is not None:
             name = f"{name} (line {line})"
-        own = [t for t in _tag_names(element) if t not in feature_tags]
-        tags = own + [t for t in feature_tags if t not in own]
+        tags = self._scenario_tags(feature_tags, element)
         parts = backgrounds + [element]
         steps = [s for part in parts for s in part.get("steps") or []]
         entries: List[Dict[str, Any]] = []
         statuses: List[str] = []
         failures: List[Tuple[str, str]] = []
         duration = 0.0
-        step_type = "given"
         for hook in [h for part in parts for h in part.get("before") or []]:
             duration += _duration(hook)
             self._hook(hook, "Before", path, name, entries, statuses, failures)
-        for step in steps:
-            duration += _duration(step)
-            if step.get("hidden") or not step.get("name"):
-                self._hook(step, str(step.get("keyword") or "Hook").strip(), path, name, entries, statuses, failures)
-                continue
-            keyword = str(step.get("keyword") or "").strip()
-            step_type = STEP_TYPES.get(keyword.lower(), step_type)
-            status = _status(step)
-            statuses.append(status)
-            if status in ("skipped", "unknown"):
-                continue
-            text = str(step.get("name"))
-            where: Dict[str, Any] = {
-                "source_file": path,
-                "source_line": step.get("line"),
-                "source_function": name,
-                "code_context": f"{keyword} {text}",
-            }
-            if status == "passed":
-                entries.append(_entry(text, True, "", where) if step_type == "then" else info_entry(text, "", where))
-                continue
-            message, trace = self._failure_text(step, status, keyword, text)
-            where["traceback"] = trace
-            entry = _entry(text, False, message, where)
-            if step_type != "then":
-                entry["info"] = True
-            entries.append(entry)
-            failures.append((message, trace))
+        duration = self._record_scenario_steps(
+            steps, path, name, entries, statuses, failures, duration
+        )
         for hook in [h for part in parts for h in part.get("after") or []]:
             duration += _duration(hook)
             self._hook(hook, "After", path, name, entries, statuses, failures)
-        failed = [s for s in FAILED if s in statuses]
         real_steps = [s for s in steps if not s.get("hidden") and s.get("name")]
-        if failed:
-            status = failed[0]
-        elif "skipped" in statuses or not real_steps:
-            status = "skipped"
-        else:
-            status = "passed"
+        status = self._scenario_status(statuses, real_steps)
         metadata: Dict[str, Any] = {
             "cucumber_status": status,
             "cucumber_tags": tags,
@@ -245,14 +236,10 @@ class CucumberReport:
         tc_ids = [t[len(BLOOM_TAG) :].strip() for t in tags if t.lower().startswith(BLOOM_TAG)]
         if tc_ids and tc_ids[0]:
             metadata["tc_id"] = bloom_tc_id(tc_ids[0])
-        error: Optional[str] = None
-        if failures:
-            error = failures[0][0]
-        elif status == "skipped":
-            metadata["skipped"] = True
-            error = "Scenario has no steps" if not real_steps else "Skipped by the runner"
-            where = {"source_file": path, "source_line": line, "source_function": name, "code_context": f"Scenario: {name}"}
-            entries.append(skip_assertion(error, where))
+        error = self._scenario_error(
+            failures, status, real_steps, metadata, path, line, name, entries
+        )
+
         passed = not failures
         self.results.append(
             {
@@ -268,14 +255,79 @@ class CucumberReport:
         )
 
     @staticmethod
-    def _failure_text(step: Dict[str, Any], status: str, keyword: str, text: str) -> Tuple[str, str]:
+    def _scenario_tags(feature_tags, element):
+        """Combine scenario tags with the feature tags in their original order."""
+        own = [tag for tag in _tag_names(element) if tag not in feature_tags]
+        return own + [tag for tag in feature_tags if tag not in own]
+
+    @staticmethod
+    def _scenario_status(statuses, real_steps):
+        """Select failure priority, skipped status or successful completion."""
+        failed = [status for status in FAILED if status in statuses]
+        if failed:
+            return failed[0]
+        if "skipped" in statuses or not real_steps:
+            return "skipped"
+        return "passed"
+
+    def _record_scenario_steps(self, steps, path, name, entries, statuses, failures, duration):
+        """Append ordered step outcomes and accumulate their duration."""
+        step_type = "given"
+        for step in steps:
+            duration += _duration(step)
+            if step.get("hidden") or not step.get("name"):
+                self._hook(
+                    step,
+                    str(step.get("keyword") or "Hook").strip(),
+                    path,
+                    name,
+                    entries,
+                    statuses,
+                    failures,
+                )
+                continue
+            keyword = str(step.get("keyword") or "").strip()
+            step_type = STEP_TYPES.get(keyword.lower(), step_type)
+            status = _status(step)
+            statuses.append(status)
+            if status in ("skipped", "unknown"):
+                continue
+            text = str(step.get("name"))
+            where: Dict[str, Any] = {
+                "source_file": path,
+                "source_line": step.get("line"),
+                "source_function": name,
+                "code_context": f"{keyword} {text}",
+            }
+            if status == "passed":
+                entries.append(
+                    _entry(text, True, "", where)
+                    if step_type == "then"
+                    else info_entry(text, "", where)
+                )
+                continue
+            message, trace = self._failure_text(step, status, keyword, text)
+            where["traceback"] = trace
+            entry = _entry(text, False, message, where)
+            if step_type != "then":
+                entry["info"] = True
+            entries.append(entry)
+            failures.append((message, trace))
+        return duration
+
+    @staticmethod
+    def _failure_text(
+        step: Dict[str, Any], status: str, keyword: str, text: str
+    ) -> Tuple[str, str]:
         """Message and traceback of a step that did not pass."""
         raw = str((step.get("result") or {}).get("error_message") or "")
         if raw.strip():
             return error_text(raw), raw.strip()
-        label = {"undefined": "Undefined step", "ambiguous": "Ambiguous step", "pending": "Pending step"}.get(
-            status, "Failed step"
-        )
+        label = {
+            "undefined": "Undefined step",
+            "ambiguous": "Ambiguous step",
+            "pending": "Pending step",
+        }.get(status, "Failed step")
         message = f"{label}: {keyword} {text}"
         return message, message
 
