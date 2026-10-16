@@ -1,0 +1,99 @@
+# Bud Test Automation Pipeline Template (GitLab CI)
+#
+# The GitLab counterpart of templates/github/bud-tests.yml. Copy this file to
+# your repository root as .gitlab-ci.yml and customise as needed.
+#
+# Terminology (matches the Bud UI):
+#   Test Station      -> the environment/host where tests execute.
+#   Bud Runner        -> the registered execution agent (account) on a station.
+#                        Multiple suites (TestRuns) can share one runner.
+#   TestRun / suite   -> a single execution of a test case list.
+#
+# Runner requirements: a GitLab Runner registered with the `teststations` tag,
+# executing on the bench host. The shell executor is the usual choice: tests
+# drive real hardware, so a container would have to pass the devices through.
+
+stages:
+  - test
+
+variables:
+  BUD_BACKEND_URL: "BUD_BACKEND_URL"
+  # Bud's runner packages and your test modules must both be importable.
+  PYTHONPATH: "$CI_PROJECT_DIR/lib:$CI_PROJECT_DIR"
+  # Shallow clones are fine here and keep bench checkouts quick.
+  GIT_DEPTH: "1"
+
+# Prevents two pipelines on the same ref from driving the same bench at once.
+# Unlike GitHub's concurrency group this does not queue: a newer pipeline is
+# blocked rather than the older one cancelled, which is what you want when the
+# older one is mid-run against hardware.
+default:
+  interruptible: false
+
+bud-tests:
+  stage: test
+  tags:
+    - teststations
+  rules:
+    # Manual runs from the UI, with RUN_LABEL settable as a pipeline variable.
+    - if: $CI_PIPELINE_SOURCE == "web"
+    # Scheduled runs; create the schedule under CI/CD > Schedules.
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  before_script:
+    - python3 -m pip install --upgrade pip
+    - python3 -m pip install -r requirements.txt
+    - export UTC_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+    # Falls back to the pipeline source when RUN_LABEL is not supplied.
+    - export RUN_LABEL="${RUN_LABEL:-$CI_PIPELINE_SOURCE}"
+  script:
+    # --- Suite A ------------------------------------------------------------
+    # --continue-on-error keeps a failing assertion from ending the job, so
+    # later suites still run and every JUnit file is produced. The `|| true`
+    # covers a non-zero exit from the runner process itself.
+    - |
+      python3 -m bud_runner run-tests \
+        --test-case-list "BudSuite.SUITE_A" \
+        --backend-url "$BUD_BACKEND_URL" \
+        --junit-report "results_SUITE_A.xml" \
+        --continue-on-error || true
+    # --- Suite B ------------------------------------------------------------
+    - |
+      python3 -m bud_runner run-tests \
+        --test-case-list "BudSuite.SUITE_B" \
+        --backend-url "$BUD_BACKEND_URL" \
+        --junit-report "results_SUITE_B.xml" \
+        --continue-on-error || true
+  artifacts:
+    # `always` so a failing run still uploads its evidence.
+    when: always
+    expire_in: 30 days
+    name: "junit-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_ID"
+    paths:
+      - "results_*.xml"
+    reports:
+      # Surfaces pass/fail per test case in the merge request widget and the
+      # pipeline's Tests tab. GitHub Actions has no built-in equivalent.
+      junit:
+        - "results_*.xml"
+
+# --- Parallel execution ------------------------------------------------------
+# To run suites concurrently instead of sequentially, replace the job above with
+# a matrix. Only do this if the bench can genuinely run them at the same time;
+# suites that share a fixture will interfere with each other.
+#
+# bud-tests:
+#   stage: test
+#   tags: [teststations]
+#   parallel:
+#     matrix:
+#       - TEST_CASE_LIST:
+#           - SmokeSuite.TEST_CASE_LIST
+#           - RegressionSuite.TEST_CASE_LIST
+#           - IntegrationSuite.TEST_CASE_LIST
+#   script:
+#     - |
+#       python3 -m bud_runner run-tests \
+#         --test-case-list "$TEST_CASE_LIST" \
+#         --backend-url "$BUD_BACKEND_URL" \
+#         --junit-report "results_${TEST_CASE_LIST}.xml" \
+#         --continue-on-error || true

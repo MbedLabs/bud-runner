@@ -219,6 +219,14 @@ def test_claims_once_and_exits():
     assert "Claimed run 7" in result.stdout
 
 
+def test_child_execution_keeps_the_resolved_station_and_backend():
+    result, _, run_claimed = _invoke([], claim_return=_claimed(selected=["suite.Alpha"]))
+    assert result.exit_code == 0, result.output
+    passthrough = run_claimed.call_args.args[1]
+    assert passthrough[passthrough.index("--backend-url") + 1] == _auth().backend_url
+    assert passthrough[passthrough.index("--username") + 1] == _auth().runner_account
+
+
 def test_an_empty_queue_runs_nothing():
     result, _, run_claimed = _invoke([], claim_return=None)
 

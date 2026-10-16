@@ -1,0 +1,576 @@
+[
+  {
+    "line": 2,
+    "elements": [
+      {
+        "line": 3,
+        "name": "",
+        "description": "",
+        "type": "background",
+        "keyword": "Background",
+        "steps": [
+          {
+            "result": {
+              "duration": 289000,
+              "status": "passed"
+            },
+            "line": 4,
+            "name": "a bench",
+            "match": {
+              "location": "probe.Steps.aBench()"
+            },
+            "keyword": "Given "
+          }
+        ]
+      },
+      {
+        "start_timestamp": "2026-10-13T00:00:02.406Z",
+        "line": 7,
+        "name": "Voltage within limit",
+        "description": "",
+        "id": "bench-supply;voltage-within-limit",
+        "type": "scenario",
+        "keyword": "Scenario",
+        "steps": [
+          {
+            "result": {
+              "duration": 218000,
+              "status": "passed"
+            },
+            "line": 8,
+            "name": "I measure 3",
+            "match": {
+              "arguments": [
+                {
+                  "val": "3",
+                  "offset": 10
+                }
+              ],
+              "location": "probe.Steps.measure(int)"
+            },
+            "keyword": "When "
+          },
+          {
+            "result": {
+              "duration": 26000,
+              "status": "passed"
+            },
+            "line": 9,
+            "name": "the value is 3",
+            "match": {
+              "arguments": [
+                {
+                  "val": "3",
+                  "offset": 13
+                }
+              ],
+              "location": "probe.Steps.valueIs(int)"
+            },
+            "keyword": "Then "
+          },
+          {
+            "result": {
+              "duration": 20000,
+              "status": "passed"
+            },
+            "line": 10,
+            "name": "the value is below 5",
+            "match": {
+              "arguments": [
+                {
+                  "val": "5",
+                  "offset": 19
+                }
+              ],
+              "location": "probe.Steps.below(int)"
+            },
+            "keyword": "And "
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag"
+          },
+          {
+            "name": "@bloom:PRJ-001"
+          },
+          {
+            "name": "@smoke"
+          }
+        ]
+      },
+      {
+        "line": 3,
+        "name": "",
+        "description": "",
+        "type": "background",
+        "keyword": "Background",
+        "steps": [
+          {
+            "result": {
+              "duration": 18000,
+              "status": "passed"
+            },
+            "line": 4,
+            "name": "a bench",
+            "match": {
+              "location": "probe.Steps.aBench()"
+            },
+            "keyword": "Given "
+          }
+        ]
+      },
+      {
+        "start_timestamp": "2026-10-13T00:00:02.419Z",
+        "line": 12,
+        "name": "Wrong value",
+        "description": "",
+        "id": "bench-supply;wrong-value",
+        "type": "scenario",
+        "keyword": "Scenario",
+        "steps": [
+          {
+            "result": {
+              "duration": 20000,
+              "status": "passed"
+            },
+            "line": 13,
+            "name": "I measure 2",
+            "match": {
+              "arguments": [
+                {
+                  "val": "2",
+                  "offset": 10
+                }
+              ],
+              "location": "probe.Steps.measure(int)"
+            },
+            "keyword": "When "
+          },
+          {
+            "result": {
+              "error_message": "java.lang.AssertionError: expected 3\n\tat probe.Steps.valueIs(Steps.java:11)\n\tat \u273d.the value is 3(file://src/test/resources/features/bench.feature:14)\n",
+              "duration": 2104000,
+              "status": "failed"
+            },
+            "line": 14,
+            "name": "the value is 3",
+            "match": {
+              "arguments": [
+                {
+                  "val": "3",
+                  "offset": 13
+                }
+              ],
+              "location": "probe.Steps.valueIs(int)"
+            },
+            "keyword": "Then "
+          },
+          {
+            "result": {
+              "duration": 12000,
+              "status": "skipped"
+            },
+            "line": 15,
+            "name": "the value is below 5",
+            "match": {
+              "arguments": [
+                {
+                  "val": "5",
+                  "offset": 19
+                }
+              ],
+              "location": "probe.Steps.below(int)"
+            },
+            "keyword": "Then "
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag"
+          }
+        ]
+      },
+      {
+        "line": 3,
+        "name": "",
+        "description": "",
+        "type": "background",
+        "keyword": "Background",
+        "steps": [
+          {
+            "result": {
+              "duration": 22000,
+              "status": "passed"
+            },
+            "line": 4,
+            "name": "a bench",
+            "match": {
+              "location": "probe.Steps.aBench()"
+            },
+            "keyword": "Given "
+          }
+        ]
+      },
+      {
+        "start_timestamp": "2026-10-13T00:00:02.423Z",
+        "line": 17,
+        "name": "Step raises",
+        "description": "",
+        "id": "bench-supply;step-raises",
+        "type": "scenario",
+        "keyword": "Scenario",
+        "steps": [
+          {
+            "result": {
+              "error_message": "java.lang.IllegalStateException: bad value\n\tat probe.Steps.brk(Steps.java:9)\n\tat \u273d.I break(file://src/test/resources/features/bench.feature:18)\n",
+              "duration": 183000,
+              "status": "failed"
+            },
+            "line": 18,
+            "name": "I break",
+            "match": {
+              "location": "probe.Steps.brk()"
+            },
+            "keyword": "When "
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag"
+          }
+        ]
+      },
+      {
+        "line": 3,
+        "name": "",
+        "description": "",
+        "type": "background",
+        "keyword": "Background",
+        "steps": [
+          {
+            "result": {
+              "duration": 27000,
+              "status": "passed"
+            },
+            "line": 4,
+            "name": "a bench",
+            "match": {
+              "location": "probe.Steps.aBench()"
+            },
+            "keyword": "Given "
+          }
+        ]
+      },
+      {
+        "start_timestamp": "2026-10-13T00:00:02.436Z",
+        "line": 20,
+        "name": "Missing step",
+        "description": "",
+        "id": "bench-supply;missing-step",
+        "type": "scenario",
+        "keyword": "Scenario",
+        "steps": [
+          {
+            "result": {
+              "status": "undefined"
+            },
+            "line": 21,
+            "name": "nobody wrote this",
+            "match": {},
+            "keyword": "When "
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag"
+          }
+        ]
+      },
+      {
+        "line": 3,
+        "name": "",
+        "description": "",
+        "type": "background",
+        "keyword": "Background",
+        "steps": [
+          {
+            "result": {
+              "duration": 12000,
+              "status": "skipped"
+            },
+            "line": 4,
+            "name": "a bench",
+            "match": {
+              "location": "probe.Steps.aBench()"
+            },
+            "keyword": "Given "
+          }
+        ]
+      },
+      {
+        "start_timestamp": "2026-10-13T00:00:02.437Z",
+        "before": [
+          {
+            "result": {
+              "error_message": "java.lang.IllegalStateException: hook broke\n\tat probe.Steps.hook(Steps.java:13)\n",
+              "duration": 275000,
+              "status": "failed"
+            },
+            "match": {
+              "location": "probe.Steps.hook()"
+            }
+          }
+        ],
+        "line": 24,
+        "name": "Hook fails",
+        "description": "",
+        "id": "bench-supply;hook-fails",
+        "type": "scenario",
+        "keyword": "Scenario",
+        "steps": [
+          {
+            "result": {
+              "duration": 6000,
+              "status": "skipped"
+            },
+            "line": 25,
+            "name": "I measure 1",
+            "match": {
+              "arguments": [
+                {
+                  "val": "1",
+                  "offset": 10
+                }
+              ],
+              "location": "probe.Steps.measure(int)"
+            },
+            "keyword": "When "
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag"
+          },
+          {
+            "name": "@hookfail"
+          }
+        ]
+      },
+      {
+        "line": 3,
+        "name": "",
+        "description": "",
+        "type": "background",
+        "keyword": "Background",
+        "steps": [
+          {
+            "result": {
+              "duration": 22000,
+              "status": "passed"
+            },
+            "line": 4,
+            "name": "a bench",
+            "match": {
+              "location": "probe.Steps.aBench()"
+            },
+            "keyword": "Given "
+          }
+        ]
+      },
+      {
+        "start_timestamp": "2026-10-13T00:00:02.439Z",
+        "line": 28,
+        "name": "Pending step",
+        "description": "",
+        "id": "bench-supply;pending-step",
+        "type": "scenario",
+        "keyword": "Scenario",
+        "steps": [
+          {
+            "result": {
+              "error_message": "io.cucumber.java.PendingException: TODO: implement me\n\tat probe.Steps.pending(Steps.java:10)\n\tat \u273d.I am pending(file://src/test/resources/features/bench.feature:29)\n",
+              "duration": 511000,
+              "status": "pending"
+            },
+            "line": 29,
+            "name": "I am pending",
+            "match": {
+              "location": "probe.Steps.pending()"
+            },
+            "keyword": "When "
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag"
+          },
+          {
+            "name": "@pend"
+          }
+        ]
+      },
+      {
+        "line": 3,
+        "name": "",
+        "description": "",
+        "type": "background",
+        "keyword": "Background",
+        "steps": [
+          {
+            "result": {
+              "duration": 21000,
+              "status": "passed"
+            },
+            "line": 4,
+            "name": "a bench",
+            "match": {
+              "location": "probe.Steps.aBench()"
+            },
+            "keyword": "Given "
+          }
+        ]
+      },
+      {
+        "start_timestamp": "2026-10-13T00:00:02.440Z",
+        "line": 36,
+        "name": "Outline 1",
+        "description": "",
+        "id": "bench-supply;outline-<v>;;2",
+        "type": "scenario",
+        "keyword": "Scenario Outline",
+        "steps": [
+          {
+            "result": {
+              "duration": 22000,
+              "status": "passed"
+            },
+            "line": 32,
+            "name": "I measure 1",
+            "match": {
+              "arguments": [
+                {
+                  "val": "1",
+                  "offset": 10
+                }
+              ],
+              "location": "probe.Steps.measure(int)"
+            },
+            "keyword": "When "
+          },
+          {
+            "result": {
+              "duration": 17000,
+              "status": "passed"
+            },
+            "line": 33,
+            "name": "the value is 1",
+            "match": {
+              "arguments": [
+                {
+                  "val": "1",
+                  "offset": 13
+                }
+              ],
+              "location": "probe.Steps.valueIs(int)"
+            },
+            "keyword": "Then "
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag"
+          }
+        ]
+      },
+      {
+        "line": 3,
+        "name": "",
+        "description": "",
+        "type": "background",
+        "keyword": "Background",
+        "steps": [
+          {
+            "result": {
+              "duration": 17000,
+              "status": "passed"
+            },
+            "line": 4,
+            "name": "a bench",
+            "match": {
+              "location": "probe.Steps.aBench()"
+            },
+            "keyword": "Given "
+          }
+        ]
+      },
+      {
+        "start_timestamp": "2026-10-13T00:00:02.441Z",
+        "line": 37,
+        "name": "Outline 2",
+        "description": "",
+        "id": "bench-supply;outline-<v>;;3",
+        "type": "scenario",
+        "keyword": "Scenario Outline",
+        "steps": [
+          {
+            "result": {
+              "duration": 19000,
+              "status": "passed"
+            },
+            "line": 32,
+            "name": "I measure 2",
+            "match": {
+              "arguments": [
+                {
+                  "val": "2",
+                  "offset": 10
+                }
+              ],
+              "location": "probe.Steps.measure(int)"
+            },
+            "keyword": "When "
+          },
+          {
+            "result": {
+              "duration": 14000,
+              "status": "passed"
+            },
+            "line": 33,
+            "name": "the value is 2",
+            "match": {
+              "arguments": [
+                {
+                  "val": "2",
+                  "offset": 13
+                }
+              ],
+              "location": "probe.Steps.valueIs(int)"
+            },
+            "keyword": "Then "
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag"
+          }
+        ]
+      }
+    ],
+    "name": "Bench supply",
+    "description": "",
+    "id": "bench-supply",
+    "keyword": "Feature",
+    "uri": "file:src/test/resources/features/bench.feature",
+    "tags": [
+      {
+        "name": "@suite-tag",
+        "type": "Tag",
+        "location": {
+          "line": 1,
+          "column": 1
+        }
+      }
+    ]
+  }
+]

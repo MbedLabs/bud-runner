@@ -69,6 +69,82 @@ def _method_result_to_row(
     return row
 
 
+def _class_result_rows(result, test_class, method_results, test_run_id):
+    """Convert a class result and its methods to upload rows."""
+    class_metadata = getattr(result, "metadata", None)
+    if isinstance(result, dict):
+        class_metadata = result.get("metadata")
+    if not isinstance(class_metadata, dict):
+        class_metadata = None
+    if method_results:
+        return [
+            _method_result_to_row(test_class, method, test_run_id, class_metadata)
+            for method in method_results
+        ]
+    return [_empty_class_row(result, test_class, test_run_id, class_metadata)]
+
+
+def _empty_class_row(result, test_class, test_run_id, class_metadata):
+    """Represent a class that produced no method results."""
+    error = getattr(result, "error_message", None)
+    if isinstance(result, dict):
+        error = error or result.get("error_message")
+        passed = result.get("passed", False)
+        duration = result.get("duration_seconds", 0.0) or 0.0
+    else:
+        passed = getattr(result, "passed", None)
+        duration = getattr(result, "duration_seconds", 0.0)
+    row = {
+        "test_class": test_class,
+        "test_method": "__class__",
+        "passed": bool(passed),
+        "duration_seconds": float(duration),
+        "error_message": error,
+        "traceback": None,
+        "assertions": None,
+        "metadata": class_metadata,
+    }
+    if test_run_id is not None:
+        row["test_run_id"] = test_run_id
+    return row
+
+
+def _result_rows(r: Any, test_run_id: Optional[int]) -> List[Dict[str, Any]]:
+    """Normalize a class, method or preformatted result without dropping unknown shapes."""
+    test_class = getattr(r, "test_class", None)
+    method_results = getattr(r, "method_results", None)
+
+    if test_class is None and isinstance(r, dict):
+        test_class = r.get("test_class")
+        method_results = r.get("method_results")
+
+    if test_class and method_results is not None:
+        return _class_result_rows(r, test_class, method_results, test_run_id)
+
+    if hasattr(r, "method_name") or (isinstance(r, dict) and "method_name" in r):
+        return [_method_result_to_row("UnknownTestClass", r, test_run_id)]
+
+    if isinstance(r, dict) and "test_method" in r and "test_class" in r:
+        row = dict(r)
+        if test_run_id is not None and "test_run_id" not in row:
+            row["test_run_id"] = test_run_id
+        return [row]
+
+    return [
+        {
+            "test_class": "UnknownTestClass",
+            "test_method": "unknown",
+            "passed": False,
+            "duration_seconds": 0.0,
+            "error_message": f"Unrecognised result shape: {type(r).__name__}",
+            "traceback": None,
+            "assertions": None,
+            "metadata": None,
+            **({"test_run_id": test_run_id} if test_run_id is not None else {}),
+        }
+    ]
+
+
 def _flatten_results(
     results: List[Any],
     test_run_id: Optional[int] = None,
@@ -83,89 +159,7 @@ def _flatten_results(
     rows: List[Dict[str, Any]] = []
 
     for r in results:
-        # 1) TestRunResult (class-level with nested method_results)
-        test_class = getattr(r, "test_class", None)
-        method_results = getattr(r, "method_results", None)
-
-        if test_class is None and isinstance(r, dict):
-            test_class = r.get("test_class")
-            method_results = r.get("method_results")
-
-        if test_class and method_results is not None:
-            class_metadata = getattr(r, "metadata", None)
-            if isinstance(r, dict):
-                class_metadata = r.get("metadata")
-            if not isinstance(class_metadata, dict):
-                class_metadata = None
-
-            if method_results:
-                for mr in method_results:
-                    rows.append(
-                        _method_result_to_row(
-                            test_class,
-                            mr,
-                            test_run_id,
-                            class_metadata=class_metadata,
-                        )
-                    )
-            else:
-                # Class ran but produced no method-level results (e.g. setup
-                # crash). Preserve the class-level failure signal.
-                cls_err = getattr(r, "error_message", None)
-                if isinstance(r, dict):
-                    cls_err = cls_err or r.get("error_message")
-
-                rows.append(
-                    {
-                        "test_class": test_class,
-                        "test_method": "__class__",
-                        "passed": bool(
-                            getattr(r, "passed", None)
-                            if not isinstance(r, dict)
-                            else r.get("passed", False)
-                        ),
-                        "duration_seconds": float(
-                            getattr(r, "duration_seconds", 0.0)
-                            if not isinstance(r, dict)
-                            else r.get("duration_seconds", 0.0) or 0.0
-                        ),
-                        "error_message": cls_err,
-                        "traceback": None,
-                        "assertions": None,
-                        "metadata": class_metadata,
-                        **({"test_run_id": test_run_id} if test_run_id is not None else {}),
-                    }
-                )
-            continue
-
-        # 2) Plain TestMethodResult (no enclosing class)
-        if hasattr(r, "method_name") or (isinstance(r, dict) and "method_name" in r):
-            rows.append(_method_result_to_row("UnknownTestClass", r, test_run_id))
-            continue
-
-        # 3) Already a TestResultCreate-shaped dict
-        if isinstance(r, dict) and "test_method" in r and "test_class" in r:
-            row = dict(r)
-            if test_run_id is not None and "test_run_id" not in row:
-                row["test_run_id"] = test_run_id
-            rows.append(row)
-            continue
-
-        # 4) Fallback: unknown shape → still emit a placeholder row so the
-        # upload does not silently drop data.
-        rows.append(
-            {
-                "test_class": "UnknownTestClass",
-                "test_method": "unknown",
-                "passed": False,
-                "duration_seconds": 0.0,
-                "error_message": f"Unrecognised result shape: {type(r).__name__}",
-                "traceback": None,
-                "assertions": None,
-                "metadata": None,
-                **({"test_run_id": test_run_id} if test_run_id is not None else {}),
-            }
-        )
+        rows.extend(_result_rows(r, test_run_id))
 
     return rows
 
@@ -259,6 +253,8 @@ class BudAPIClient:
         Returns:
             Dictionary with test run details including ID and URL.
         """
+        if not self._auth.runner_token:
+            raise RuntimeError("Station authentication is required to create test runs")
         payload = {
             "test_case_list": test_case_list,
             "test_suite_name": test_suite_name,
@@ -279,6 +275,7 @@ class BudAPIClient:
         response = self._session.post(
             f"{self._api_url}/test-runs",
             json=payload,
+            headers={"Authorization": f"Bearer {self._auth.runner_token}"},
             timeout=30,
         )
         response.raise_for_status()
@@ -314,6 +311,7 @@ class BudAPIClient:
         failed_tests: Optional[int] = None,
         duration_seconds: Optional[float] = None,
         product_id: Optional[int] = None,
+        skipped_tests: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Update a test run with results or status.
@@ -327,10 +325,13 @@ class BudAPIClient:
             failed_tests: Number of failed tests.
             duration_seconds: Total suite duration.
             product_id: Associated product ID.
+            skipped_tests: Number of skipped tests.
 
         Returns:
             Updated test run details.
         """
+        if not self._auth.runner_token:
+            raise RuntimeError("Station authentication is required to update test runs")
         payload = {}
         if status:
             payload["status"] = status
@@ -346,10 +347,13 @@ class BudAPIClient:
             payload["duration_seconds"] = duration_seconds
         if product_id is not None:
             payload["product_id"] = product_id
+        if skipped_tests is not None:
+            payload["skipped_tests"] = skipped_tests
 
         response = self._session.patch(
             f"{self._api_url}/test-runs/{run_id}",
             json=payload,
+            headers={"Authorization": f"Bearer {self._auth.runner_token}"},
             timeout=30,
         )
         response.raise_for_status()
@@ -465,11 +469,21 @@ class BudAPIClient:
             payload["product_id"] = product_id
         return payload
 
-    def upload_results_payload(self, payload: Dict[str, Any]) -> bool:
-        """Upload a pre-built results payload."""
+    def upload_results_payload(self, payload: Dict[str, Any]) -> Any:
+        """Upload a pre-built results payload.
+
+        Returns the server's answer (it names the run the results went to), or True
+        when the answer is not JSON.
+        """
         request_payload = copy.deepcopy(payload)
 
-        headers = {}
+        if not self._auth.runner_token and not self._auth.runner_api_key:
+            raise RuntimeError("Station authentication is required to submit test results")
+        headers = {
+            "Authorization": (
+                f"Bearer {self._auth.runner_token}" if self._auth.runner_token else None
+            )
+        }
         if self._auth.runner_api_key:
             headers["X-API-Key"] = self._auth.runner_api_key
 
@@ -481,7 +495,10 @@ class BudAPIClient:
         )
         if response.status_code not in (200, 201):
             response.raise_for_status()
-        return True
+        try:
+            return response.json()
+        except ValueError:
+            return True
 
     def login_user(self, username: str, password: str) -> str:
         """Authenticate a Bud user and return a fresh JWT access token."""
@@ -506,6 +523,7 @@ class BudAPIClient:
         file_path: str,
         run_id: Optional[int] = None,
         test_case: Optional[str] = None,
+        filename: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Upload an artifact (trace file, log, etc.) to the backend.
@@ -514,12 +532,13 @@ class BudAPIClient:
             file_path: Path to the local file to upload.
             run_id: Optional test run ID to associate.
             test_case: Optional test case name to associate.
+            filename: Name the artifact is shown and downloaded under (default: the file's name).
 
         Returns:
             Upload response with artifact ID and URL.
         """
         with open(file_path, "rb") as f:
-            files = {"file": f}
+            files = {"file": (filename, f)} if filename else {"file": f}
             data = {}
             if run_id:
                 data["run_id"] = run_id
@@ -528,8 +547,9 @@ class BudAPIClient:
 
             # Remove Content-Type header for multipart upload
             headers = {k: v for k, v in self._session.headers.items() if k != "Content-Type"}
-            if self._auth.token:
-                headers["Authorization"] = f"Bearer {self._auth.token}"
+            artifact_token = self._auth.runner_token or self._auth.token
+            if artifact_token:
+                headers["Authorization"] = f"Bearer {artifact_token}"
 
             response = self._session.post(
                 f"{self._api_url}/uploads",
@@ -638,7 +658,7 @@ class BudAPIClient:
             import logging
 
             logger = logging.getLogger(__name__)
-            logger.error(f"Heartbeat network error: {e}")
+            logger.exception(f"Heartbeat network error: {e}")
             return {"status": "error", "message": str(e)}
 
     def claim_next_run(self, claim_id: Optional[str] = None) -> Optional[Dict[str, Any]]:

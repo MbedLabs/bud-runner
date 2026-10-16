@@ -102,7 +102,7 @@ class RunnerManager:
         except asyncio.TimeoutError:
             logger.warning(f"Connection timeout from {address}")
         except Exception as e:
-            logger.error(f"Error handling connection from {address}: {e}")
+            logger.exception(f"Error handling connection from {address}: {e}")
         finally:
             writer.close()
             try:
@@ -161,7 +161,7 @@ class RunnerManager:
                 else:
                     logger.warning(f"✗ Heartbeat failed: {result.get('message')}")
             except Exception as e:
-                logger.error(f"Heartbeat loop error: {e}")
+                logger.exception(f"Heartbeat loop error: {e}")
 
             await asyncio.sleep(interval)
 

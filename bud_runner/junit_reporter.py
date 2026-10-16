@@ -14,6 +14,15 @@ from xml.dom import minidom
 from xml.etree.ElementTree import Element, SubElement, tostring
 
 
+def _result_value(result: Any, name: str, default=None):
+    """Read an object attribute or a result dictionary field."""
+    if hasattr(result, name):
+        return getattr(result, name)
+    if isinstance(result, dict):
+        return result.get(name, default)
+    return default
+
+
 class JUnitReporter:
     """
     Generates JUnit XML reports from test results.
@@ -93,30 +102,18 @@ class JUnitReporter:
         testsuite.set("name", name)
 
         # Get method results
-        method_results = []
-        if hasattr(result, "method_results"):
-            method_results = result.method_results
-        elif isinstance(result, dict):
-            method_results = result.get("method_results", [])
+        method_results = _result_value(result, "method_results", [])
 
         testsuite.set("tests", str(len(method_results)))
         testsuite.set("failures", str(sum(1 for r in method_results if not self._is_passed(r))))
         testsuite.set("errors", "0")
 
         # Duration
-        duration = 0.0
-        if hasattr(result, "duration_seconds"):
-            duration = result.duration_seconds
-        elif isinstance(result, dict):
-            duration = result.get("duration_seconds", 0.0)
+        duration = _result_value(result, "duration_seconds", 0.0)
         testsuite.set("time", str(duration))
 
         # Timestamp
-        start_time = None
-        if hasattr(result, "start_time"):
-            start_time = result.start_time
-        elif isinstance(result, dict):
-            start_time = result.get("start_time")
+        start_time = _result_value(result, "start_time")
 
         if start_time:
             if isinstance(start_time, str):
@@ -131,11 +128,7 @@ class JUnitReporter:
 
         # If no method results but there was an error
         if not method_results:
-            error_msg = None
-            if hasattr(result, "error_message"):
-                error_msg = result.error_message
-            elif isinstance(result, dict):
-                error_msg = result.get("error_message")
+            error_msg = _result_value(result, "error_message")
 
             if error_msg:
                 testcase = SubElement(testsuite, "testcase")
@@ -154,22 +147,13 @@ class JUnitReporter:
         testcase = Element("testcase")
 
         # Method name
-        if hasattr(method_result, "method_name"):
-            name = method_result.method_name
-        elif isinstance(method_result, dict):
-            name = method_result.get("method_name", "unknown")
-        else:
-            name = "unknown"
+        name = _result_value(method_result, "method_name", "unknown")
 
         testcase.set("name", name)
         testcase.set("classname", classname)
 
         # Duration
-        duration = 0.0
-        if hasattr(method_result, "duration_seconds"):
-            duration = method_result.duration_seconds
-        elif isinstance(method_result, dict):
-            duration = method_result.get("duration_seconds", 0.0)
+        duration = _result_value(method_result, "duration_seconds", 0.0)
         testcase.set("time", str(duration))
 
         # Check for failure
@@ -188,11 +172,7 @@ class JUnitReporter:
             failure.set("message", error_msg)
 
             # Get traceback
-            tb = None
-            if hasattr(method_result, "traceback"):
-                tb = method_result.traceback
-            elif isinstance(method_result, dict):
-                tb = method_result.get("traceback")
+            tb = _result_value(method_result, "traceback")
 
             if tb:
                 failure.text = tb

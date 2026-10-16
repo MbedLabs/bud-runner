@@ -1,0 +1,109 @@
+# Bud Test Automation Workflow Template
+#
+# This workflow template runs automated tests using the Bud Test Management Platform.
+# Copy this file to your repository's .github/workflows/ directory and customize as needed.
+#
+# Terminology (matches the Bud UI):
+#   Test Station      -> the environment/host where tests execute.
+#   Bud Runner        -> the registered execution agent (account) on a station.
+#                        Multiple suites (TestRuns) can share one runner.
+#   TestRun / suite   -> a single execution of a test case list.
+#
+# Optional: add project-specific secrets as env vars
+
+name: Bud Tests
+
+on:
+  # schedule:
+    # 06:00 UTC daily; edit the cron as needed
+  #  - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      run_label:
+        description: "Tag shown on the Bud test run name"
+        required: false
+        default: ""
+
+concurrency:
+  group: bud-tests-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BUD_BACKEND_URL: "BUD_BACKEND_URL"
+  PYTHONPATH: ${{ github.workspace }}/lib:${{ github.workspace }}
+  # Add project-specific env vars
+
+permissions:
+  contents: read
+  checks: write
+  statuses: write
+
+jobs:
+  test:
+    name: Bud Test Run
+    runs-on: [self-hosted, teststations]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Artifact name metadata (UTC timestamp)
+        id: artifact_meta
+        run: echo "utc=$(date -u +%Y%m%dT%H%M%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "Version of Python to use"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Resolve run label
+        id: meta
+        run: |
+          LABEL="${{ github.event.inputs.run_label }}"
+          if [ -z "$LABEL" ]; then
+            [ "${{ github.event_name }}" = "schedule" ] && LABEL="schedule" || LABEL="manual"
+          fi
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
+
+      # --- Suite A --------------------------------------------------------
+      - name: "Bud run: SUITE_A"
+        run: |
+          python -m bud_runner run-tests \
+            --test-case-list "BudSuite.SUITE_A" \
+            --backend-url "$BUD_BACKEND_URL" \
+            --junit-report "results_SUITE_A.xml" \
+            --continue-on-error || true
+
+      # --- Suite B --------------------------------------------------------
+      - name: "Bud run: SUITE_B"
+        if: always()
+        run: |
+          python -m bud_runner run-tests \
+            --test-case-list "BudSuite.SUITE_B" \
+            --backend-url "$BUD_BACKEND_URL" \
+            --junit-report "results_SUITE_B.xml" \
+            --continue-on-error || true
+
+      # --- Artifacts ------------------------------------------------------
+      - name: Upload JUnit (SUITE_A)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-SUITE_A-${{ steps.artifact_meta.outputs.utc }}-gh-run-${{ github.run_id }}
+          path: results_SUITE_A.xml
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload JUnit (SUITE_B)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-SUITE_B-${{ steps.artifact_meta.outputs.utc }}-gh-run-${{ github.run_id }}
+          path: results_SUITE_B.xml
+          if-no-files-found: warn
+          retention-days: 30
