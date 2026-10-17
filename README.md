@@ -317,8 +317,8 @@ come from `app.properties` and the `BUD_*` environment, as for `run-tests`. The 
 file is attached to the run unless `--no-artifacts` is given; `--no-upload` only reads
 the report and prints its summary. Exit code 0 when the report was read and reached
 Bud; 1 when the upload did not reach Bud (the results are spooled and replayed by the
-next bud-runner command); 2 when the report cannot be read or no backend is
-configured, and nothing is sent.
+next bud-runner command); 2 when the report cannot be read, no backend is
+configured or the backend URL is refused, and nothing is sent.
 
 ### Create a Bud test run
 
@@ -391,6 +391,14 @@ budRunnerAccount=lab-station-01
 
 Do not put passwords, user tokens, runner tokens, or enrolment keys in
 `app.properties`.
+
+The backend URL uses `https://`. Plain `http://` is accepted only when the host is
+`localhost` or a loopback address (`127.0.0.0/8`, `::1`), as in the default
+`http://localhost:8000`; any other `http://` URL, a private network address included,
+is refused before a request is sent. A command that contacts Bud stops with an error that
+names the URL and exit code 2 (`run-tests` after the suite has run), `status` shows the
+error as the backend health, and the Robot listener, the pytest plugin and the Behave
+formatter print it as a warning.
 
 ## Main commands
 

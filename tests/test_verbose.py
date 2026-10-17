@@ -55,7 +55,7 @@ def test_run_tests_passes_verbosity_to_executor(tmp_path, flag, verbose):
 @pytest.mark.parametrize("flag,verbose", [([], False), (["--verbose"], True), (["-v"], True)])
 def test_claim_run_forwards_verbosity_to_its_execution(flag, verbose):
     auth = SimpleNamespace(
-        backend_url="http://bud.example", runner_token="station-token", runner_account="station-01"
+        backend_url="https://bud.example", runner_token="station-token", runner_account="station-01"
     )
     client = MagicMock()
     client.claim_next_run.return_value = {
