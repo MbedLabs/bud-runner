@@ -9,14 +9,51 @@ Provides methods for:
 """
 
 import copy
+import ipaddress
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlsplit
 
 import requests
 
 from bud_runner.auth import AuthManager
+
+LOOPBACK_NETWORKS = (ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128"))
+
+
+class InsecureBackendURLError(ValueError):
+    """A backend URL that would send requests over plain HTTP to a host other than this machine."""
+
+
+def _is_loopback_host(host: Optional[str]) -> bool:
+    """Whether ``host`` is ``localhost`` or an address in 127.0.0.0/8 or ::1."""
+    if host == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host or "")
+    except ValueError:
+        return False
+    return any(address in network for network in LOOPBACK_NETWORKS)
+
+
+def check_backend_url(url: str) -> None:
+    """Raise InsecureBackendURLError for an ``http://`` URL whose host is not ``localhost`` or a
+    loopback address (127.0.0.0/8, ::1). ``https://`` URLs and loopback ``http://`` URLs pass;
+    the scheme and host are compared in lower case, an IPv6 host without its brackets, and an
+    ``http`` URL without a readable host is refused."""
+    text = url.strip()
+    try:
+        parts = urlsplit(text)
+        scheme, host = parts.scheme.lower(), parts.hostname
+    except ValueError:
+        scheme, host = text.partition(":")[0].lower(), None
+    if scheme == "http" and not _is_loopback_host(host):
+        raise InsecureBackendURLError(
+            f"Refusing plain HTTP to {url}: use https:// for a Bud server that is not on "
+            "this machine; http:// is accepted only for localhost and loopback addresses."
+        )
 
 
 def _method_result_to_row(
@@ -191,7 +228,12 @@ class BudAPIClient:
 
         Args:
             auth: AuthManager instance with credentials.
+
+        Raises:
+            InsecureBackendURLError: The backend URL is ``http://`` and its host is not
+                ``localhost`` or a loopback address; nothing is sent.
         """
+        check_backend_url(auth.backend_url)
         self._auth = auth
         self._base_url = auth.backend_url.rstrip("/")
         self._api_url = f"{self._base_url}/api"

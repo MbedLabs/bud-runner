@@ -90,7 +90,7 @@ def test_run_tests_passes_should_stop_when_executor_runs():
 
 @pytest.mark.asyncio
 async def test_run_daemon_binds_localhost_by_default():
-    manager = RunnerManager(MagicMock())
+    manager = RunnerManager(MagicMock(backend_url="https://bud.example.com"))
     manager._running = False
     captured = {}
 

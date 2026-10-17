@@ -4,6 +4,9 @@ All notable changes to `bud_runner` will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- A plain `http://` backend URL is refused unless its host is `localhost` or a loopback address (`127.0.0.0/8`, `::1`), private network addresses included: the client raises before a request is sent, with an error that names the URL and says to use `https://`. The commands that contact Bud (`add-test-run`, `run-tests`, `claim-run`, `register`, `daemon`, `run-robot`, `run-pytest`, `run-behave`, `import-cucumber`) stop with that error and exit code 2, `run-tests` once the suite has run; `status` shows it as the backend health, and the Robot listener, the pytest plugin and the Behave formatter print it as a warning. `https://` URLs, loopback `http://` URLs and the default `http://localhost:8000` are accepted as before.
+
 ## [1.2.0] — 2026-10-15
 
 ### Added

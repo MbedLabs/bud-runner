@@ -7,6 +7,7 @@ from bud_runner.runner_manager import RunnerManager
 
 def _manager(register_response):
     auth = MagicMock()
+    auth.backend_url = "https://bud.example.com"
     auth.runner_account = "whatever-the-bench-typed"
     auth.runner_token = "a-token"
     auth.socket_port = 53035
