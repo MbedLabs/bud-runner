@@ -1,5 +1,7 @@
-"""The client refuses plain HTTP to a Bud backend that is not on this machine."""
+"""The client's default HTTPS policy and explicit isolated-network HTTP opt-in."""
 
+import logging
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -21,6 +23,7 @@ BUD_SETTINGS = (
     "BUD_RUNNER_TOKEN",
     "BUD_RUNNER_API_KEY",
     "RUNNER_API_KEY",
+    "BUD_ALLOW_HTTP",
 )
 
 
@@ -203,3 +206,151 @@ def test_the_robot_listener_reports_the_refusal(transport, capsys):
     err = capsys.readouterr().err
     assert f"Could not report the Robot run to Bud: Refusing plain HTTP to {REFUSED}" in err
     transport.assert_not_called()
+
+
+@pytest.mark.parametrize("url", [REFUSED, "http://192.168.1.10:8001", "http://bud:8000"])
+def test_explicit_environment_opt_in_allows_remote_http_with_a_warning(
+    url, transport, monkeypatch, caplog
+):
+    monkeypatch.setenv("BUD_ALLOW_HTTP", "1")
+    with caplog.at_level(logging.WARNING):
+        client = BudAPIClient(_auth(url))
+    assert client.health_check() is True
+    assert transport.call_args.args[0].url == f"{url}/api/health"
+    assert "Unencrypted HTTP" in caplog.text
+    assert "credentials" in caplog.text.lower()
+
+
+@pytest.mark.parametrize("value", ["0", "true", "yes", "false", "2", ""])
+def test_other_environment_values_do_not_enable_remote_http(value, transport, monkeypatch):
+    monkeypatch.setenv("BUD_ALLOW_HTTP", value)
+    with pytest.raises(InsecureBackendURLError):
+        BudAPIClient(_auth(REFUSED))
+    transport.assert_not_called()
+
+
+@pytest.mark.parametrize("url", ["http://", "http://[::1"])
+def test_the_http_override_does_not_accept_an_unreadable_host(url, transport, monkeypatch):
+    monkeypatch.setenv("BUD_ALLOW_HTTP", "1")
+    with pytest.raises(InsecureBackendURLError):
+        BudAPIClient(_auth(url))
+    transport.assert_not_called()
+
+
+@pytest.mark.parametrize("url", ["https://bud.example.com", "http://localhost:8000"])
+def test_the_override_does_not_warn_when_http_is_not_weakened(url, transport, monkeypatch, caplog):
+    monkeypatch.setenv("BUD_ALLOW_HTTP", "1")
+    with caplog.at_level(logging.WARNING):
+        assert BudAPIClient(_auth(url)).health_check() is True
+    assert "Unencrypted HTTP" not in caplog.text
+
+
+def test_each_remote_http_client_warns_without_disclosing_url_credentials(
+    transport, monkeypatch, caplog
+):
+    monkeypatch.setenv("BUD_ALLOW_HTTP", "1")
+    with caplog.at_level(logging.WARNING):
+        for _ in range(2):
+            BudAPIClient(_auth("http://user:password@bud.example.com?token=private"))
+    messages = [record.message for record in caplog.records if "Unencrypted HTTP" in record.message]
+    assert len(messages) == 2
+    assert all("password" not in message and "private" not in message for message in messages)
+
+
+def test_https_certificate_failures_do_not_downgrade_with_the_override(
+    transport, monkeypatch, caplog
+):
+    monkeypatch.setenv("BUD_ALLOW_HTTP", "1")
+    monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+    transport.side_effect = requests.exceptions.SSLError("certificate hostname mismatch")
+    with caplog.at_level(logging.WARNING):
+        assert BudAPIClient(_auth("https://bud.example.com")).health_check() is False
+    assert transport.call_count == 1
+    assert transport.call_args.args[0].url == "https://bud.example.com/api/health"
+    assert transport.call_args.kwargs["verify"] is True
+    assert "Unencrypted HTTP" not in caplog.text
+
+
+def test_the_private_ca_bundle_is_preserved_with_the_override(transport, monkeypatch, tmp_path):
+    bundle = str(tmp_path / "lab-ca.pem")
+    monkeypatch.setenv("BUD_ALLOW_HTTP", "1")
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", bundle)
+    assert BudAPIClient(_auth("https://bud.example.com")).health_check() is True
+    assert transport.call_args.kwargs["verify"] == bundle
+
+
+@pytest.mark.parametrize("previous", [None, "0", "1"])
+def test_the_global_flag_allows_http_only_for_its_invocation(
+    transport, monkeypatch, caplog, previous
+):
+    if previous is not None:
+        monkeypatch.setenv("BUD_ALLOW_HTTP", previous)
+    with caplog.at_level(logging.WARNING):
+        result = CliRunner().invoke(cli.app, ["--allow-http", "status", "--backend-url", REFUSED])
+    assert result.exit_code == 0, result.output
+    assert "Backend Health: ✓ OK" in result.output
+    assert "Unencrypted HTTP" in caplog.text
+    assert os.environ.get("BUD_ALLOW_HTTP") == previous
+
+
+def test_the_global_flag_restores_the_environment_after_a_command_failure(transport, monkeypatch):
+    def fail(*args):
+        raise RuntimeError("command failed")
+
+    monkeypatch.setattr(cli, "_load_backend_status", fail)
+    result = CliRunner().invoke(cli.app, ["--allow-http", "status", "--backend-url", REFUSED])
+    assert isinstance(result.exception, RuntimeError)
+    assert "BUD_ALLOW_HTTP" not in os.environ
+
+
+def test_environment_opt_in_warns_on_each_command_start(transport, monkeypatch, caplog):
+    monkeypatch.setenv("BUD_ALLOW_HTTP", "1")
+    with caplog.at_level(logging.WARNING):
+        for _ in range(2):
+            result = CliRunner().invoke(cli.app, ["status", "--backend-url", REFUSED])
+            assert result.exit_code == 0, result.output
+            assert "Backend Health: ✓ OK" in result.output
+    assert sum("Unencrypted HTTP" in record.message for record in caplog.records) == 2
+
+
+def test_registration_passes_the_explicit_override_to_its_background_daemon(
+    transport, monkeypatch, caplog
+):
+    spawn = Mock(return_value=SimpleNamespace(pid=12345))
+    monkeypatch.setattr(cli.subprocess, "Popen", spawn)
+    result = CliRunner().invoke(
+        cli.app,
+        [
+            "--allow-http",
+            "register",
+            "--username",
+            "station-01",
+            "--password",
+            "test-password",
+            "--api-key",
+            "enrolment-key",
+            "--backend-url",
+            REFUSED,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    spawn.assert_called_once()
+    assert "daemon" in spawn.call_args.args[0]
+    assert spawn.call_args.kwargs["env"]["BUD_ALLOW_HTTP"] == "1"
+    assert "BUD_ALLOW_HTTP" not in os.environ
+
+
+def test_direct_framework_reporting_uses_the_environment_opt_in(transport, monkeypatch, caplog):
+    from bud_runner.reporting import send_run
+
+    monkeypatch.setenv("BUD_ALLOW_HTTP", "1")
+    monkeypatch.setenv("BUD_RUNNER_ACCOUNT", "station-01")
+    monkeypatch.setenv("BUD_RUNNER_TOKEN", "station-session")
+    with caplog.at_level(logging.WARNING):
+        uploaded = send_run(
+            lambda account, product: {"results": []}, framework="Robot", backend=REFUSED
+        )
+    assert uploaded is True
+    assert transport.call_count == 1
+    assert "Unencrypted HTTP" in caplog.text
