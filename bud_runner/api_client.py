@@ -9,14 +9,62 @@ Provides methods for:
 """
 
 import copy
+import ipaddress
+import logging
+import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlsplit
 
 import requests
 
 from bud_runner.auth import AuthManager
+
+logger = logging.getLogger(__name__)
+
+LOOPBACK_NETWORKS = (ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128"))
+
+
+class InsecureBackendURLError(ValueError):
+    """A remote HTTP URL without explicit opt-in, or an HTTP URL with an unreadable host."""
+
+
+def _is_loopback_host(host: Optional[str]) -> bool:
+    """Whether ``host`` is ``localhost`` or an address in 127.0.0.0/8 or ::1."""
+    if host == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(host or "")
+    except ValueError:
+        return False
+    return any(address in network for network in LOOPBACK_NETWORKS)
+
+
+def check_backend_url(url: str) -> None:
+    """Accept HTTPS and loopback HTTP; remote HTTP requires BUD_ALLOW_HTTP=1 and warns.
+
+    An HTTP URL without a readable host is refused regardless of the override.
+    """
+    text = url.strip()
+    try:
+        parts = urlsplit(text)
+        scheme, host = parts.scheme.lower(), parts.hostname
+    except ValueError:
+        scheme, host = text.partition(":")[0].lower(), None
+    if scheme == "http" and not _is_loopback_host(host):
+        if host and os.environ.get("BUD_ALLOW_HTTP") == "1":
+            logger.warning(
+                "Unencrypted HTTP is enabled for the Bud backend. Credentials and results "
+                "are sent without TLS. Use this override only on an isolated trusted network."
+            )
+            return
+        raise InsecureBackendURLError(
+            f"Refusing plain HTTP to {url}: use https:// for a Bud server that is not on "
+            "this machine; http:// is accepted only for localhost and loopback addresses "
+            "unless explicitly enabled with --allow-http or BUD_ALLOW_HTTP=1 for an isolated network."
+        )
 
 
 def _method_result_to_row(
@@ -191,7 +239,12 @@ class BudAPIClient:
 
         Args:
             auth: AuthManager instance with credentials.
+
+        Raises:
+            InsecureBackendURLError: Remote HTTP has no explicit opt-in, or the HTTP host
+                is unreadable; nothing is sent.
         """
+        check_backend_url(auth.backend_url)
         self._auth = auth
         self._base_url = auth.backend_url.rstrip("/")
         self._api_url = f"{self._base_url}/api"
