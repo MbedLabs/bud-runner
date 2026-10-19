@@ -317,8 +317,8 @@ come from `app.properties` and the `BUD_*` environment, as for `run-tests`. The 
 file is attached to the run unless `--no-artifacts` is given; `--no-upload` only reads
 the report and prints its summary. Exit code 0 when the report was read and reached
 Bud; 1 when the upload did not reach Bud (the results are spooled and replayed by the
-next bud-runner command); 2 when the report cannot be read or no backend is
-configured, and nothing is sent.
+next bud-runner command); 2 when the report cannot be read, no backend is
+configured or the backend URL is refused, and nothing is sent.
 
 ### Create a Bud test run
 
@@ -391,6 +391,61 @@ budRunnerAccount=lab-station-01
 
 Do not put passwords, user tokens, runner tokens, or enrolment keys in
 `app.properties`.
+
+### Backend transport
+
+Use `https://` for the backend URL. Plain `http://` works for `localhost` and
+loopback addresses (`127.0.0.0/8`, `::1`), including the default
+`http://localhost:8000`. Other HTTP backends are refused before a request is sent
+unless you explicitly opt in. Private IP addresses, Docker service names and
+Kubernetes Services do not automatically permit HTTP.
+
+For an isolated trusted test network, put the global `--allow-http` flag **before
+the command**:
+
+```bash
+bud-runner --allow-http status --backend-url http://bud:8000
+```
+
+Alternatively, set `BUD_ALLOW_HTTP=1` for the process:
+
+```bash
+BUD_ALLOW_HTTP=1 bud-runner status --backend-url http://bud:8000
+```
+
+Only the value `1` enables the environment override. The flag applies to that
+invocation and its child processes, including a daemon started by `register`.
+It is not saved in the identity vault or `app.properties`; later invocations
+must opt in again. Direct Robot listeners, pytest plugins and Behave formatters
+use the same `BUD_ALLOW_HTTP=1` environment setting.
+
+Every client start that uses the remote-HTTP exception prints a warning that
+credentials and results travel without TLS. Use it only when you control the
+isolated network. HTTPS and loopback HTTP do not produce this warning.
+
+Without the override, a command that contacts a remote HTTP backend stops with
+exit code 2 (`run-tests` after the suite has run); `status` reports the refusal
+as backend health, and direct framework adapters report it as a warning.
+
+### HTTPS certificates
+
+With Traefik and Let's Encrypt, use the HTTPS hostname as the backend URL.
+Traefik terminates TLS and can forward HTTP to Bud on a trusted internal
+network; the runner's connection to Traefik still uses HTTPS. The same applies
+to an HTTPS Kubernetes ingress. Bud itself does not need a certificate for
+that internal HTTP hop.
+
+For an offline lab, configure a certificate from a private CA on the reverse
+proxy and give the runner its CA bundle:
+
+```bash
+REQUESTS_CA_BUNDLE=/path/to/lab-ca.pem bud-runner status --backend-url https://bud.example
+```
+
+Certificate verification remains enabled even when `--allow-http` or
+`BUD_ALLOW_HTTP=1` is set. An HTTPS certificate failure never triggers an HTTP
+fallback. See the [Requests certificate verification guide](https://requests.readthedocs.io/en/stable/user/advanced/#ssl-cert-verification)
+and [Traefik TLS documentation](https://doc.traefik.io/traefik/reference/routing-configuration/http/tls/overview/).
 
 ## Main commands
 

@@ -20,7 +20,7 @@ from typing import Any, Iterable, List, Optional, Tuple
 import requests
 import typer
 
-from bud_runner.api_client import BudAPIClient, _flatten_results
+from bud_runner.api_client import BudAPIClient, InsecureBackendURLError, _flatten_results
 from bud_runner.auth import AuthManager
 from bud_runner.junit_reporter import JUnitReporter
 from bud_runner.runner_manager import RunnerManager
@@ -44,6 +44,31 @@ app = typer.Typer(
     help="CLI tool for test execution and CI/CD integration with the Bud backend",
     add_completion=True,
 )
+
+
+@app.callback()
+def configure_transport(
+    ctx: typer.Context,
+    allow_http: bool = typer.Option(
+        False,
+        "--allow-http",
+        help="Allow unencrypted HTTP to Bud on an isolated trusted network for this invocation.",
+    ),
+):
+    """Apply the invocation's HTTP opt-in to this process and its children."""
+    if not allow_http:
+        return
+    previous = os.environ.get("BUD_ALLOW_HTTP")
+
+    def restore_transport():
+        """Restore the HTTP opt-in environment after the command finishes."""
+        if previous is None:
+            os.environ.pop("BUD_ALLOW_HTTP", None)
+        else:
+            os.environ["BUD_ALLOW_HTTP"] = previous
+
+    ctx.call_on_close(restore_transport)
+    os.environ["BUD_ALLOW_HTTP"] = "1"
 
 
 class OutputFormat(str, Enum):
@@ -105,6 +130,16 @@ def _spool_results_payload(payload: dict) -> Path:
     spool_file = _spool_dir() / f"{int(time.time())}-{uuid.uuid4().hex}.json"
     spool_file.write_text(json.dumps(payload), encoding="utf-8")
     return spool_file
+
+
+def _backend(factory, auth: AuthManager):
+    """``factory(auth)``: the BudAPIClient or RunnerManager of the configured backend. A
+    backend URL the client refuses is printed on stderr and exits with code 2."""
+    try:
+        return factory(auth)
+    except InsecureBackendURLError as exc:
+        typer.echo(f"✗ {exc}", err=True)
+        raise typer.Exit(code=2)
 
 
 def _upload_payload_with_retry(
@@ -394,7 +429,7 @@ def add_test_run(
         )
         raise typer.Exit(code=2)
 
-    client = BudAPIClient(auth)
+    client = _backend(BudAPIClient, auth)
 
     if output_format != OutputFormat.json:
         typer.echo(f"Creating test run: {test_suite_name}")
@@ -483,7 +518,7 @@ def _upload_suite_results(
 ):
     """Upload suite results, complete the run and publish its artifacts."""
     username, password = credentials
-    client = BudAPIClient(auth)
+    client = _backend(BudAPIClient, auth)
     _flush_spooled_results(client, auth, username, password)
     final_product_id = _suite_product_id(client, test_run_id)
 
@@ -877,7 +912,7 @@ def claim_run(
         )
         raise typer.Exit(code=2)
 
-    client = BudAPIClient(auth)
+    client = _backend(BudAPIClient, auth)
 
     passthrough = ["--test-timeout", str(test_timeout), "--suite-timeout", str(suite_timeout)]
     if verbose:
@@ -940,8 +975,9 @@ def run_robot(
                 err=True,
             )
             raise typer.Exit(code=2)
+        client = _backend(BudAPIClient, auth)
         try:
-            _flush_spooled_results(BudAPIClient(auth), auth, None, None)
+            _flush_spooled_results(client, auth, None, None)
         except Exception as exc:
             typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
 
@@ -1022,8 +1058,9 @@ def run_pytest(
                 err=True,
             )
             raise typer.Exit(code=2)
+        client = _backend(BudAPIClient, auth)
         try:
-            _flush_spooled_results(BudAPIClient(auth), auth, None, None)
+            _flush_spooled_results(client, auth, None, None)
         except Exception as exc:
             typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
 
@@ -1104,8 +1141,9 @@ def run_behave(
                 err=True,
             )
             raise typer.Exit(code=2)
+        client = _backend(BudAPIClient, auth)
         try:
-            _flush_spooled_results(BudAPIClient(auth), auth, None, None)
+            _flush_spooled_results(client, auth, None, None)
         except Exception as exc:
             typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
 
@@ -1158,8 +1196,8 @@ def import_cucumber(
     Reads the report written by cucumber-js, Cucumber-JVM or Cucumber-Ruby and uploads it
     as a Bud run, for example ``bud-runner import-cucumber --report report.json``. Exit
     code 0 when the report was read and, with ``--upload``, reached Bud; 1 when the upload
-    did not reach Bud (the results are spooled); 2 when the report is unreadable or no
-    backend is configured.
+    did not reach Bud (the results are spooled); 2 when the report is unreadable, no
+    backend is configured or the backend URL is refused.
     """
     from bud_runner.cucumber_importer import CucumberReport, CucumberReportError, read_report
     from bud_runner.reporting import send_run
@@ -1191,8 +1229,9 @@ def import_cucumber(
             err=True,
         )
         raise typer.Exit(code=2)
+    client = _backend(BudAPIClient, auth)
     try:
-        _flush_spooled_results(BudAPIClient(auth), auth, None, None)
+        _flush_spooled_results(client, auth, None, None)
     except Exception as exc:
         typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
     reached = send_run(
@@ -1388,7 +1427,7 @@ def register(
         generated_password = True
         password = secrets.token_urlsafe(18)
 
-    manager = RunnerManager(auth)
+    manager = _backend(RunnerManager, auth)
 
     typer.echo(f"{'Re-registering' if re_register else 'Registering'} runner: {username}")
 
@@ -1483,7 +1522,7 @@ def daemon(
         raise typer.Exit(code=2)
 
     resolved_port = port or auth.socket_port
-    manager = RunnerManager(auth)
+    manager = _backend(RunnerManager, auth)
 
     _configure_daemon_logging()
 
@@ -1545,8 +1584,8 @@ def _load_backend_runner_status(client, status_payload):
 def _load_backend_status(auth, status_payload):
     """Record health and available backend details when a URL is configured."""
     if auth.backend_url:
-        client = BudAPIClient(auth)
         try:
+            client = BudAPIClient(auth)
             if client.health_check():
                 status_payload["backend_health"] = "ok"
                 _load_backend_version(client, status_payload)
