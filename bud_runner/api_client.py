@@ -10,6 +10,8 @@ Provides methods for:
 
 import copy
 import ipaddress
+import logging
+import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -20,11 +22,13 @@ import requests
 
 from bud_runner.auth import AuthManager
 
+logger = logging.getLogger(__name__)
+
 LOOPBACK_NETWORKS = (ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128"))
 
 
 class InsecureBackendURLError(ValueError):
-    """A backend URL that would send requests over plain HTTP to a host other than this machine."""
+    """A remote HTTP URL without explicit opt-in, or an HTTP URL with an unreadable host."""
 
 
 def _is_loopback_host(host: Optional[str]) -> bool:
@@ -39,10 +43,10 @@ def _is_loopback_host(host: Optional[str]) -> bool:
 
 
 def check_backend_url(url: str) -> None:
-    """Raise InsecureBackendURLError for an ``http://`` URL whose host is not ``localhost`` or a
-    loopback address (127.0.0.0/8, ::1). ``https://`` URLs and loopback ``http://`` URLs pass;
-    the scheme and host are compared in lower case, an IPv6 host without its brackets, and an
-    ``http`` URL without a readable host is refused."""
+    """Accept HTTPS and loopback HTTP; remote HTTP requires BUD_ALLOW_HTTP=1 and warns.
+
+    An HTTP URL without a readable host is refused regardless of the override.
+    """
     text = url.strip()
     try:
         parts = urlsplit(text)
@@ -50,9 +54,16 @@ def check_backend_url(url: str) -> None:
     except ValueError:
         scheme, host = text.partition(":")[0].lower(), None
     if scheme == "http" and not _is_loopback_host(host):
+        if host and os.environ.get("BUD_ALLOW_HTTP") == "1":
+            logger.warning(
+                "Unencrypted HTTP is enabled for the Bud backend. Credentials and results "
+                "are sent without TLS. Use this override only on an isolated trusted network."
+            )
+            return
         raise InsecureBackendURLError(
             f"Refusing plain HTTP to {url}: use https:// for a Bud server that is not on "
-            "this machine; http:// is accepted only for localhost and loopback addresses."
+            "this machine; http:// is accepted only for localhost and loopback addresses "
+            "unless explicitly enabled with --allow-http or BUD_ALLOW_HTTP=1 for an isolated network."
         )
 
 
@@ -230,8 +241,8 @@ class BudAPIClient:
             auth: AuthManager instance with credentials.
 
         Raises:
-            InsecureBackendURLError: The backend URL is ``http://`` and its host is not
-                ``localhost`` or a loopback address; nothing is sent.
+            InsecureBackendURLError: Remote HTTP has no explicit opt-in, or the HTTP host
+                is unreadable; nothing is sent.
         """
         check_backend_url(auth.backend_url)
         self._auth = auth

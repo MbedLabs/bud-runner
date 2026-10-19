@@ -46,6 +46,31 @@ app = typer.Typer(
 )
 
 
+@app.callback()
+def configure_transport(
+    ctx: typer.Context,
+    allow_http: bool = typer.Option(
+        False,
+        "--allow-http",
+        help="Allow unencrypted HTTP to Bud on an isolated trusted network for this invocation.",
+    ),
+):
+    """Apply the invocation's HTTP opt-in to this process and its children."""
+    if not allow_http:
+        return
+    previous = os.environ.get("BUD_ALLOW_HTTP")
+
+    def restore_transport():
+        """Restore the HTTP opt-in environment after the command finishes."""
+        if previous is None:
+            os.environ.pop("BUD_ALLOW_HTTP", None)
+        else:
+            os.environ["BUD_ALLOW_HTTP"] = previous
+
+    ctx.call_on_close(restore_transport)
+    os.environ["BUD_ALLOW_HTTP"] = "1"
+
+
 class OutputFormat(str, Enum):
     """Output format options."""
 
