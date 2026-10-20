@@ -207,7 +207,9 @@ class BudFormatter(Formatter):
         paths = list(getattr(self.config, "paths", None) or [])
         if not paths:
             return "features"
-        first = os.path.abspath(str(paths[0]).partition(":")[0])
+        first_arg = str(next(iter(paths)))
+        head = first_arg[: first_arg.find(":")] if ":" in first_arg else first_arg
+        first = os.path.abspath(head)
         folder = first if os.path.isdir(first) else os.path.dirname(first)
         return os.path.basename(folder) or None
 
