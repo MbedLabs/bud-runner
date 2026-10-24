@@ -64,6 +64,19 @@ dev = [
     "pytest-asyncio>=0.21.0",
 ]
 
+[dependency-groups]
+build = [
+    "setuptools",
+    "wheel",
+]
+ci = [
+    "bandit",
+    "pip-audit",
+]
+release = [
+    "twine",
+]
+
 [project.scripts]
 bud-runner = "bud_runner.cli:main"
 
