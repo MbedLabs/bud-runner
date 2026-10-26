@@ -38,7 +38,7 @@ python -m pip install bud-runner budtestlibrary
 
 Requirements:
 
-- Python 3.9 or later;
+- Python 3.11 or later;
 - `budtestlibrary`;
 - a Bud backend for registration, test-run creation, or result upload.
 
