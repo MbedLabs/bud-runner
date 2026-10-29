@@ -33,7 +33,7 @@ def _auth(runner_token="runner-token"):
         backend_url="http://localhost:8000",
         token="user-token",
         runner_token=runner_token,
-        runner_account="bench-01",
+        runner_account="station-01",
         runner_api_key=None,
     )
 

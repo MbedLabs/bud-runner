@@ -1500,7 +1500,7 @@ def daemon(
         None,
         "--location",
         "-l",
-        help="Human-readable location of the test station",
+        help="Location of the test station",
     ),
 ):
     """

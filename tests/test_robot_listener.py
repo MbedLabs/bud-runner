@@ -100,13 +100,13 @@ def test_a_robot_run_maps_to_bud_results(tmp_path):
     assert listener.skipped == 1
     assert {p.name for p in listener.files} == {"output.xml", "log.html", "report.html"}
 
-    body = listener.payload("bench-1")
+    body = listener.payload("station-1")
     assert body["test_suite_name"] == "Bench"
     assert body["ref_software_under_test"] == "fw-2.4.1"
     assert body['product_id'] == 4
-    assert body['runner_account'] == 'bench-1'
+    assert body['runner_account'] == 'station-1'
     assert body["test_run_id"] is None
-    assert listener.payload("bench-1", 12)["product_id"] == 4
+    assert listener.payload("station-1", 12)["product_id"] == 4
     unset = BudListener(upload="false")
     unset.results = listener.results
     assert unset.payload(None, 12)["product_id"] == 12
@@ -142,7 +142,7 @@ def fake_backend(monkeypatch, tmp_path):
         return client
 
     monkeypatch.setattr(api_client, "BudAPIClient", client_factory)
-    monkeypatch.setattr(auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account="bench-1", product_id=12))
+    monkeypatch.setattr(auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account="station-1", product_id=12))
     spooled = []
     monkeypatch.setattr(cli, "_spool_results_payload", lambda payload: spooled.append(payload) or "spool.json")
     return SimpleNamespace(made=made, spooled=spooled, factory=client_factory)

@@ -171,10 +171,10 @@ def test_hooks_alone_make_no_steps_and_the_worst_status_wins():
 
 def test_the_payload_names_the_suite_product_and_run(tmp_path):
     report = _report("cucumber-jvm.json", test_run_id=7, product_id=4, ref_sw_under_test="v2.4.1")
-    body = report.payload("bench-1", 12)
+    body = report.payload("station-1", 12)
     assert body['test_run_id'] == 7
     assert body['product_id'] == 4
-    assert body['runner_account'] == 'bench-1'
+    assert body['runner_account'] == 'station-1'
     assert body['ref_software_under_test'] == 'v2.4.1'
     assert body['test_suite_name'] == 'Bench supply'
     assert len(body['results']) == 8
@@ -266,7 +266,7 @@ def fake_backend(monkeypatch, tmp_path):
 
     monkeypatch.setattr(api_client, "BudAPIClient", client_factory)
     monkeypatch.setattr(
-        auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account="bench-1", product_id=12)
+        auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account="station-1", product_id=12)
     )
     monkeypatch.setattr(
         cli, "AuthManager", lambda backend_url=None: SimpleNamespace(backend_url=backend_url or "https://bud.example")
@@ -292,7 +292,7 @@ def test_import_uploads_the_report_and_attaches_it(fake_backend):
     assert calls[0][0] == 'results'
     assert len(calls[0][1]['results']) == 9
     assert calls[0][1]['product_id'] == 12
-    assert calls[0][1]['runner_account'] == 'bench-1'
+    assert calls[0][1]['runner_account'] == 'station-1'
     assert calls[1:] == [("artifact", "cucumber-js-edges.json", 42)]
 
 
