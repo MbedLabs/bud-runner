@@ -18,8 +18,6 @@ stages:
 
 variables:
   BUD_BACKEND_URL: "BUD_BACKEND_URL"
-  # UTF-8 output on every OS: a Windows bench otherwise writes check marks
-  # and box lines as \u2713 and \u2500 in the job log.
   PYTHONUTF8: "1"
   # Bud's runner packages and your test modules must both be importable.
   PYTHONPATH: "$CI_PROJECT_DIR/lib:$CI_PROJECT_DIR"

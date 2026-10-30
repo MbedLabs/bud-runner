@@ -30,8 +30,6 @@ concurrency:
 
 env:
   BUD_BACKEND_URL: "BUD_BACKEND_URL"
-  # UTF-8 output on every OS: a Windows bench otherwise writes check marks
-  # and box lines as \u2713 and \u2500 in the job log.
   PYTHONUTF8: "1"
   PYTHONPATH: ${{ github.workspace }}/lib:${{ github.workspace }}
   # Add project-specific env vars
