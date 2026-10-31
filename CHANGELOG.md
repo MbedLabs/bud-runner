@@ -7,6 +7,7 @@ All notable changes to `bud_runner` will be documented in this file.
 ### Changed
 - HTTPS is the default for a remote Bud backend; loopback HTTP and the default `http://localhost:8000` remain accepted. A global `--allow-http` flag before the command, or `BUD_ALLOW_HTTP=1`, explicitly permits remote HTTP on an isolated trusted network and warns at every client start that credentials and results travel without TLS. The flag applies only to that invocation and its children, including a daemon started during registration; direct framework adapters use the environment setting. Private addresses and service names do not automatically permit HTTP. Without opt-in, remote HTTP is refused before a request: commands exit 2 (`run-tests` after its suite runs), `status` reports the refusal as backend health, and direct adapters report a warning. HTTPS certificate verification and private-CA support through `REQUESTS_CA_BUNDLE` remain enabled; certificate failures do not trigger HTTP fallback.
 - Python 3.11 or later is required; Python 3.9 and 3.10 are no longer supported.
+- The GitHub and GitLab CI templates set `PYTHONUTF8=1`, so Python writes UTF-8 on every OS. On a Windows bench, `✓` and `─` in the job log otherwise appeared as `✓` and `─`.
 
 ## [1.2.0] — 2026-10-15
 

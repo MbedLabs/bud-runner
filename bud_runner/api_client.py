@@ -638,7 +638,7 @@ class BudAPIClient:
             username: Runner account name.
             password: Password for registration.
             socket_port: Socket port for runner communication.
-            location: Human-readable location of the test station.
+            location: Location of the test station.
 
         Returns:
             Registration response with token.
@@ -689,7 +689,7 @@ class BudAPIClient:
         Send a heartbeat to indicate runner is alive.
 
         Args:
-            location: Optional human-readable location to update.
+            location: Optional location to update.
 
         Returns:
             Dictionary with heartbeat response (status, token, etc.)

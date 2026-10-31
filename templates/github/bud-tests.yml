@@ -30,6 +30,7 @@ concurrency:
 
 env:
   BUD_BACKEND_URL: "BUD_BACKEND_URL"
+  PYTHONUTF8: "1"
   PYTHONPATH: ${{ github.workspace }}/lib:${{ github.workspace }}
   # Add project-specific env vars
 

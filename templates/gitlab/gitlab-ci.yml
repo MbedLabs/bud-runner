@@ -18,6 +18,7 @@ stages:
 
 variables:
   BUD_BACKEND_URL: "BUD_BACKEND_URL"
+  PYTHONUTF8: "1"
   # Bud's runner packages and your test modules must both be importable.
   PYTHONPATH: "$CI_PROJECT_DIR/lib:$CI_PROJECT_DIR"
   # Shallow clones are fine here and keep bench checkouts quick.

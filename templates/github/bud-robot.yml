@@ -22,6 +22,7 @@ concurrency:
 
 env:
   BUD_BACKEND_URL: "BUD_BACKEND_URL"
+  PYTHONUTF8: "1"
   BUD_RUNNER_API_KEY: ${{ secrets.BUD_RUNNER_API_KEY }}
 
 permissions:

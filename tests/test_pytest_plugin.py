@@ -323,10 +323,10 @@ def test_the_payload_names_the_suite_product_and_run(pytester):
     rec, reporter = _run(
         pytester, "--bud-no-upload", "--bud-test-run-id=7", "--bud-product-id=4", "--bud-ref-sw-under-test=v2.4.1"
     )
-    body = reporter.payload("bench-1", 12)
+    body = reporter.payload("station-1", 12)
     assert body['test_run_id'] == 7
     assert body['product_id'] == 4
-    assert body["runner_account"] == "bench-1"
+    assert body["runner_account"] == "station-1"
     assert body["ref_software_under_test"] == "v2.4.1"
     assert body["test_suite_name"] == pytester.path.name
     assert len(body["results"]) == 15
@@ -362,7 +362,7 @@ def fake_backend(monkeypatch, tmp_path):
 
     monkeypatch.setattr(api_client, "BudAPIClient", client_factory)
     monkeypatch.setattr(
-        auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account="bench-1", product_id=12)
+        auth, "AuthManager", lambda backend_url=None: SimpleNamespace(runner_account="station-1", product_id=12)
     )
     spooled = []
     monkeypatch.setattr(cli, "_spool_results_payload", lambda payload: spooled.append(payload) or "spool.json")
@@ -375,7 +375,7 @@ def test_the_session_is_uploaded_with_the_skipped_count(pytester, fake_backend, 
     assert calls[0][0] == 'results'
     assert len(calls[0][1]['results']) == 15
     assert calls[0][1]['product_id'] == 12
-    assert calls[0][1]['runner_account'] == 'bench-1'
+    assert calls[0][1]['runner_account'] == 'station-1'
     assert calls[1] == ("update", 42, {"skipped_tests": 5})
     assert "pytest results uploaded to Bud run 42" in capsys.readouterr().err
 

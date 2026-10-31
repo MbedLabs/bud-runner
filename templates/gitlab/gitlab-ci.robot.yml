@@ -10,6 +10,7 @@ stages:
 
 variables:
   BUD_BACKEND_URL: "BUD_BACKEND_URL"
+  PYTHONUTF8: "1"
   GIT_DEPTH: "1"
 
 default:
