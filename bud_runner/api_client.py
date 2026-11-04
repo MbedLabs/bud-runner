@@ -275,6 +275,16 @@ class BudAPIClient:
         if auth.token:
             self._session.headers["Authorization"] = f"Bearer {auth.token}"
 
+    def _station_headers(self, action: str) -> Dict[str, str]:
+        """The Authorization header carrying the station token.
+
+        Raises:
+            RuntimeError: No station token is configured.
+        """
+        if not self._auth.runner_token:
+            raise RuntimeError(f"Station authentication is required to {action}")
+        return {"Authorization": f"Bearer {self._auth.runner_token}"}
+
     # ==================== Test Runs ====================
 
     def create_test_run(
@@ -339,16 +349,20 @@ class BudAPIClient:
 
     def get_test_run(self, run_id: int) -> Dict[str, Any]:
         """
-        Get test run details by ID.
+        Get test run details by ID with the station token.
 
         Args:
             run_id: Test run ID.
 
         Returns:
             Test run details.
+
+        Raises:
+            RuntimeError: No station token is configured.
         """
         response = self._session.get(
             f"{self._api_url}/test-runs/{run_id}",
+            headers=self._station_headers("read test runs"),
             timeout=30,
         )
         response.raise_for_status()
@@ -664,7 +678,7 @@ class BudAPIClient:
                 "app.properties before running 'bud_runner register'."
             )
 
-        headers = {"X-API-Key": api_key}
+        headers = {"X-API-Key": api_key, "Authorization": None}
         response = self._session.post(
             f"{self._api_url}/runners/register",
             json={
@@ -695,14 +709,20 @@ class BudAPIClient:
 
     def heartbeat(self, location: Optional[str] = None) -> Dict[str, Any]:
         """
-        Send a heartbeat to indicate runner is alive.
+        Send a heartbeat with the station token to indicate runner is alive.
 
         Args:
             location: Optional location to update.
 
         Returns:
-            Dictionary with heartbeat response (status, token, etc.)
+            Dictionary with heartbeat response (status, token, etc.); an error status
+            and nothing sent when no station token is configured.
         """
+        if not self._auth.runner_token:
+            return {
+                "status": "error",
+                "message": "Station authentication is required to send a heartbeat",
+            }
         try:
             payload = {"runner_account": self._auth.runner_account}
             loc = location or self._auth.location
@@ -712,6 +732,7 @@ class BudAPIClient:
             response = self._session.post(
                 f"{self._api_url}/runners/heartbeat",
                 json=payload,
+                headers=self._station_headers("send a heartbeat"),
                 timeout=10,
             )
             response.raise_for_status()
@@ -725,19 +746,16 @@ class BudAPIClient:
 
     def claim_next_run(self, claim_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
-        Take the next run the backend has queued for this runner.
-
-        The claim is sent with the runner token rather than the session's
-        default bearer: the backend only hands a queued run to the station it
-        was queued for, and a user token is not that station.
+        Take the next run the backend has queued for this runner, with the station token.
 
         Returns:
             The claimed run and its test selection, or None if nothing is queued.
+
+        Raises:
+            RuntimeError: No station token is configured.
         """
         claim_id = claim_id or str(uuid.uuid4())
-        headers = {"Idempotency-Key": claim_id}
-        if self._auth.runner_token:
-            headers["Authorization"] = f"Bearer {self._auth.runner_token}"
+        headers = {"Idempotency-Key": claim_id, **self._station_headers("claim runs")}
 
         response = self._session.post(
             f"{self._api_url}/runners/claim-run",
@@ -757,10 +775,12 @@ class BudAPIClient:
         exit_code: int,
         error: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Send the idempotent terminal answer for a claimed execution."""
-        headers = {"Idempotency-Key": claim_id}
-        if self._auth.runner_token:
-            headers["Authorization"] = f"Bearer {self._auth.runner_token}"
+        """Send the idempotent terminal answer for a claimed execution with the station token.
+
+        Raises:
+            RuntimeError: No station token is configured.
+        """
+        headers = {"Idempotency-Key": claim_id, **self._station_headers("complete claimed runs")}
 
         response = self._session.post(
             f"{self._api_url}/runners/runs/{run_id}/complete",
