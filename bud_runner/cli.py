@@ -21,7 +21,13 @@ import requests
 import typer
 
 from bud_runner.api_client import BudAPIClient, InsecureBackendURLError, _flatten_results
-from bud_runner.auth import AuthManager
+from bud_runner.auth import (
+    AuthManager,
+    current_location,
+    location_folder_name,
+    select_location,
+    state_dir,
+)
 from bud_runner.junit_reporter import JUnitReporter
 from bud_runner.runner_manager import RunnerManager, read_heartbeat_record
 from bud_runner.test_executor import TestExecutor
@@ -38,6 +44,11 @@ PRODUCT_ID_FOR_A_RUN_BUD_CREATES_FROM_THE_UPLOAD = (
     "Product id for a run Bud creates from the upload."
 )
 UPLOAD_RESULTS_TO_BUD = "Upload results to Bud"
+LOCATION_HELP = (
+    "Location of the test station. Keeps this runner's identity, daemon, spool and cache "
+    "in their own folder (~/.bud/locations/<location>); needed to run several runners on "
+    "the same machine. Default: the location key of app.properties."
+)
 
 app = typer.Typer(
     name="bud_runner",
@@ -55,7 +66,10 @@ def configure_transport(
         help="Allow unencrypted HTTP to Bud on an isolated trusted network for this invocation.",
     ),
 ):
-    """Apply the invocation's HTTP opt-in to this process and its children."""
+    """Apply the invocation's HTTP opt-in to this process and its children, and restore the
+    process's runner location when the command finishes."""
+    selected = select_location(None)
+    ctx.call_on_close(lambda: select_location(selected))
     if not allow_http:
         return
     previous = os.environ.get("BUD_ALLOW_HTTP")
@@ -110,11 +124,39 @@ def _configure_daemon_logging() -> None:
     root_logger.addHandler(handler)
 
 
+def _use_location(location: Optional[str]) -> None:
+    """Choose ``location`` for this invocation; exit 2 when the location in use, from
+    ``--location`` or app.properties, has the folder name ``.`` or ``..``."""
+    select_location(location)
+    resolved = current_location()
+    if resolved and location_folder_name(resolved) in (".", ".."):
+        typer.echo(
+            f"✗ Location {resolved!r} cannot be used: its folder name would be "
+            f"{location_folder_name(resolved)!r}. Choose another --location.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+
+def _runner_dir() -> Path:
+    """The folder holding this runner's identity, daemon, spool and cache."""
+    return state_dir(current_location())
+
+
+def _shown(path: Path) -> str:
+    """``path`` written with ``~`` for the home directory."""
+    try:
+        return "~/" + path.relative_to(Path.home()).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def _spool_dir() -> Path:
     """Directory for persisted result-upload payloads."""
+    location = current_location()
     candidates = [
-        Path.home() / ".bud" / "spool" / "results",
-        Path(tempfile.gettempdir()) / "bud" / "spool" / "results",
+        state_dir(location) / "spool" / "results",
+        state_dir(location, Path(tempfile.gettempdir()) / "bud") / "spool" / "results",
     ]
     for spool_dir in candidates:
         try:
@@ -409,6 +451,7 @@ def add_test_run(
         "--output-format",
         help="Output format for this command's response (text or json). Use json in CI to parse the returned run id.",
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Create a new test run on the Bud platform.
@@ -416,6 +459,7 @@ def add_test_run(
     This command registers a new test run with the backend, which can then
     be executed by a runner.
     """
+    _use_location(location)
     auth = AuthManager(username=username, token=bud_token, backend_url=backend_url)
     if not auth.backend_url:
         typer.echo(MISSING_BACKEND_URL, err=True)
@@ -668,6 +712,7 @@ def run_tests(
         "--suite-timeout",
         help="Max seconds for the full suite (default: 1800)",
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Execute tests from a test case list.
@@ -675,6 +720,7 @@ def run_tests(
     Runs all tests in the specified test case list and generates a JUnit XML
     report for CI/CD integration.
     """
+    _use_location(location)
     import signal
 
     interrupted = False
@@ -885,6 +931,7 @@ def claim_run(
         "--suite-timeout",
         help="Max seconds for the full suite (default: 1800)",
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Run whatever the backend has queued for this test station.
@@ -893,6 +940,7 @@ def claim_run(
     custom selection takes the same path as any other run. Nothing connects
     inward to the bench.
     """
+    _use_location(location)
     auth = AuthManager(username=username, backend_url=backend_url)
     if not auth.backend_url:
         typer.echo(
@@ -915,6 +963,9 @@ def claim_run(
     passthrough.extend(["--backend-url", auth.backend_url])
     if auth.runner_account:
         passthrough.extend(["--username", auth.runner_account])
+    resolved_location = current_location()
+    if resolved_location:
+        passthrough.extend(["--location", resolved_location])
     for pattern in artifacts:
         passthrough.extend(["--artifact", pattern])
 
@@ -948,6 +999,7 @@ def run_robot(
         "--artifacts/--no-artifacts",
         help="Upload output.xml, log.html and report.html with the results",
     ),
+    location: Optional[str] = typer.Option(None, "--location", help=LOCATION_HELP),
 ):
     """
     Run Robot Framework with the Bud listener attached.
@@ -956,6 +1008,7 @@ def run_robot(
     ``bud-runner run-robot --backend-url https://bud tests/``. Robot's exit code is
     returned as is, so CI still fails on failed tests.
     """
+    _use_location(location)
     try:
         import robot
     except ImportError:
@@ -994,9 +1047,10 @@ def run_robot(
 
 def _pytest_pycache_dir() -> Path:
     """Directory for the bytecode of a ``run-pytest`` session."""
+    location = current_location()
     candidates = [
-        Path.home() / ".bud" / "pycache",
-        Path(tempfile.gettempdir()) / "bud" / "pycache",
+        state_dir(location) / "pycache",
+        state_dir(location, Path(tempfile.gettempdir()) / "bud") / "pycache",
     ]
     for cache_dir in candidates:
         try:
@@ -1029,6 +1083,7 @@ def run_pytest(
         None, "--suite-name", help="Suite name in Bud (default: the pytest rootdir name)."
     ),
     upload_results: bool = typer.Option(True, UPLOAD_NO_UPLOAD, help=UPLOAD_RESULTS_TO_BUD),
+    location: Optional[str] = typer.Option(None, "--location", help=LOCATION_HELP),
 ):
     """
     Run pytest with the Bud plugin attached.
@@ -1036,9 +1091,11 @@ def run_pytest(
     Every argument Bud does not know is passed to pytest unchanged, for example
     ``bud-runner run-pytest --backend-url https://bud tests/ -k smoke``. The session runs
     with pytest's assertion pass hook on and compiles its bytecode into
-    ``~/.bud/pycache``, where every rewritten test module has the hook, and passing
-    assert statements are reported too. pytest's exit code is returned as is.
+    ``~/.bud/pycache`` (``~/.bud/locations/<location>/pycache`` with a location), where
+    every rewritten test module has the hook, and passing assert statements are reported
+    too. pytest's exit code is returned as is.
     """
+    _use_location(location)
     try:
         import pytest
     except ImportError:
@@ -1113,6 +1170,7 @@ def run_behave(
         help="Suite name in Bud (default: the feature name, or the features directory).",
     ),
     upload_results: bool = typer.Option(True, UPLOAD_NO_UPLOAD, help=UPLOAD_RESULTS_TO_BUD),
+    location: Optional[str] = typer.Option(None, "--location", help=LOCATION_HELP),
 ):
     """
     Run Behave with the Bud formatter attached.
@@ -1122,6 +1180,7 @@ def run_behave(
     formatter writes nothing to the console; without ``-f`` in the arguments Behave's
     ``pretty`` output is shown as well. Behave's exit code is returned as is.
     """
+    _use_location(location)
     try:
         from behave.__main__ import main as behave_main
     except ImportError:
@@ -1184,6 +1243,7 @@ def import_cucumber(
     upload_artifacts: bool = typer.Option(
         True, "--artifacts/--no-artifacts", help="Attach the report file to the Bud run"
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Import a Cucumber JSON report into Bud.
@@ -1194,6 +1254,7 @@ def import_cucumber(
     did not reach Bud (the results are spooled); 2 when the report is unreadable, no
     backend is configured or the backend URL is refused.
     """
+    _use_location(location)
     from bud_runner.cucumber_importer import CucumberReport, CucumberReportError, read_report
     from bud_runner.reporting import send_run
 
@@ -1306,9 +1367,12 @@ def _start_daemon_background(username: str, backend_url: Optional[str], interval
     ]
     if backend_url:
         cmd.extend(["--backend-url", backend_url])
+    location = current_location()
+    if location:
+        cmd.extend(["--location", location])
 
     # Ensure logs are persistent and namespaced
-    daemons_dir = Path.home() / ".bud" / "daemons"
+    daemons_dir = _runner_dir() / "daemons"
     daemons_dir.mkdir(parents=True, exist_ok=True)
     log_file = open(daemons_dir / f"bud_{username}.log", "a")
 
@@ -1381,6 +1445,7 @@ def register(
         "--re-register",
         help="Refresh an already-registered runner using its existing password",
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Register this machine as a test runner.
@@ -1388,6 +1453,7 @@ def register(
     Creates a runner account, stores credentials in your global machine vault,
     and automatically starts the heartbeat daemon in the background.
     """
+    _use_location(location)
     auth = AuthManager(backend_url=backend_url, runner_api_key=api_key)
     if not auth.backend_url:
         typer.echo(MISSING_BACKEND_URL, err=True)
@@ -1434,7 +1500,9 @@ def register(
         )
         username = result.get("account") or username
 
-        typer.echo(f"✓ Registered as {username}. Identity saved to ~/.bud/config.json")
+        typer.echo(
+            f"✓ Registered as {username}. Identity saved to {_shown(_runner_dir() / 'config.json')}"
+        )
         if generated_password:
             typer.echo("Generated password for this runner account. Save it somewhere secure:")
             typer.echo(password)
@@ -1445,9 +1513,8 @@ def register(
                 username=username, backend_url=backend_url, interval=60, port=socket_port
             )
             if pid:
-                typer.echo(
-                    f"  Daemon started (PID: {pid}). Monitoring: ~/.bud/daemons/bud_{username}.log"
-                )
+                log_path = _runner_dir() / "daemons" / f"bud_{username}.log"
+                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: {_shown(log_path)}")
 
         typer.echo("\nProject Link (copy to your repo app.properties):")
         typer.echo("-" * 40)
@@ -1495,7 +1562,7 @@ def daemon(
         None,
         "--location",
         "-l",
-        help="Location of the test station",
+        help=LOCATION_HELP,
     ),
 ):
     """
@@ -1504,6 +1571,7 @@ def daemon(
     This process must remain running for the runner to appear 'Online'
     and receive remote commands.
     """
+    _use_location(location)
     import asyncio
     import signal
     import sys
@@ -1604,10 +1672,12 @@ def status(
         "--output-format",
         help="Output format for this command (text or json).",
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Show runner status and connectivity.
     """
+    _use_location(location)
     auth = AuthManager(backend_url=backend_url)
     status_payload = {
         "backend_url": auth.backend_url or None,

@@ -18,14 +18,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from bud_runner.api_client import BudAPIClient
-from bud_runner.auth import AuthManager
+from bud_runner.auth import AuthManager, current_location, state_dir
 
 logger = logging.getLogger(__name__)
 
 
 def heartbeat_record_path(account: str) -> Path:
     """The file holding the station's last heartbeat result, beside its daemon pid and log."""
-    return Path.home() / ".bud" / "daemons" / f"bud_{account}.heartbeat.json"
+    return state_dir(current_location()) / "daemons" / f"bud_{account}.heartbeat.json"
 
 
 def write_heartbeat_record(account: Optional[str], answer: Dict[str, Any]) -> None:
@@ -107,6 +107,7 @@ class RunnerManager:
             username=username,
             password=password,
             socket_port=socket_port,
+            location=self._auth.location,
         )
 
         account = result.get("account") or username
