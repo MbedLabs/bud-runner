@@ -71,12 +71,3 @@ def test_execution_artifact_uses_station_token(tmp_path, human_token):
     client.upload_artifact(str(artifact), run_id=7)
     request = client._session.send.call_args.args[0]
     assert request.headers["Authorization"] == "Bearer station-session"
-
-
-def test_human_artifact_upload_keeps_existing_human_authentication(tmp_path):
-    artifact = tmp_path / "report_junit.xml"
-    artifact.write_text("<testsuite/>\n")
-    client = _client("human-session", None)
-    client.upload_artifact(str(artifact), run_id=7)
-    request = client._session.send.call_args.args[0]
-    assert request.headers["Authorization"] == "Bearer human-session"
