@@ -23,7 +23,7 @@ import typer
 from bud_runner.api_client import BudAPIClient, InsecureBackendURLError, _flatten_results
 from bud_runner.auth import AuthManager
 from bud_runner.junit_reporter import JUnitReporter
-from bud_runner.runner_manager import RunnerManager
+from bud_runner.runner_manager import RunnerManager, read_heartbeat_record
 from bud_runner.test_executor import TestExecutor
 from bud_runner.versioning import read_package_version
 
@@ -142,23 +142,26 @@ def _backend(factory, auth: AuthManager):
         raise typer.Exit(code=2)
 
 
-def _upload_payload_with_retry(
-    client: BudAPIClient,
-    auth: AuthManager,
-    payload: dict,
-    username: Optional[str],
-    password: Optional[str],
-) -> Any:
-    """Upload a result payload with the same 401 refresh flow as live uploads; the server's answer."""
+class StationTokenRejectedError(RuntimeError):
+    """Bud answered 401 to a result upload made with the station token."""
+
+
+def _upload_payload(client: BudAPIClient, payload: dict) -> Any:
+    """Upload a result payload with the station token; the server's answer.
+
+    A 401 raises StationTokenRejectedError: nothing is retried and no user signs in.
+    """
     try:
         return client.upload_results_payload(payload)
     except requests.HTTPError as exc:
         status_code = exc.response.status_code if exc.response is not None else None
-        if status_code == 401 and username and password:
-            typer.echo("401 during upload, refreshing token with provided credentials...")
-            fresh_token = client.login_user(username, password)
-            auth.save_user_token(username, fresh_token)
-            return client.upload_results_payload(payload)
+        if status_code == 401:
+            raise StationTokenRejectedError(
+                "station token rejected by Bud (401). Results are uploaded with the "
+                "station token only. Ask a Bud admin to issue a station key for this "
+                "station, then re-register it with 'bud_runner register --re-register "
+                "--api-key <key>' to get a new token."
+            ) from exc
         raise
 
 
@@ -318,17 +321,12 @@ def _run_claimed(
     return subprocess.run(cmd, cwd=workspace, env=env).returncode
 
 
-def _flush_spooled_results(
-    client: BudAPIClient,
-    auth: AuthManager,
-    username: Optional[str],
-    password: Optional[str],
-) -> None:
+def _flush_spooled_results(client: BudAPIClient) -> None:
     """Replay any spooled result payloads from earlier failed runs."""
     for spool_file in sorted(_spool_dir().glob("*.json")):
         payload = json.loads(spool_file.read_text(encoding="utf-8"))
         try:
-            _upload_payload_with_retry(client, auth, payload, username, password)
+            _upload_payload(client, payload)
         except Exception as exc:
             typer.echo(
                 f"⚠ Could not replay spooled results from {spool_file.name}: {exc}", err=True
@@ -507,7 +505,6 @@ def _upload_suite_results(
     results,
     test_case_list,
     auth,
-    credentials,
     test_run_id,
     software,
     duration,
@@ -517,9 +514,8 @@ def _upload_suite_results(
     artifacts,
 ):
     """Upload suite results, complete the run and publish its artifacts."""
-    username, password = credentials
     client = _backend(BudAPIClient, auth)
-    _flush_spooled_results(client, auth, username, password)
+    _flush_spooled_results(client)
     final_product_id = _suite_product_id(client, test_run_id)
 
     payload = client.build_results_payload(
@@ -532,7 +528,7 @@ def _upload_suite_results(
     answer: Any = None
     if payload:
         try:
-            answer = _upload_payload_with_retry(client, auth, payload, username, password)
+            answer = _upload_payload(client, payload)
         except Exception as exc:
             spool_file = _spool_results_payload(payload)
             typer.echo(
@@ -600,12 +596,12 @@ def run_tests(
         None,
         "--username",
         "-u",
-        help="Bud user email for token refresh during uploads",
+        help="Test Station account name; its saved station token is used for uploads.",
     ),
     password: Optional[str] = typer.Option(
         None,
         "--password",
-        help="Bud user password for token refresh during uploads",
+        help="Test Station password. Not used by run-tests: uploads use the station token.",
         hide_input=True,
     ),
     test_run_id: Optional[int] = typer.Option(
@@ -732,7 +728,6 @@ def run_tests(
                 results,
                 test_case_list,
                 auth,
-                (username, password),
                 test_run_id,
                 {
                     "url_test_software": url_test_software,
@@ -977,7 +972,7 @@ def run_robot(
             raise typer.Exit(code=2)
         client = _backend(BudAPIClient, auth)
         try:
-            _flush_spooled_results(client, auth, None, None)
+            _flush_spooled_results(client)
         except Exception as exc:
             typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
 
@@ -1060,7 +1055,7 @@ def run_pytest(
             raise typer.Exit(code=2)
         client = _backend(BudAPIClient, auth)
         try:
-            _flush_spooled_results(client, auth, None, None)
+            _flush_spooled_results(client)
         except Exception as exc:
             typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
 
@@ -1143,7 +1138,7 @@ def run_behave(
             raise typer.Exit(code=2)
         client = _backend(BudAPIClient, auth)
         try:
-            _flush_spooled_results(client, auth, None, None)
+            _flush_spooled_results(client)
         except Exception as exc:
             typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
 
@@ -1231,7 +1226,7 @@ def import_cucumber(
         raise typer.Exit(code=2)
     client = _backend(BudAPIClient, auth)
     try:
-        _flush_spooled_results(client, auth, None, None)
+        _flush_spooled_results(client)
     except Exception as exc:
         typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
     reached = send_run(
@@ -1572,13 +1567,14 @@ def _load_backend_version(client, status_payload):
         status_payload["backend_version"] = f"error: {e}"
 
 
-def _load_backend_runner_status(client, status_payload):
-    """Record the registered station's status or its retrieval error."""
-    try:
-        runner_status = client.get_runner_status()
-        status_payload["daemon"]["backend_runner_status"] = runner_status
-    except Exception as e:
-        status_payload["daemon"]["backend_runner_status_error"] = str(e)
+def _heartbeat_line(record):
+    """One line on the daemon's last heartbeat: when it was sent and what Bud answered."""
+    if record is None:
+        return "no heartbeat recorded by the daemon"
+    answer = record.get("answer") or {}
+    if record.get("ok"):
+        return f"✓ accepted by Bud at {record.get('sent_at')}"
+    return f"✗ {answer.get('message') or 'refused'} (sent {record.get('sent_at')})"
 
 
 def _load_backend_status(auth, status_payload):
@@ -1589,8 +1585,6 @@ def _load_backend_status(auth, status_payload):
             if client.health_check():
                 status_payload["backend_health"] = "ok"
                 _load_backend_version(client, status_payload)
-                if auth.runner_account and auth.token:
-                    _load_backend_runner_status(client, status_payload)
             else:
                 status_payload["backend_health"] = "unreachable"
         except Exception as e:
@@ -1625,6 +1619,7 @@ def status(
         "backend_version": None,
         "daemon": {
             "configured": bool(auth.runner_account and auth.token),
+            "last_heartbeat": read_heartbeat_record(auth.runner_account),
         },
     }
 
@@ -1641,6 +1636,9 @@ def status(
     typer.echo(f"  Runner package: {status_payload['runner_package_version']}")
     if status_payload["socket_port"] is not None:
         typer.echo(f"  Socket Port: {status_payload['socket_port']}")
+    if auth.runner_account:
+        last_heartbeat = status_payload["daemon"]["last_heartbeat"]
+        typer.echo(f"  Last Heartbeat: {_heartbeat_line(last_heartbeat)}")
 
     backend_health = status_payload["backend_health"]
     if backend_health == "skipped":
@@ -1655,12 +1653,6 @@ def status(
 
     if status_payload["backend_version"] is not None:
         typer.echo(f"  Backend Version: {status_payload['backend_version']}")
-
-    runner_status = status_payload["daemon"].get("backend_runner_status")
-    if runner_status is not None:
-        typer.echo(f"  Daemon Status: {runner_status}")
-    elif "backend_runner_status_error" in status_payload["daemon"]:
-        typer.echo(f"  Daemon Status: ✗ {status_payload['daemon']['backend_runner_status_error']}")
 
 
 @app.command(name="version")

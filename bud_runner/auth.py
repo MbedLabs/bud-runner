@@ -110,7 +110,12 @@ class AuthManager:
         self._load_project_properties(properties_file)
         self._load_from_env()
         self._apply_arguments(
-            username, token, backend_url, runner_account, runner_token, runner_api_key
+            username,
+            token or bud_token,
+            backend_url,
+            runner_account,
+            runner_token,
+            runner_api_key,
         )
         self._load_vault_identities(backend_url)
 

@@ -589,7 +589,18 @@ class BudAPIClient:
 
         Returns:
             Upload response with artifact ID and URL.
+
+        Raises:
+            RuntimeError: No station token is configured; artifacts are never sent with a
+                user token.
         """
+        station_token = self._auth.runner_token
+        if not station_token:
+            raise RuntimeError(
+                "A station token is required to upload artifacts; artifacts are never sent "
+                "with a user token. Register this station with 'bud_runner register' or set "
+                "BUD_RUNNER_TOKEN."
+            )
         with open(file_path, "rb") as f:
             files = {"file": (filename, f)} if filename else {"file": f}
             data = {}
@@ -600,9 +611,7 @@ class BudAPIClient:
 
             # Remove Content-Type header for multipart upload
             headers = {k: v for k, v in self._session.headers.items() if k != "Content-Type"}
-            artifact_token = self._auth.runner_token or self._auth.token
-            if artifact_token:
-                headers["Authorization"] = f"Bearer {artifact_token}"
+            headers["Authorization"] = f"Bearer {station_token}"
 
             response = self._session.post(
                 f"{self._api_url}/uploads",
