@@ -451,7 +451,6 @@ def add_test_run(
         "--output-format",
         help="Output format for this command's response (text or json). Use json in CI to parse the returned run id.",
     ),
-    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Create a new test run on the Bud platform.
@@ -459,7 +458,7 @@ def add_test_run(
     This command registers a new test run with the backend, which can then
     be executed by a runner.
     """
-    _use_location(location)
+    _use_location(None)
     auth = AuthManager(username=username, token=bud_token, backend_url=backend_url)
     if not auth.backend_url:
         typer.echo(MISSING_BACKEND_URL, err=True)

@@ -382,7 +382,8 @@ service wrapper.
 Several runners on the same machine each need their own `--username`,
 `--socket-port` and `--location`, and every command for a runner takes the same
 `--location` (`register`, `daemon`, `run-tests`, `claim-run`, `status` and the
-others). Without `--location` a command uses the `location` key of `app.properties`.
+others). Without `--location` a command uses the `location` key of `app.properties`;
+`add-test-run` always uses that key.
 
 ```bash
 python -m bud_runner register \
