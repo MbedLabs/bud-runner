@@ -255,3 +255,93 @@ class ClaimRun:
     ONE = 1
     TWO = 2
     NONE = 0
+
+
+class CucumberImporter:
+    """Values of the cucumber_importer suite."""
+
+    SCENARIOS = [
+        "Voltage within limit",
+        "Wrong value",
+        "Step raises",
+        "Missing step",
+        "Hook fails",
+        "Pending step",
+        "Outline 1",
+        "Outline 2",
+    ]
+    FEATURE = "Bench supply"
+    MEASURED = "Voltage within limit"
+    TC_ID = "PRJ-TC-001"
+    TAGS = ["bloom:PRJ-001", "smoke", "suite-tag"]
+    LOCATION_END = "features/bench.feature:7"
+    MEASURED_STEPS = [
+        ("a bench", True, True),
+        ("I measure 3", True, True),
+        ("the value is 3", True, False),
+        ("the value is below 5", True, False),
+    ]
+    CHECK_CONTEXT = "And the value is below 5"
+    CHECK_LINE = 10
+    JS_COUNTS = {"features": 1, "scenarios": 8, "passed": 3, "failed": 5, "skipped": 0}
+    WRONG = "Wrong value"
+    FAILED_STEP = ("the value is 3", False)
+    RAISES = "Step raises"
+    MISSING = "Missing step"
+    PENDING = "Pending step"
+    HOOK = "Hook fails"
+    HOOK_STEPS = [("HookError", False)]
+    OWN_TAG = "Own tag wins"
+    OWN_TC = "PRJ-TC-002"
+    OWN_TAGS = ["bloom:PRJ-002", "bloom:PRJ-009"]
+    FEATURE_TAG_ONLY = "Feature tag only"
+    FEATURE_TC = "PRJ-TC-009"
+    AMBIGUOUS = "Ambiguous step"
+    AFTER = "After hook fails"
+    AFTER_STEPS = [("a bench", True), ("HookError", False)]
+    SKIPPED_SCENARIOS = [("Skips itself", "Skipped by the runner"), ("Nothing in it", "Scenario has no steps")]
+    SAME_NAMES = ["Same name (line 33)", "Same name (line 34)"]
+    GERMAN = "Wert prüfen"
+    GERMAN_FEATURE = "Prüfstand"
+    EDGES_COUNTS = {"features": 2, "scenarios": 9, "passed": 5, "failed": 2, "skipped": 2}
+    HOOK_ONLY = [{"keyword": "Before", "hidden": True, "result": {"status": "passed", "duration": 1}}]
+    UNDEFINED_STEPS = [{"keyword": "When ", "name": "a", "line": 3, "result": {"status": "undefined"}}]
+    FAILED_AFTER = [{"result": {"status": "failed", "error_message": "Error: after broke"}}]
+    PAYLOAD_OPTIONS = {"test_run_id": 7, "product_id": 4, "ref_sw_under_test": "v2.4.1"}
+    PAYLOAD_EXPECTED = {
+        "test_run_id": 7,
+        "product_id": 4,
+        "runner_account": "station-1",
+        "ref_software_under_test": "v2.4.1",
+        "test_suite_name": "Bench supply",
+    }
+    ACCOUNT = "station-1"
+    DEFAULT_PRODUCT = 12
+    RESULTS = 8
+    EDGES_RESULTS = 9
+    EDGES_SUITE = "features"
+    SUITE_NAME = "Bench"
+    NO_URI = [{"name": "A", "elements": []}, {"name": "B", "elements": []}]
+    NO_URI_FILE = "nightly.json"
+    NO_URI_SUITE = "nightly"
+    FEATURE_PATHS = [
+        ("file:src/test/resources/features/bench.feature", "src/test/resources/features/bench.feature"),
+        ("features/bench.feature", "features/bench.feature"),
+        (None, None),
+        ("classpath:com/acme/bench.feature", "com/acme/bench.feature"),
+    ]
+    ERROR_TEXTS = [
+        ("Error: bad\n    at World.<anonymous> (features/steps.js:5:37)", "Error: bad"),
+        ("java.lang.AssertionError: x\n\tat probe.Steps.valueIs(Steps.java:12)", "java.lang.AssertionError: x"),
+        ("x (RuntimeError)\n./features/steps.rb:5:in `block'", "x (RuntimeError)"),
+    ]
+    JVM_LOCATION = "src/test/resources/features/bench.feature:7"
+    REPORT_FILE = "report.json"
+    UTF16_REPORT = '[{"name": "x", "elements": []}]'
+    WRONG_SHAPE = '[{"name": "x", "elements": [{"steps": [{"name": "a", "result": "passed"}]}]}]'
+    RUN_ID = "7"
+    RUN_ID_VALUE = 7
+    OK = 0
+    FAILED = 1
+    REFUSED = 2
+    ONE = 1

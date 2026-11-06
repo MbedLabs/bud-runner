@@ -95,3 +95,18 @@ class ClaimRun:
     USER_TOKEN = "user-token"
     RUNNER_TOKEN = "runner-token"
     ACCOUNT = "station-01"
+
+
+class CucumberImporter:
+    """Set-up of the cucumber_importer suite."""
+
+    FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "cucumber"
+    RUNNERS = ("cucumber-js.json", "cucumber-jvm.json", "cucumber-ruby.json")
+    JS, JVM, RUBY = RUNNERS
+    EDGES = "cucumber-js-edges.json"
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "cucumber_importer"
+    BACKEND_URL = "https://bud.example"
+    STATION = "station-1"
+    PRODUCT_ID = 12
+    UPLOADED_RUN = 42
