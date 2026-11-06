@@ -92,3 +92,33 @@ class AuthAndStatus:
     RE_REGISTERING = "Re-registering runner: runner-01"
     RESOLVED = "Resolved 2 test class(es)"
     MULTIPART = "multipart/form-data; boundary="
+
+
+class BehaveFormatter:
+    """Texts of the behave_formatter suite."""
+
+    EXPECTED_3 = "expected 3"
+    ASSERTION_ERROR = "AssertionError"
+    STEPS_FILE = "bench_steps.py"
+    BAD_VALUE = "ValueError: bad value"
+    UNDEFINED = "Undefined step: When nobody wrote this"
+    NOT_ON_BENCH = "not on this bench"
+    HOOK_BROKE = "RuntimeError: hook broke"
+    TRACEBACK = "Traceback (most recent call last)"
+    ENVIRONMENT_FILE = "environment.py"
+    HOOK_TEXT = "hook broke"
+    UPLOADED = "Behave results uploaded to Bud run 42"
+    NO_CREDENTIALS = "no credentials"
+    COULD_NOT_REPORT = "Could not report the Behave run to Bud: no credentials"
+    BACKEND_DOWN = "backend down"
+    INSTALL_EXTRA = "pip install 'bud-runner[behave]'"
+    VOLTAGE_SCENARIO = "Scenario: Voltage within limit"
+
+
+class RunTestsUpload:
+    """Texts of the run_tests_upload suite."""
+
+    SPOOLED = "Payload spooled to"
+    UPLOAD_FAILED = "Result upload failed"
+    UNAVAILABLE = "503 Service Unavailable"
+    SERVER_ERROR = "500 Server Error"

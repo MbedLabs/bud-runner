@@ -153,3 +153,28 @@ class AuthAndStatus:
     FIRST_FIXTURE = "tests.fixtures.mock_tests.FastPassTest"
     DEFAULT_PORT = 53035
     UPLOAD_TIMEOUT = 120
+
+
+class BehaveFormatter:
+    """Set-up of the behave_formatter suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "behave_formatter"
+    CAPTURE = "tests.budtests.behave_formatter:Capture"
+    BUD_FORMATTER = "bud_runner.behave_formatter:BudFormatter"
+    BACKEND = "https://bud.example"
+    STATION = "station-1"
+    PRODUCT_ID = 12
+    UPLOADED_RUN = 42
+
+
+class RunTestsUpload:
+    """Set-up of the run_tests_upload suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "run_tests_upload"
+    BACKEND = "http://localhost:8000"
+    SUITE = "dummy.suite"
+    SPOOL = ".bud/spool/results"
+    STATION = "ci@example.com"
+    REPORT_NAME = "report.xml"

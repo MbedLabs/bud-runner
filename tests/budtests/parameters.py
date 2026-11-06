@@ -162,7 +162,7 @@ class Auth:
     """Values of the auth suite."""
 
     RUNNER_VAULT = '{"ci-runner": {"token": "vault-token", "port": 53035, "backend": "https://vault-backend"}}'
-    SECRET_PROPERTIES = (
+    STRAY_PROPERTIES = (
         "budRunnerAccount=ci-runner\nbudBackend=https://project-backend\nbudRunnerToken=project-token\n"
         "runnerApiKey=project-api-key\nbudToken=project-user-token"
     )
@@ -448,4 +448,200 @@ class AuthAndStatus:
     OK = 0
     REFUSED = 2
     ONE = 1
+    NONE = 0
+
+
+class BehaveFormatter:
+    """Values of the behave_formatter suite."""
+
+    FEATURE = """Feature: Bench supply
+  Background:
+    Given a bench
+
+  @bloom:PRJ-TC-001 @smoke
+  Scenario: Voltage within limit
+    When I measure 3
+    Then the value is 3
+    And the value is below 5
+
+  Scenario: Wrong value
+    When I measure 2
+    Then the value is 3
+    Then the value is below 5
+
+  Scenario: Step raises
+    When I break
+
+  Scenario: Missing step
+    When nobody wrote this
+
+  @skipme
+  Scenario: Skipped by hook
+    When I measure 1
+
+  @excluded
+  Scenario: Excluded by tags
+    When I measure 1
+
+  @hookfail
+  Scenario: Hook fails
+    When I measure 1
+
+  Scenario Outline: Outline <v>
+    When I measure <v>
+    Then the value is <v>
+    Examples:
+      | v |
+      | 1 |
+      | 2 |
+"""
+    STEPS = '''
+from behave import given, when, then
+
+
+@given("a bench")
+def a_bench(context):
+    context.v = None
+
+
+@when("I measure {v:d}")
+def measure(context, v):
+    context.v = v
+
+
+@when("I break")
+def broken(context):
+    raise ValueError("bad value")
+
+
+@then("the value is {v:d}")
+def value_is(context, v):
+    assert context.v == v, f"expected {v}"
+
+
+@then("the value is below {v:d}")
+def below(context, v):
+    assert context.v < v
+'''
+    ENVIRONMENT = '''
+def before_scenario(context, scenario):
+    if "skipme" in scenario.tags:
+        scenario.skip("not on this bench")
+    if "hookfail" in scenario.tags:
+        raise RuntimeError("hook broke")
+'''
+    SECOND_FEATURE = """@bloom:PRJ-003
+Feature: Bench clock
+  Scenario: Clock runs
+    Given a bench
+"""
+    NO_UPLOAD = ["-D", "bud_upload=false"]
+    SCENARIOS = [
+        "Voltage within limit",
+        "Wrong value",
+        "Step raises",
+        "Missing step",
+        "Skipped by hook",
+        "Hook fails",
+        "Outline 1 -- @1.1",
+        "Outline 2 -- @1.2",
+    ]
+    FEATURE_NAME = "Bench supply"
+    MEASURED = "Voltage within limit"
+    TC_ID = "PRJ-TC-001"
+    TAGS = ["bloom:PRJ-TC-001", "smoke"]
+    LOCATION = "features/bench.feature:6"
+    MEASURED_STEPS = [
+        ("a bench", True, True, False),
+        ("I measure 3", True, True, False),
+        ("the value is 3", True, False, False),
+        ("the value is below 5", True, False, False),
+    ]
+    CHECK_CONTEXT = "And the value is below 5"
+    CHECK_SOURCE = ("features/bench.feature", 9)
+    OUTLINE = "Outline 2 -- @1.2"
+    OUTLINE_STEPS = ["a bench", "I measure 2", "the value is 2"]
+    WRONG = "Wrong value"
+    WRONG_STEPS = [("a bench", True, True, False), ("I measure 2", True, True, False), ("the value is 3", False, False, False)]
+    RAISES = "Step raises"
+    BREAK_STEP = ("I break", False, True, False)
+    MISSING = "Missing step"
+    MISSING_STEP = ("nobody wrote this", False, True, False)
+    EXCLUDED = "Excluded by tags"
+    SKIPPED = "Skipped by hook"
+    SKIP_STEPS = [("Skip", True, False, True)]
+    HOOK = "Hook fails"
+    HOOK_STEPS = [("HookError", False)]
+    PAYLOAD_OPTIONS = ["-D", "bud_test_run_id=7", "-D", "bud_product_id=4", "-D", "bud_ref_sw_under_test=v2.4.1"]
+    PAYLOAD_EXPECTED = {
+        "test_run_id": 7,
+        "product_id": 4,
+        "runner_account": "station-1",
+        "ref_software_under_test": "v2.4.1",
+        "test_suite_name": "Bench supply",
+    }
+    ACCOUNT = "station-1"
+    DEFAULT_PRODUCT = 12
+    RESULTS = 8
+    MANY_FEATURES = "features"
+    CLOCK = "Clock runs"
+    CLOCK_TC = "PRJ-TC-003"
+    CLOCK_TAGS = ["bloom:PRJ-003"]
+    SUITE_OPTION = ["-D", "bud_suite_name=Bench"]
+    SUITE_NAME = "Bench"
+    BACKEND_OPTION = ["-D", "bud_backend_url=https://bud.example"]
+    RUN_ID_OPTION = ["-D", "bud_test_run_id=7"]
+    RUN_ID = 7
+    RUN_BEHAVE = ["run-behave", "--no-upload", "--test-run-id", "5", "--suite-name", "Bench", "features/", "--tags=@smoke"]
+    PASSED_ON = ["bud_test_run_id=5", "bud_suite_name=Bench", "bud_upload=false"]
+    BEHAVE_TAIL = ["features/", "--tags=@smoke"]
+    PROGRESS = ["run-behave", "--no-upload", "-f", "progress", "features/"]
+    PROGRESS_TAIL = ["-f", "progress", "features/"]
+    FAILED = 1
+    OK = 0
+    REFUSED = 2
+    ONE = 1
+
+
+class RunTestsUpload:
+    """Values of the run_tests_upload suite."""
+
+    PASSING_CLASS = "VoltageTest"
+    PASSING = [("bud_a", True), ("bud_b", True), ("bud_c", True)]
+    MIXED_CLASS = "BetaTest"
+    MIXED = [("bud_one", True), ("bud_two", False)]
+    CHECK_TEXT = "ok"
+    ROWS = 3
+    REPORT = "<testsuites/>"
+    PAYLOAD = {"results": [{"test_class": "VoltageTest", "test_method": "bud_a"}]}
+    RUN_ID = 42
+    FAILED_RUN_ID = 7
+    COMPLETED = "Completed"
+    COUNTERS = ("total_tests", "passed_tests", "failed_tests")
+    SOFTWARE = {
+        "url_test_software": "https://github.com/example/test-suite",
+        "ref_test_software": "tests-abc123",
+        "url_software_under_test": "https://github.com/example/firmware",
+        "ref_software_under_test": "fw-abc123",
+    }
+    SOFTWARE_OPTIONS = [
+        "--url-test-software",
+        "https://github.com/example/test-suite",
+        "--ref-test-software",
+        "tests-abc123",
+        "--sw-under-test",
+        "https://github.com/example/firmware",
+        "--ref-sw-under-test",
+        "fw-abc123",
+    ]
+    TEST_SOFTWARE = {"url_test_software": "https://github.com/example/repo", "ref_test_software": "abc123"}
+    TEST_SOFTWARE_OPTIONS = ["--url-test-software", "https://github.com/example/repo", "--ref-test-software", "abc123"]
+    PENDING = '{"results":[{"test_class":"PendingTest","test_method":"bud_pending"}]}'
+    PENDING_CLASS = "PendingTest"
+    UNAVAILABLE = 503
+    SERVER_ERROR = 500
+    OK = 0
+    FAILED = 1
+    ONE = 1
+    TWO = 2
     NONE = 0

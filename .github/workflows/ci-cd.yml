@@ -139,6 +139,22 @@ jobs:
           BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
         run: .venv/bin/python -c "from tests.budtests.auth_and_status import AuthAndStatus; raise SystemExit(0 if AuthAndStatus().run() else 1)"
 
+      - name: BudTestCase suite behave_formatter
+        env:
+          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
+          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
+          PYTHONPATH: ${{ github.workspace }}
+          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
+        run: .venv/bin/python -c "from tests.budtests.behave_formatter import BehaveFormatter; raise SystemExit(0 if BehaveFormatter().run() else 1)"
+
+      - name: BudTestCase suite run_tests_upload
+        env:
+          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
+          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
+          PYTHONPATH: ${{ github.workspace }}
+          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
+        run: .venv/bin/python -c "from tests.budtests.run_tests_upload import RunTestsUpload; raise SystemExit(0 if RunTestsUpload().run() else 1)"
+
       - name: Run bandit security scan
         run: .venv/bin/bandit -r bud_runner/ -ll
 

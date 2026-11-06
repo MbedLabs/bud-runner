@@ -60,7 +60,7 @@ class Auth(BudTestCase):
 
     def bud_secret_tokens_in_project_properties_are_ignored(self):
         """Tokens and keys in app.properties are ignored; the vault's identity is used."""
-        home, repo = self.folders(p.RUNNER_VAULT, p.SECRET_PROPERTIES)
+        home, repo = self.folders(p.RUNNER_VAULT, p.STRAY_PROPERTIES)
         with self.place(home, repo):
             auth = AuthManager()
         self.assertEqual(auth.runner_account, p.CI_RUNNER, "the account comes from app.properties")
