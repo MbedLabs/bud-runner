@@ -183,6 +183,7 @@ behave = [
 dev = [
     { name = "behave" },
     { name = "black" },
+    { name = "budtestlibrary" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -214,6 +215,7 @@ requires-dist = [
     { name = "behave", marker = "extra == 'behave'", specifier = ">=1.2.6" },
     { name = "behave", marker = "extra == 'dev'", specifier = ">=1.2.6" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
+    { name = "budtestlibrary", marker = "extra == 'dev'", specifier = "==1.2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest", marker = "extra == 'pytest'", specifier = ">=7.0" },
@@ -237,6 +239,15 @@ ci = [
     { name = "pip-audit" },
 ]
 release = [{ name = "twine" }]
+
+[[package]]
+name = "budtestlibrary"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/9c/345a32641953ed1662ee5ae0ac4d2639df284fa4310cb57a124925c42ee1/budtestlibrary-1.2.0.tar.gz", hash = "sha256:b9932eaffc084ad06903cd38535e4eb90a350c9e7050649edcd5f4c33e65589e", size = 64137, upload-time = "2026-10-16T23:36:05.092Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/06/6f4b8217f97f121a0d5c46c04e804ef340c6dd6a08f7134e6f0174321983/budtestlibrary-1.2.0-py3-none-any.whl", hash = "sha256:05b848e4f6a9f06da657e917e64e8b354e56e2567eaf60962496cc2761d05286", size = 43605, upload-time = "2026-10-16T23:36:03.651Z" },
+]
 
 [[package]]
 name = "cachecontrol"
