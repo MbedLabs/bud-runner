@@ -78,3 +78,22 @@ class Verbose:
     CLAIM = {"run": {"id": 4, "name": "Run"}, "claim_id": "claim", "selected_tests": None}
     VERBOSE_FLAG = "--verbose"
     PASSED_EXIT = 0
+
+
+class PackagingMetadata:
+    """Values of the packaging_metadata suite."""
+
+    RELEASE_NUMBER = r"\d+\.\d+\.\d+"
+    ORG = {"name": "EmbedLabs", "email": "dev@embedlabs.net"}
+    AUTHORS = 2
+    URLS = {
+        "Homepage": "https://embedlabs.net",
+        "Documentation": "https://embedlabs.net/docs",
+        "Support": "https://embedlabs.net",
+    }
+    LICENSE = {"text": "AGPL-3.0-only"}
+    STABLE = "Development Status :: 5 - Production/Stable"
+    CHANGELOG_ENTRY = "## [{version}]"
+    SELF_HOSTED = "self-hosted CI"
+    RELATIVE_LINK = r"\[[^]]+\]\((?!https?://|mailto:|#)[^)]+\)"
+    CREATOR = "Creator: {maintainer}"

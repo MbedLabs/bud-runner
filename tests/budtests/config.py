@@ -1,5 +1,7 @@
 """Set-up of the bud-runner unit suites: what the mocked station is configured with."""
 
+from pathlib import Path
+
 
 class StationNaming:
     """Set-up of the station_naming suite."""
@@ -29,3 +31,11 @@ class Verbose:
     STATION_TOKEN = "station-token"
     ACCOUNT = "station-01"
     TEST_TIMEOUT = 10
+
+
+class PackagingMetadata:
+    """Set-up of the packaging_metadata suite."""
+
+    ROOT = Path(__file__).resolve().parents[2]
+    ORG_SETTING = "PACKAGE_ORG"
+    MAINTAINER_SETTING = "ORG_MAINTAINER"
