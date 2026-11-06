@@ -67,3 +67,14 @@ class ApiClient:
     ]
     STATION_BEARER = "Bearer station-session"
     NONE = 0
+
+
+class Verbose:
+    """Values of the verbose suite."""
+
+    LEVELS = [(False, 20), (True, 10)]
+    FLAGS = [([], False), (["--verbose"], True), (["-v"], True)]
+    TEST_LIST = "Suite.CASES"
+    CLAIM = {"run": {"id": 4, "name": "Run"}, "claim_id": "claim", "selected_tests": None}
+    VERBOSE_FLAG = "--verbose"
+    PASSED_EXIT = 0

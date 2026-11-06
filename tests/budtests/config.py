@@ -18,3 +18,14 @@ class ApiClient:
     WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
     ARTIFACT_NAME = "report_junit.xml"
     ARTIFACT_TEXT = "<testsuite/>\n"
+
+
+class Verbose:
+    """Set-up of the verbose suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    REPORT_NAME = "result.xml"
+    BACKEND_URL = "https://bud.example"
+    STATION_TOKEN = "station-token"
+    ACCOUNT = "station-01"
+    TEST_TIMEOUT = 10
