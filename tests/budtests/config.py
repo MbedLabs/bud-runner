@@ -56,3 +56,17 @@ class Executor:
     SELECTION_MODULE = "selected_station_cases"
     SELECTION = "selected_station_cases.CASES"
     CONTEXT_TARGET = "bud_runner.test_executor.multiprocessing.get_context"
+
+
+class Auth:
+    """Set-up of the auth suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "auth"
+    HOME = "home"
+    REPO = "repo"
+    VAULT = ".bud/config.json"
+    PROPERTIES = "app.properties"
+    BUD_PREFIX = "BUD_"
+    READ_STRING = "bud_runner.auth.configparser.ConfigParser.read_string"
+    DEFAULT_BACKEND = "http://localhost:8000"

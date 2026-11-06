@@ -156,3 +156,49 @@ class Executor:
     ROUNDTRIP_SECONDS = 1.5
     MARKERS = 2
     NONE = 0
+
+
+class Auth:
+    """Values of the auth suite."""
+
+    RUNNER_VAULT = '{"ci-runner": {"token": "vault-token", "port": 53035, "backend": "https://vault-backend"}}'
+    SECRET_PROPERTIES = (
+        "budRunnerAccount=ci-runner\nbudBackend=https://project-backend\nbudRunnerToken=project-token\n"
+        "runnerApiKey=project-api-key\nbudToken=project-user-token"
+    )
+    PROJECT_PROPERTIES = "budBackend=https://project-backend\nbudRunnerAccount=project-runner"
+    SERVICE_VAULT = '{"service-runner": {"token": "vault-token", "port": 54001, "backend": "https://vault-backend"}}'
+    USER_VAULT = '{"_users": {"ci@example.com": {"token": "user-token", "backend": "https://vault-backend"}}}'
+    CI_RUNNER = "ci-runner"
+    SERVICE_RUNNER = "service-runner"
+    USER = "ci@example.com"
+    VAULT_BACKEND = "https://vault-backend"
+    VAULT_TOKEN = "vault-token"
+    USER_TOKEN = "user-token"
+    ENV = {"BUD_BACKEND_URL": "https://env-backend", "BUD_RUNNER_ACCOUNT": "env-runner", "BUD_RUNNER_TOKEN": "env-token"}
+    ENV_BACKEND = "https://env-backend"
+    ENV_RUNNER = "env-runner"
+    ENV_TOKEN = "env-token"
+    ARG_BACKEND = "https://arg-backend"
+    ARG_USERNAME = "arg-runner"
+    ARG_RUNNER = "arg-explicit-runner"
+    SAVE_ARGUMENTS = {
+        "username": "last-user",
+        "backend_url": "https://bud.example",
+        "runner_account": "runner-01",
+        "runner_token": "secret-token",
+        "runner_api_key": "secret-api-key",
+    }
+    LOCATION = "Lab A"
+    PRODUCT_ID = 42
+    SAVED_LINES = [
+        "budBackend=https://bud.example",
+        "budRunnerAccount=runner-01",
+        "location=Lab A",
+        "productId=42",
+        "lastUser=last-user",
+    ]
+    UNSAVED = ["runnerSocketPort", "budRunnerToken", "runnerApiKey", "secret-token", "secret-api-key"]
+    BAD_PROPERTIES = "budBackend=https://bud.example"
+    BAD_ERROR = "bad properties"
+    LOAD_WARNING = "Error loading properties"
