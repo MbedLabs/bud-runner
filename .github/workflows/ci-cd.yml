@@ -35,20 +35,66 @@ jobs:
       - name: Install package with dev deps
         run: uv sync --frozen --no-build --no-build-isolation --no-binary-package bud-runner --extra dev --group build --group ci
 
-      - name: Run pytest
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-        run: .venv/bin/python -m pytest tests/ -v
-
       - name: Run bandit security scan
         run: .venv/bin/bandit -r bud_runner/ -ll
 
       - name: Run pip-audit
         run: .venv/bin/pip-audit
 
+  suite:
+    name: suite ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - auth_and_status.AuthAndStatus
+          - auth.Auth
+          - api_client.ApiClient
+          - artifact_upload.ArtifactUpload
+          - backend_url.BackendUrl
+          - cli_signals.CliSignals
+          - claim_run.ClaimRun
+          - packaging_metadata.PackagingMetadata
+          - flatten_results.FlattenResults
+          - behave_formatter.BehaveFormatter
+          - cucumber_importer.CucumberImporter
+          - run_tests_upload.RunTestsUpload
+          - robot_listener.RobotListener
+          - reporting.Reporting
+          - verbose.Verbose
+          - executor.Executor
+          - pytest_plugin.PytestPlugin
+          - station_naming.StationNaming
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          version: "0.11.14"
+          enable-cache: false
+
+      - name: Check the lock file
+        run: uv lock --check --no-build
+
+      - name: Install the build backend
+        run: uv sync --frozen --no-build --no-install-project --only-group build
+
+      - name: Install package with dev deps
+        run: uv sync --frozen --no-build --no-build-isolation --no-binary-package bud-runner --extra dev --group build --group ci
+
+      - name: Run suite
+        env:
+          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
+          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
+        run: .venv/bin/python -c "import importlib, sys; sys.path.insert(0, 'budtests'); module, name = sys.argv[1].rsplit('.', 1); raise SystemExit(0 if getattr(importlib.import_module(module), name)().run() else 1)" ${{ matrix.suite }}
+
   build:
-    needs: quality
+    needs: [quality, suite]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -1,0 +1,509 @@
+[
+  {
+    "id": "bench-supply",
+    "uri": "features/bench.feature",
+    "keyword": "Feature",
+    "name": "Bench supply",
+    "description": "",
+    "line": 2,
+    "tags": [
+      {
+        "name": "@suite-tag",
+        "line": 1
+      }
+    ],
+    "elements": [
+      {
+        "keyword": "Background",
+        "name": "",
+        "description": "",
+        "line": 3,
+        "type": "background",
+        "steps": [
+          {
+            "keyword": "Given ",
+            "name": "a bench",
+            "line": 4,
+            "match": {
+              "location": "features/step_definitions/steps.rb:1"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 42292
+            }
+          }
+        ]
+      },
+      {
+        "id": "bench-supply;voltage-within-limit",
+        "keyword": "Scenario",
+        "name": "Voltage within limit",
+        "description": "",
+        "line": 7,
+        "type": "scenario",
+        "steps": [
+          {
+            "keyword": "When ",
+            "name": "I measure 3",
+            "line": 8,
+            "match": {
+              "location": "features/step_definitions/steps.rb:2"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 12834
+            }
+          },
+          {
+            "keyword": "Then ",
+            "name": "the value is 3",
+            "line": 9,
+            "match": {
+              "location": "features/step_definitions/steps.rb:5"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 3917
+            }
+          },
+          {
+            "keyword": "And ",
+            "name": "the value is below 5",
+            "line": 10,
+            "match": {
+              "location": "features/step_definitions/steps.rb:6"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 2750
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag",
+            "line": 1
+          },
+          {
+            "name": "@bloom:PRJ-001",
+            "line": 6
+          },
+          {
+            "name": "@smoke",
+            "line": 6
+          }
+        ]
+      },
+      {
+        "keyword": "Background",
+        "name": "",
+        "description": "",
+        "line": 3,
+        "type": "background",
+        "steps": [
+          {
+            "keyword": "Given ",
+            "name": "a bench",
+            "line": 4,
+            "match": {
+              "location": "features/step_definitions/steps.rb:1"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 6916
+            }
+          }
+        ]
+      },
+      {
+        "id": "bench-supply;wrong-value",
+        "keyword": "Scenario",
+        "name": "Wrong value",
+        "description": "",
+        "line": 12,
+        "type": "scenario",
+        "steps": [
+          {
+            "keyword": "When ",
+            "name": "I measure 2",
+            "line": 13,
+            "match": {
+              "location": "features/step_definitions/steps.rb:2"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 6625
+            }
+          },
+          {
+            "keyword": "Then ",
+            "name": "the value is 3",
+            "line": 14,
+            "match": {
+              "location": "features/step_definitions/steps.rb:5"
+            },
+            "result": {
+              "status": "failed",
+              "error_message": "expected 3 (RuntimeError)\n./features/step_definitions/steps.rb:5:in `\"the value is {int}\"'\nfeatures/bench.feature:14:in `the value is 3'",
+              "duration": 52000
+            }
+          },
+          {
+            "keyword": "Then ",
+            "name": "the value is below 5",
+            "line": 15,
+            "match": {
+              "location": "features/step_definitions/steps.rb:6"
+            },
+            "result": {
+              "status": "skipped"
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag",
+            "line": 1
+          }
+        ]
+      },
+      {
+        "keyword": "Background",
+        "name": "",
+        "description": "",
+        "line": 3,
+        "type": "background",
+        "steps": [
+          {
+            "keyword": "Given ",
+            "name": "a bench",
+            "line": 4,
+            "match": {
+              "location": "features/step_definitions/steps.rb:1"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 4458
+            }
+          }
+        ]
+      },
+      {
+        "id": "bench-supply;step-raises",
+        "keyword": "Scenario",
+        "name": "Step raises",
+        "description": "",
+        "line": 17,
+        "type": "scenario",
+        "steps": [
+          {
+            "keyword": "When ",
+            "name": "I break",
+            "line": 18,
+            "match": {
+              "location": "features/step_definitions/steps.rb:3"
+            },
+            "result": {
+              "status": "failed",
+              "error_message": "bad value (RuntimeError)\n./features/step_definitions/steps.rb:3:in `\"I break\"'\nfeatures/bench.feature:18:in `I break'",
+              "duration": 27709
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag",
+            "line": 1
+          }
+        ]
+      },
+      {
+        "keyword": "Background",
+        "name": "",
+        "description": "",
+        "line": 3,
+        "type": "background",
+        "steps": [
+          {
+            "keyword": "Given ",
+            "name": "a bench",
+            "line": 4,
+            "match": {
+              "location": "features/step_definitions/steps.rb:1"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 4333
+            }
+          }
+        ]
+      },
+      {
+        "id": "bench-supply;missing-step",
+        "keyword": "Scenario",
+        "name": "Missing step",
+        "description": "",
+        "line": 20,
+        "type": "scenario",
+        "steps": [
+          {
+            "keyword": "When ",
+            "name": "nobody wrote this",
+            "line": 21,
+            "match": {
+              "location": "features/bench.feature:21"
+            },
+            "result": {
+              "status": "undefined"
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag",
+            "line": 1
+          }
+        ]
+      },
+      {
+        "keyword": "Background",
+        "name": "",
+        "description": "",
+        "line": 3,
+        "type": "background",
+        "steps": [
+          {
+            "keyword": "Given ",
+            "name": "a bench",
+            "line": 4,
+            "match": {
+              "location": "features/step_definitions/steps.rb:1"
+            },
+            "result": {
+              "status": "skipped"
+            }
+          }
+        ],
+        "before": [
+          {
+            "match": {
+              "location": "features/support/hooks.rb:1"
+            },
+            "result": {
+              "status": "failed",
+              "error_message": "hook broke (RuntimeError)\n./features/support/hooks.rb:1:in `Before'",
+              "duration": 67292
+            }
+          }
+        ]
+      },
+      {
+        "id": "bench-supply;hook-fails",
+        "keyword": "Scenario",
+        "name": "Hook fails",
+        "description": "",
+        "line": 24,
+        "type": "scenario",
+        "steps": [
+          {
+            "keyword": "When ",
+            "name": "I measure 1",
+            "line": 25,
+            "match": {
+              "location": "features/step_definitions/steps.rb:2"
+            },
+            "result": {
+              "status": "skipped"
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag",
+            "line": 1
+          },
+          {
+            "name": "@hookfail",
+            "line": 23
+          }
+        ]
+      },
+      {
+        "keyword": "Background",
+        "name": "",
+        "description": "",
+        "line": 3,
+        "type": "background",
+        "steps": [
+          {
+            "keyword": "Given ",
+            "name": "a bench",
+            "line": 4,
+            "match": {
+              "location": "features/step_definitions/steps.rb:1"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 14291
+            }
+          }
+        ]
+      },
+      {
+        "id": "bench-supply;pending-step",
+        "keyword": "Scenario",
+        "name": "Pending step",
+        "description": "",
+        "line": 28,
+        "type": "scenario",
+        "steps": [
+          {
+            "keyword": "When ",
+            "name": "I am pending",
+            "line": 29,
+            "match": {
+              "location": "features/step_definitions/steps.rb:4"
+            },
+            "result": {
+              "status": "pending",
+              "error_message": "TODO (Cucumber::Pending)\n./features/step_definitions/steps.rb:4:in `\"I am pending\"'\nfeatures/bench.feature:29:in `I am pending'",
+              "duration": 60125
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag",
+            "line": 1
+          },
+          {
+            "name": "@pend",
+            "line": 27
+          }
+        ]
+      },
+      {
+        "keyword": "Background",
+        "name": "",
+        "description": "",
+        "line": 3,
+        "type": "background",
+        "steps": [
+          {
+            "keyword": "Given ",
+            "name": "a bench",
+            "line": 4,
+            "match": {
+              "location": "features/step_definitions/steps.rb:1"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 6750
+            }
+          }
+        ]
+      },
+      {
+        "id": "bench-supply;outline-<v>;;2",
+        "keyword": "Scenario Outline",
+        "name": "Outline 1",
+        "description": "",
+        "line": 36,
+        "type": "scenario",
+        "steps": [
+          {
+            "keyword": "When ",
+            "name": "I measure 1",
+            "line": 32,
+            "match": {
+              "location": "features/step_definitions/steps.rb:2"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 10750
+            }
+          },
+          {
+            "keyword": "Then ",
+            "name": "the value is 1",
+            "line": 33,
+            "match": {
+              "location": "features/step_definitions/steps.rb:5"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 5042
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag",
+            "line": 1
+          }
+        ]
+      },
+      {
+        "keyword": "Background",
+        "name": "",
+        "description": "",
+        "line": 3,
+        "type": "background",
+        "steps": [
+          {
+            "keyword": "Given ",
+            "name": "a bench",
+            "line": 4,
+            "match": {
+              "location": "features/step_definitions/steps.rb:1"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 7083
+            }
+          }
+        ]
+      },
+      {
+        "id": "bench-supply;outline-<v>;;3",
+        "keyword": "Scenario Outline",
+        "name": "Outline 2",
+        "description": "",
+        "line": 37,
+        "type": "scenario",
+        "steps": [
+          {
+            "keyword": "When ",
+            "name": "I measure 2",
+            "line": 32,
+            "match": {
+              "location": "features/step_definitions/steps.rb:2"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 12833
+            }
+          },
+          {
+            "keyword": "Then ",
+            "name": "the value is 2",
+            "line": 33,
+            "match": {
+              "location": "features/step_definitions/steps.rb:5"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 4917
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@suite-tag",
+            "line": 1
+          }
+        ]
+      }
+    ]
+  }
+]

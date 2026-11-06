@@ -1,0 +1,363 @@
+[
+  {
+    "description": "",
+    "elements": [
+      {
+        "description": "",
+        "id": "bench-edges;own-tag-wins",
+        "keyword": "Scenario",
+        "line": 5,
+        "name": "Own tag wins",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Given ",
+            "line": 6,
+            "name": "a bench",
+            "match": {
+              "location": "features/step_definitions/steps.js:3"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 188999
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@bloom:PRJ-009",
+            "line": 1
+          },
+          {
+            "name": "@bloom:PRJ-002",
+            "line": 4
+          }
+        ],
+        "type": "scenario"
+      },
+      {
+        "description": "",
+        "id": "bench-edges;feature-tag-only",
+        "keyword": "Scenario",
+        "line": 8,
+        "name": "Feature tag only",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Given ",
+            "line": 9,
+            "name": "a bench",
+            "match": {
+              "location": "features/step_definitions/steps.js:3"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 18832
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@bloom:PRJ-009",
+            "line": 1
+          }
+        ],
+        "type": "scenario"
+      },
+      {
+        "description": "",
+        "id": "bench-edges;ambiguous-step",
+        "keyword": "Scenario",
+        "line": 11,
+        "name": "Ambiguous step",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "When ",
+            "line": 12,
+            "name": "I do twice",
+            "result": {
+              "status": "ambiguous",
+              "duration": 0
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@bloom:PRJ-009",
+            "line": 1
+          }
+        ],
+        "type": "scenario"
+      },
+      {
+        "description": "",
+        "id": "bench-edges;after-hook-fails",
+        "keyword": "Scenario",
+        "line": 15,
+        "name": "After hook fails",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Given ",
+            "line": 16,
+            "name": "a bench",
+            "match": {
+              "location": "features/step_definitions/steps.js:3"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 24499
+            }
+          },
+          {
+            "keyword": "After",
+            "hidden": true,
+            "result": {
+              "status": "failed",
+              "duration": 37457,
+              "error_message": "Error: after broke\n    at World.<anonymous> (features/step_definitions/steps.js:8:51)"
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@bloom:PRJ-009",
+            "line": 1
+          },
+          {
+            "name": "@afterfail",
+            "line": 14
+          }
+        ],
+        "type": "scenario"
+      },
+      {
+        "description": "",
+        "id": "bench-edges;skips-itself",
+        "keyword": "Scenario",
+        "line": 18,
+        "name": "Skips itself",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Given ",
+            "line": 19,
+            "name": "a bench",
+            "match": {
+              "location": "features/step_definitions/steps.js:3"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 20082
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "When ",
+            "line": 20,
+            "name": "I skip",
+            "match": {
+              "location": "features/step_definitions/steps.js:7"
+            },
+            "result": {
+              "status": "skipped",
+              "duration": 21166
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@bloom:PRJ-009",
+            "line": 1
+          }
+        ],
+        "type": "scenario"
+      },
+      {
+        "description": "",
+        "id": "bench-edges;nothing-in-it",
+        "keyword": "Scenario",
+        "line": 22,
+        "name": "Nothing in it",
+        "steps": [],
+        "tags": [
+          {
+            "name": "@bloom:PRJ-009",
+            "line": 1
+          }
+        ],
+        "type": "scenario"
+      },
+      {
+        "description": "",
+        "id": "bench-edges;same-name",
+        "keyword": "Scenario Outline",
+        "line": 33,
+        "name": "Same name",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Given ",
+            "line": 29,
+            "name": "a bench",
+            "match": {
+              "location": "features/step_definitions/steps.js:3"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 13874
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "When ",
+            "line": 30,
+            "name": "I measure 1",
+            "match": {
+              "location": "features/step_definitions/steps.js:4"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 53082
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@bloom:PRJ-009",
+            "line": 1
+          }
+        ],
+        "type": "scenario"
+      },
+      {
+        "description": "",
+        "id": "bench-edges;same-name",
+        "keyword": "Scenario Outline",
+        "line": 34,
+        "name": "Same name",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Given ",
+            "line": 29,
+            "name": "a bench",
+            "match": {
+              "location": "features/step_definitions/steps.js:3"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 16415
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "When ",
+            "line": 30,
+            "name": "I measure 2",
+            "match": {
+              "location": "features/step_definitions/steps.js:4"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 19875
+            }
+          }
+        ],
+        "tags": [
+          {
+            "name": "@bloom:PRJ-009",
+            "line": 1
+          }
+        ],
+        "type": "scenario"
+      }
+    ],
+    "id": "bench-edges",
+    "line": 2,
+    "keyword": "Feature",
+    "name": "Bench edges",
+    "tags": [
+      {
+        "name": "@bloom:PRJ-009",
+        "line": 1
+      }
+    ],
+    "uri": "features/edge.feature"
+  },
+  {
+    "description": "",
+    "elements": [
+      {
+        "description": "",
+        "id": "pr\u00fcfstand;wert-pr\u00fcfen",
+        "keyword": "Szenario",
+        "line": 3,
+        "name": "Wert pr\u00fcfen",
+        "steps": [
+          {
+            "arguments": [],
+            "keyword": "Angenommen ",
+            "line": 4,
+            "name": "ein Pr\u00fcfstand",
+            "match": {
+              "location": "features/step_definitions/steps.js:9"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 17667
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "Wenn ",
+            "line": 5,
+            "name": "ich 3 messe",
+            "match": {
+              "location": "features/step_definitions/steps.js:10"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 16166
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "Dann ",
+            "line": 6,
+            "name": "ist der Wert 3",
+            "match": {
+              "location": "features/step_definitions/steps.js:11"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 31958
+            }
+          },
+          {
+            "arguments": [],
+            "keyword": "Und ",
+            "line": 7,
+            "name": "ist der Wert 3",
+            "match": {
+              "location": "features/step_definitions/steps.js:11"
+            },
+            "result": {
+              "status": "passed",
+              "duration": 9083
+            }
+          }
+        ],
+        "tags": [],
+        "type": "scenario"
+      }
+    ],
+    "id": "pr\u00fcfstand",
+    "line": 2,
+    "keyword": "Funktionalit\u00e4t",
+    "name": "Pr\u00fcfstand",
+    "tags": [],
+    "uri": "features/sprache.feature"
+  }
+]
