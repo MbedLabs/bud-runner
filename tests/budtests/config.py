@@ -39,3 +39,20 @@ class PackagingMetadata:
     ROOT = Path(__file__).resolve().parents[2]
     ORG_SETTING = "PACKAGE_ORG"
     MAINTAINER_SETTING = "ORG_MAINTAINER"
+
+
+class Executor:
+    """Set-up of the executor suite."""
+
+    TEST_TIMEOUT = 10
+    SUITE_TIMEOUT = 60
+    SHORT_TEST_TIMEOUT = 2
+    LONG_TEST_TIMEOUT = 30
+    NO_SUITE_TIME = 0
+    STUB_TEST_TIMEOUT = 5
+    FIXTURE_LIST = "tests.fixtures.mock_tests.MOCK_TEST_LIST"
+    VALID_CASE = "tests.fixtures.mock_tests.FastPassTest"
+    MISSING_CASE = "unavailable_station_suite.MissingCase"
+    SELECTION_MODULE = "selected_station_cases"
+    SELECTION = "selected_station_cases.CASES"
+    CONTEXT_TARGET = "bud_runner.test_executor.multiprocessing.get_context"

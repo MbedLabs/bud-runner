@@ -129,3 +129,30 @@ class FlattenResults:
         "assertions": [{"passed": True, "message": "ok"}],
     }
     HELLO = "bud_hello"
+
+
+class Executor:
+    """Values of the executor suite."""
+
+    WITH_VALID_CASE = [False, True]
+    TIMED_OUT = ("timed out", "failed to retrieve")
+    TRUNCATED = "__suite_truncated__"
+    SUITE_TIMEOUT_TEXT = "suite timeout"
+    INTERRUPTED = "__suite_interrupted__"
+    INTERRUPTED_TEXT = "interrupted"
+    LARGE = "LargeResultTest"
+    FAST = "FastPassTest"
+    STUB_RESULT = {
+        "test_class": "StubTest",
+        "passed": True,
+        "method_results": [],
+        "duration_seconds": 0.0,
+        "error_message": None,
+        "start_time": None,
+        "end_time": None,
+        "metadata": {},
+    }
+    ROUNDTRIP_CLASS = "X"
+    ROUNDTRIP_SECONDS = 1.5
+    MARKERS = 2
+    NONE = 0
