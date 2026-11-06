@@ -202,3 +202,20 @@ class Auth:
     BAD_PROPERTIES = "budBackend=https://bud.example"
     BAD_ERROR = "bad properties"
     LOAD_WARNING = "Error loading properties"
+
+
+class CliSignals:
+    """Values of the cli_signals suite."""
+
+    JUNIT = "<testsuite/>"
+    PASSED_CLASS = "T1"
+    INTERRUPT_EXIT = 130
+    ONE = 1
+    PASSED_EXIT = 0
+    RUNNER = "runner-01"
+    SERVICE_RUNNER = "service-runner"
+    TOKEN = "runner-token"
+    REGISTERED_PORT = 54001
+    LOG_MESSAGE = "Heartbeat task started"
+    LOG_LINE = 123
+    LEVEL = "INFO"

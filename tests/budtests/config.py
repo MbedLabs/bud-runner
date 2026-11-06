@@ -70,3 +70,14 @@ class Auth:
     BUD_PREFIX = "BUD_"
     READ_STRING = "bud_runner.auth.configparser.ConfigParser.read_string"
     DEFAULT_BACKEND = "http://localhost:8000"
+
+
+class CliSignals:
+    """Set-up of the cli_signals suite."""
+
+    FIXTURE_LIST = "tests.fixtures.mock_tests.MOCK_TEST_LIST"
+    BACKEND_URL = "https://bud.example.com"
+    LOOPBACK = "127.0.0.1"
+    PORT = 53035
+    INTERVAL = 60
+    LOGGER = "bud_runner.runner_manager"
