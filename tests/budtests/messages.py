@@ -75,3 +75,20 @@ class BackendUrl:
     CREDENTIALS = "credentials"
     COMMAND_FAILED = "command failed"
     CERTIFICATE = "certificate hostname mismatch"
+
+
+class AuthAndStatus:
+    """Texts of the auth_and_status suite."""
+
+    CONFIGURED = "Configured"
+    HEALTHY = ("Connected", "OK")
+    UNREACHABLE = "Unreachable"
+    ACCOUNT_LINE = "budRunnerAccount=runner-01"
+    BACKEND_LINE = "budBackend=https://bud.example.com"
+    SOCKET_LINE = "runnerSocketPort="
+    GENERATED = "Generated password for this runner account"
+    ALREADY_LOCAL = "already registered locally"
+    NEEDS_PASSWORD = "Re-registration requires the existing runner password"
+    RE_REGISTERING = "Re-registering runner: runner-01"
+    RESOLVED = "Resolved 2 test class(es)"
+    MULTIPART = "multipart/form-data; boundary="

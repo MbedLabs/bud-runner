@@ -138,3 +138,18 @@ class BackendUrl:
     CA_BUNDLE = "REQUESTS_CA_BUNDLE"
     TOKEN = "station-session"
     ACCOUNT = "station-01"
+
+
+class AuthAndStatus:
+    """Set-up of the auth_and_status suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "auth_and_status"
+    BUD_PREFIX = "BUD_"
+    VAULT = ".bud/config.json"
+    DEFAULT = "http://localhost:8000"
+    BACKEND = "https://bud.example.com"
+    FIXTURE_LIST = "tests.fixtures.mock_tests.MOCK_TEST_LIST"
+    FIRST_FIXTURE = "tests.fixtures.mock_tests.FastPassTest"
+    DEFAULT_PORT = 53035
+    UPLOAD_TIMEOUT = 120

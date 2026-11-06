@@ -416,3 +416,36 @@ class BackendUrl:
     ONE = 1
     TWO = 2
     NONE = 0
+
+
+class AuthAndStatus:
+    """Values of the auth_and_status suite."""
+
+    SERVER_VERSION = "1.2.3"
+    RUNNER_VERSION = "0.4.6-test"
+    PLAIN_VERSION = "0.4.6"
+    METADATA_VERSION = "9.9.9"
+    RUNNER = "runner-a"
+    SECRET_TOKEN = "secret-token"
+    STATION = "runner-01"
+    PASSWORD = "super-secret"
+    API_KEY = "shared-secret"
+    GENERATED = "generated-pass-123"
+    KNOWN_PASSWORD = "known-password-123"
+    REGISTERED = {"id": 1}
+    VAULT_ENTRY = {"token": "runner-token", "port": 53035}
+    SERVICE_VAULT = '{"service-runner": {"token": "vault-token", "port": 54001, "backend": "https://vault-backend"}}'
+    SERVICE_RUNNER = "service-runner"
+    SERVICE_PORT = 54001
+    FIXTURE_COUNT = 2
+    ARTIFACT_NAME = "trace.log"
+    ARTIFACT_TEXT = "trace-data"
+    UPLOADED = {"id": 7, "url": "https://bud.example.com/a/7"}
+    RUN_ID = 12
+    TEST_CASE = "VoltageTest"
+    CREATED = 201
+    CREATED_BODY = b'{"id": 7}'
+    OK = 0
+    REFUSED = 2
+    ONE = 1
+    NONE = 0
