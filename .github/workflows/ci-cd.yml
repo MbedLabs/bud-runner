@@ -48,6 +48,21 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: .venv/bin/python -c "from tests.budtests.station_naming import StationNaming; raise SystemExit(0 if StationNaming().run() else 1)"
 
+      - name: BudTestCase suite reporting
+        env:
+          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
+          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
+          PYTHONPATH: ${{ github.workspace }}
+        run: .venv/bin/python -c "from tests.budtests.reporting import Reporting; raise SystemExit(0 if Reporting().run() else 1)"
+
+      - name: BudTestCase suite api_client
+        env:
+          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
+          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
+          PYTHONPATH: ${{ github.workspace }}
+          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
+        run: .venv/bin/python -c "from tests.budtests.api_client import ApiClient; raise SystemExit(0 if ApiClient().run() else 1)"
+
       - name: Run bandit security scan
         run: .venv/bin/bandit -r bud_runner/ -ll
 
