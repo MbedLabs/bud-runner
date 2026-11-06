@@ -57,7 +57,7 @@ def test_suite_timeout_skips_remaining_tests():
 
 
 def test_large_queue_payload_completes_without_deadlock(executor):
-    """Parent reads queue before join; large payloads must not hang the suite."""
+    """Parent reads queue before join; a large payload completes."""
     start = time.monotonic()
     result = executor.run_test_class(mock_tests.LargeResultTest)
     elapsed = time.monotonic() - start

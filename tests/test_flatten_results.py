@@ -3,7 +3,7 @@ Unit tests for ``bud_runner.api_client._flatten_results``.
 
 The helper is the contract between budtestlibrary's nested result objects
 and the backend's flat ``TestResultCreate`` schema. A regression here
-silently corrupts every uploaded test run, so keep it well-tested.
+silently corrupts every uploaded test run.
 """
 
 from __future__ import annotations

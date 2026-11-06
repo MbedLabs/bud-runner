@@ -157,7 +157,6 @@ def test_a_failed_artifact_does_not_fail_the_run(tmp_path):
     assert "Could not upload" in result.output
 
 
-# ==================== what a run leaves behind ====================
 
 
 def test_discovers_logs_beside_the_run(tmp_path, monkeypatch):
@@ -190,7 +189,6 @@ def test_takes_everything_in_the_artifact_directory(tmp_path, monkeypatch):
 
     found = [p.name for p in _discover_artifacts(artifacts)]
 
-    # The directory exists to be uploaded, so its shape is not second-guessed.
     assert sorted(found) == ["screenshot.png", "voltage.svg"]
 
 
@@ -205,7 +203,6 @@ def test_never_walks_the_workspace(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     nested = tmp_path / "node_modules" / "pkg"
     nested.mkdir(parents=True)
-    # Named to match a discovery pattern: only the depth keeps it out.
     (nested / "install.log").write_text("x")
     (tmp_path / "vendor").mkdir()
     (tmp_path / "vendor" / "debug.trace").write_text("x")

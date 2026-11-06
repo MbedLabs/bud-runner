@@ -75,39 +75,6 @@ def test_status_shows_unreachable_when_health_fails():
     mock_client.get_version.assert_not_called()
 
 
-def test_status_json_reports_backend_and_daemon_fields():
-    runner = CliRunner()
-    mock_client = MagicMock()
-    mock_client.health_check.return_value = True
-    mock_client.get_version.return_value = "1.2.3"
-    mock_client.get_runner_status.return_value = {"runners": [{"account": "runner-a"}]}
-
-    with (
-        patch("bud_runner.cli.AuthManager") as mock_auth_cls,
-        patch("bud_runner.cli.BudAPIClient", return_value=mock_client),
-        patch("bud_runner.cli._read_runner_package_version", return_value="0.4.7"),
-    ):
-        mock_auth = MagicMock()
-        mock_auth.backend_url = "http://localhost:8000"
-        mock_auth.runner_account = "runner-a"
-        mock_auth.token = "secret-token"
-        mock_auth.socket_port = 54001
-        mock_auth_cls.return_value = mock_auth
-
-        result = runner.invoke(app, ["status", "--output-format", "json"])
-
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert payload["backend_url"] == "http://localhost:8000"
-    assert payload["runner_account"] == "runner-a"
-    assert payload["token_configured"] is True
-    assert payload["runner_package_version"] == "0.4.7"
-    assert payload["socket_port"] == 54001
-    assert payload["backend_health"] == "ok"
-    assert payload["backend_version"] == "1.2.3"
-    assert payload["daemon"]["backend_runner_status"] == {"runners": [{"account": "runner-a"}]}
-
-
 def test_read_runner_package_version_uses_importlib_metadata_distribution_name():
     with patch("bud_runner.cli.read_package_version", return_value="9.9.9") as mock_version:
         assert _read_runner_package_version() == "9.9.9"

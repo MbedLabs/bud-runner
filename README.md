@@ -352,11 +352,13 @@ export BUD_BACKEND_URL="https://<your-bud-instance-url>"
 
 python -m bud_runner register \
   --username "lab-station-01" \
+  --location "Hardware Lab" \
   --socket-port 53035
 ```
 
-Runner identity, tokens, and daemon state are stored under `~/.bud/`. Keep that
-directory private to the runner account and never commit it.
+Runner identity, tokens, and daemon state are stored under `~/.bud/`, or under
+`~/.bud/locations/<location>/` for a runner with a location. Keep that directory
+private to the runner account and never commit it.
 
 ### Start the daemon
 
@@ -369,6 +371,42 @@ python -m bud_runner daemon \
 
 Run the daemon under a service manager such as systemd, launchd, or a Windows
 service wrapper.
+
+### Several runners on one machine
+
+`--location` keeps a runner's identity, daemon, spool and cache in their own folder,
+`~/.bud/locations/<location>/`, where every character of the location outside
+`A-Z`, `a-z`, `0-9`, `.`, `_` and `-` becomes `-`. Without a location they live in
+`~/.bud/`. Bud receives the location unchanged as the station's label.
+
+Several runners on the same machine each need their own `--username`,
+`--socket-port` and `--location`, and every command for a runner takes the same
+`--location` (`register`, `daemon`, `run-tests`, `claim-run`, `status` and the
+others). Without `--location` a command uses the `location` key of `app.properties`;
+`add-test-run` always uses that key.
+
+```bash
+python -m bud_runner register \
+  --username "station-01" \
+  --socket-port 53035 \
+  --location "Bench A" \
+  --no-start
+python -m bud_runner register \
+  --username "station-02" \
+  --socket-port 53036 \
+  --location "Bench B" \
+  --no-start
+```
+
+Each daemon then runs under its own service-manager entry:
+
+```bash
+python -m bud_runner daemon --username "station-01" --location "Bench A"
+python -m bud_runner daemon --username "station-02" --location "Bench B"
+```
+
+The two runners keep their state in `~/.bud/locations/Bench-A/` and
+`~/.bud/locations/Bench-B/`.
 
 ## Configuration
 

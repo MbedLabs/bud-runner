@@ -21,9 +21,15 @@ import requests
 import typer
 
 from bud_runner.api_client import BudAPIClient, InsecureBackendURLError, _flatten_results
-from bud_runner.auth import AuthManager
+from bud_runner.auth import (
+    AuthManager,
+    current_location,
+    location_folder_name,
+    select_location,
+    state_dir,
+)
 from bud_runner.junit_reporter import JUnitReporter
-from bud_runner.runner_manager import RunnerManager
+from bud_runner.runner_manager import RunnerManager, read_heartbeat_record
 from bud_runner.test_executor import TestExecutor
 from bud_runner.versioning import read_package_version
 
@@ -38,6 +44,11 @@ PRODUCT_ID_FOR_A_RUN_BUD_CREATES_FROM_THE_UPLOAD = (
     "Product id for a run Bud creates from the upload."
 )
 UPLOAD_RESULTS_TO_BUD = "Upload results to Bud"
+LOCATION_HELP = (
+    "Location of the test station. Keeps this runner's identity, daemon, spool and cache "
+    "in their own folder (~/.bud/locations/<location>); needed to run several runners on "
+    "the same machine. Default: the location key of app.properties."
+)
 
 app = typer.Typer(
     name="bud_runner",
@@ -55,7 +66,10 @@ def configure_transport(
         help="Allow unencrypted HTTP to Bud on an isolated trusted network for this invocation.",
     ),
 ):
-    """Apply the invocation's HTTP opt-in to this process and its children."""
+    """Apply the invocation's HTTP opt-in to this process and its children, and restore the
+    process's runner location when the command finishes."""
+    selected = select_location(None)
+    ctx.call_on_close(lambda: select_location(selected))
     if not allow_http:
         return
     previous = os.environ.get("BUD_ALLOW_HTTP")
@@ -110,11 +124,39 @@ def _configure_daemon_logging() -> None:
     root_logger.addHandler(handler)
 
 
+def _use_location(location: Optional[str]) -> None:
+    """Choose ``location`` for this invocation; exit 2 when the location in use, from
+    ``--location`` or app.properties, has the folder name ``.`` or ``..``."""
+    select_location(location)
+    resolved = current_location()
+    if resolved and location_folder_name(resolved) in (".", ".."):
+        typer.echo(
+            f"✗ Location {resolved!r} cannot be used: its folder name would be "
+            f"{location_folder_name(resolved)!r}. Choose another --location.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+
+def _runner_dir() -> Path:
+    """The folder holding this runner's identity, daemon, spool and cache."""
+    return state_dir(current_location())
+
+
+def _shown(path: Path) -> str:
+    """``path`` written with ``~`` for the home directory."""
+    try:
+        return "~/" + path.relative_to(Path.home()).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def _spool_dir() -> Path:
     """Directory for persisted result-upload payloads."""
+    location = current_location()
     candidates = [
-        Path.home() / ".bud" / "spool" / "results",
-        Path(tempfile.gettempdir()) / "bud" / "spool" / "results",
+        state_dir(location) / "spool" / "results",
+        state_dir(location, Path(tempfile.gettempdir()) / "bud") / "spool" / "results",
     ]
     for spool_dir in candidates:
         try:
@@ -142,23 +184,26 @@ def _backend(factory, auth: AuthManager):
         raise typer.Exit(code=2)
 
 
-def _upload_payload_with_retry(
-    client: BudAPIClient,
-    auth: AuthManager,
-    payload: dict,
-    username: Optional[str],
-    password: Optional[str],
-) -> Any:
-    """Upload a result payload with the same 401 refresh flow as live uploads; the server's answer."""
+class StationTokenRejectedError(RuntimeError):
+    """Bud answered 401 to a result upload made with the station token."""
+
+
+def _upload_payload(client: BudAPIClient, payload: dict) -> Any:
+    """Upload a result payload with the station token; the server's answer.
+
+    A 401 raises StationTokenRejectedError: nothing is retried and no user signs in.
+    """
     try:
         return client.upload_results_payload(payload)
     except requests.HTTPError as exc:
         status_code = exc.response.status_code if exc.response is not None else None
-        if status_code == 401 and username and password:
-            typer.echo("401 during upload, refreshing token with provided credentials...")
-            fresh_token = client.login_user(username, password)
-            auth.save_user_token(username, fresh_token)
-            return client.upload_results_payload(payload)
+        if status_code == 401:
+            raise StationTokenRejectedError(
+                "station token rejected by Bud (401). Results are uploaded with the "
+                "station token only. Ask a Bud admin to issue a station key for this "
+                "station, then re-register it with 'bud_runner register --re-register "
+                "--api-key <key>' to get a new token."
+            ) from exc
         raise
 
 
@@ -318,17 +363,12 @@ def _run_claimed(
     return subprocess.run(cmd, cwd=workspace, env=env).returncode
 
 
-def _flush_spooled_results(
-    client: BudAPIClient,
-    auth: AuthManager,
-    username: Optional[str],
-    password: Optional[str],
-) -> None:
+def _flush_spooled_results(client: BudAPIClient) -> None:
     """Replay any spooled result payloads from earlier failed runs."""
     for spool_file in sorted(_spool_dir().glob("*.json")):
         payload = json.loads(spool_file.read_text(encoding="utf-8"))
         try:
-            _upload_payload_with_retry(client, auth, payload, username, password)
+            _upload_payload(client, payload)
         except Exception as exc:
             typer.echo(
                 f"⚠ Could not replay spooled results from {spool_file.name}: {exc}", err=True
@@ -418,6 +458,7 @@ def add_test_run(
     This command registers a new test run with the backend, which can then
     be executed by a runner.
     """
+    _use_location(None)
     auth = AuthManager(username=username, token=bud_token, backend_url=backend_url)
     if not auth.backend_url:
         typer.echo(MISSING_BACKEND_URL, err=True)
@@ -507,7 +548,6 @@ def _upload_suite_results(
     results,
     test_case_list,
     auth,
-    credentials,
     test_run_id,
     software,
     duration,
@@ -517,9 +557,8 @@ def _upload_suite_results(
     artifacts,
 ):
     """Upload suite results, complete the run and publish its artifacts."""
-    username, password = credentials
     client = _backend(BudAPIClient, auth)
-    _flush_spooled_results(client, auth, username, password)
+    _flush_spooled_results(client)
     final_product_id = _suite_product_id(client, test_run_id)
 
     payload = client.build_results_payload(
@@ -532,7 +571,7 @@ def _upload_suite_results(
     answer: Any = None
     if payload:
         try:
-            answer = _upload_payload_with_retry(client, auth, payload, username, password)
+            answer = _upload_payload(client, payload)
         except Exception as exc:
             spool_file = _spool_results_payload(payload)
             typer.echo(
@@ -600,12 +639,12 @@ def run_tests(
         None,
         "--username",
         "-u",
-        help="Bud user email for token refresh during uploads",
+        help="Test Station account name; its saved station token is used for uploads.",
     ),
     password: Optional[str] = typer.Option(
         None,
         "--password",
-        help="Bud user password for token refresh during uploads",
+        help="Test Station password. Not used by run-tests: uploads use the station token.",
         hide_input=True,
     ),
     test_run_id: Optional[int] = typer.Option(
@@ -672,6 +711,7 @@ def run_tests(
         "--suite-timeout",
         help="Max seconds for the full suite (default: 1800)",
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Execute tests from a test case list.
@@ -679,6 +719,7 @@ def run_tests(
     Runs all tests in the specified test case list and generates a JUnit XML
     report for CI/CD integration.
     """
+    _use_location(location)
     import signal
 
     interrupted = False
@@ -732,7 +773,6 @@ def run_tests(
                 results,
                 test_case_list,
                 auth,
-                (username, password),
                 test_run_id,
                 {
                     "url_test_software": url_test_software,
@@ -890,6 +930,7 @@ def claim_run(
         "--suite-timeout",
         help="Max seconds for the full suite (default: 1800)",
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Run whatever the backend has queued for this test station.
@@ -898,6 +939,7 @@ def claim_run(
     custom selection takes the same path as any other run. Nothing connects
     inward to the bench.
     """
+    _use_location(location)
     auth = AuthManager(username=username, backend_url=backend_url)
     if not auth.backend_url:
         typer.echo(
@@ -920,6 +962,9 @@ def claim_run(
     passthrough.extend(["--backend-url", auth.backend_url])
     if auth.runner_account:
         passthrough.extend(["--username", auth.runner_account])
+    resolved_location = current_location()
+    if resolved_location:
+        passthrough.extend(["--location", resolved_location])
     for pattern in artifacts:
         passthrough.extend(["--artifact", pattern])
 
@@ -953,6 +998,7 @@ def run_robot(
         "--artifacts/--no-artifacts",
         help="Upload output.xml, log.html and report.html with the results",
     ),
+    location: Optional[str] = typer.Option(None, "--location", help=LOCATION_HELP),
 ):
     """
     Run Robot Framework with the Bud listener attached.
@@ -961,6 +1007,7 @@ def run_robot(
     ``bud-runner run-robot --backend-url https://bud tests/``. Robot's exit code is
     returned as is, so CI still fails on failed tests.
     """
+    _use_location(location)
     try:
         import robot
     except ImportError:
@@ -977,7 +1024,7 @@ def run_robot(
             raise typer.Exit(code=2)
         client = _backend(BudAPIClient, auth)
         try:
-            _flush_spooled_results(client, auth, None, None)
+            _flush_spooled_results(client)
         except Exception as exc:
             typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
 
@@ -999,9 +1046,10 @@ def run_robot(
 
 def _pytest_pycache_dir() -> Path:
     """Directory for the bytecode of a ``run-pytest`` session."""
+    location = current_location()
     candidates = [
-        Path.home() / ".bud" / "pycache",
-        Path(tempfile.gettempdir()) / "bud" / "pycache",
+        state_dir(location) / "pycache",
+        state_dir(location, Path(tempfile.gettempdir()) / "bud") / "pycache",
     ]
     for cache_dir in candidates:
         try:
@@ -1034,6 +1082,7 @@ def run_pytest(
         None, "--suite-name", help="Suite name in Bud (default: the pytest rootdir name)."
     ),
     upload_results: bool = typer.Option(True, UPLOAD_NO_UPLOAD, help=UPLOAD_RESULTS_TO_BUD),
+    location: Optional[str] = typer.Option(None, "--location", help=LOCATION_HELP),
 ):
     """
     Run pytest with the Bud plugin attached.
@@ -1041,9 +1090,11 @@ def run_pytest(
     Every argument Bud does not know is passed to pytest unchanged, for example
     ``bud-runner run-pytest --backend-url https://bud tests/ -k smoke``. The session runs
     with pytest's assertion pass hook on and compiles its bytecode into
-    ``~/.bud/pycache``, where every rewritten test module has the hook, and passing
-    assert statements are reported too. pytest's exit code is returned as is.
+    ``~/.bud/pycache`` (``~/.bud/locations/<location>/pycache`` with a location), where
+    every rewritten test module has the hook, and passing assert statements are reported
+    too. pytest's exit code is returned as is.
     """
+    _use_location(location)
     try:
         import pytest
     except ImportError:
@@ -1060,7 +1111,7 @@ def run_pytest(
             raise typer.Exit(code=2)
         client = _backend(BudAPIClient, auth)
         try:
-            _flush_spooled_results(client, auth, None, None)
+            _flush_spooled_results(client)
         except Exception as exc:
             typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
 
@@ -1118,6 +1169,7 @@ def run_behave(
         help="Suite name in Bud (default: the feature name, or the features directory).",
     ),
     upload_results: bool = typer.Option(True, UPLOAD_NO_UPLOAD, help=UPLOAD_RESULTS_TO_BUD),
+    location: Optional[str] = typer.Option(None, "--location", help=LOCATION_HELP),
 ):
     """
     Run Behave with the Bud formatter attached.
@@ -1127,6 +1179,7 @@ def run_behave(
     formatter writes nothing to the console; without ``-f`` in the arguments Behave's
     ``pretty`` output is shown as well. Behave's exit code is returned as is.
     """
+    _use_location(location)
     try:
         from behave.__main__ import main as behave_main
     except ImportError:
@@ -1143,7 +1196,7 @@ def run_behave(
             raise typer.Exit(code=2)
         client = _backend(BudAPIClient, auth)
         try:
-            _flush_spooled_results(client, auth, None, None)
+            _flush_spooled_results(client)
         except Exception as exc:
             typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
 
@@ -1189,6 +1242,7 @@ def import_cucumber(
     upload_artifacts: bool = typer.Option(
         True, "--artifacts/--no-artifacts", help="Attach the report file to the Bud run"
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Import a Cucumber JSON report into Bud.
@@ -1199,6 +1253,7 @@ def import_cucumber(
     did not reach Bud (the results are spooled); 2 when the report is unreadable, no
     backend is configured or the backend URL is refused.
     """
+    _use_location(location)
     from bud_runner.cucumber_importer import CucumberReport, CucumberReportError, read_report
     from bud_runner.reporting import send_run
 
@@ -1231,7 +1286,7 @@ def import_cucumber(
         raise typer.Exit(code=2)
     client = _backend(BudAPIClient, auth)
     try:
-        _flush_spooled_results(client, auth, None, None)
+        _flush_spooled_results(client)
     except Exception as exc:
         typer.echo(f"⚠ Could not replay spooled results: {exc}", err=True)
     reached = send_run(
@@ -1311,9 +1366,12 @@ def _start_daemon_background(username: str, backend_url: Optional[str], interval
     ]
     if backend_url:
         cmd.extend(["--backend-url", backend_url])
+    location = current_location()
+    if location:
+        cmd.extend(["--location", location])
 
     # Ensure logs are persistent and namespaced
-    daemons_dir = Path.home() / ".bud" / "daemons"
+    daemons_dir = _runner_dir() / "daemons"
     daemons_dir.mkdir(parents=True, exist_ok=True)
     log_file = open(daemons_dir / f"bud_{username}.log", "a")
 
@@ -1386,6 +1444,7 @@ def register(
         "--re-register",
         help="Refresh an already-registered runner using its existing password",
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Register this machine as a test runner.
@@ -1393,6 +1452,7 @@ def register(
     Creates a runner account, stores credentials in your global machine vault,
     and automatically starts the heartbeat daemon in the background.
     """
+    _use_location(location)
     auth = AuthManager(backend_url=backend_url, runner_api_key=api_key)
     if not auth.backend_url:
         typer.echo(MISSING_BACKEND_URL, err=True)
@@ -1439,7 +1499,9 @@ def register(
         )
         username = result.get("account") or username
 
-        typer.echo(f"✓ Registered as {username}. Identity saved to ~/.bud/config.json")
+        typer.echo(
+            f"✓ Registered as {username}. Identity saved to {_shown(_runner_dir() / 'config.json')}"
+        )
         if generated_password:
             typer.echo("Generated password for this runner account. Save it somewhere secure:")
             typer.echo(password)
@@ -1450,9 +1512,8 @@ def register(
                 username=username, backend_url=backend_url, interval=60, port=socket_port
             )
             if pid:
-                typer.echo(
-                    f"  Daemon started (PID: {pid}). Monitoring: ~/.bud/daemons/bud_{username}.log"
-                )
+                log_path = _runner_dir() / "daemons" / f"bud_{username}.log"
+                typer.echo(f"  Daemon started (PID: {pid}). Monitoring: {_shown(log_path)}")
 
         typer.echo("\nProject Link (copy to your repo app.properties):")
         typer.echo("-" * 40)
@@ -1500,7 +1561,7 @@ def daemon(
         None,
         "--location",
         "-l",
-        help="Location of the test station",
+        help=LOCATION_HELP,
     ),
 ):
     """
@@ -1509,6 +1570,7 @@ def daemon(
     This process must remain running for the runner to appear 'Online'
     and receive remote commands.
     """
+    _use_location(location)
     import asyncio
     import signal
     import sys
@@ -1572,13 +1634,14 @@ def _load_backend_version(client, status_payload):
         status_payload["backend_version"] = f"error: {e}"
 
 
-def _load_backend_runner_status(client, status_payload):
-    """Record the registered station's status or its retrieval error."""
-    try:
-        runner_status = client.get_runner_status()
-        status_payload["daemon"]["backend_runner_status"] = runner_status
-    except Exception as e:
-        status_payload["daemon"]["backend_runner_status_error"] = str(e)
+def _heartbeat_line(record):
+    """One line on the daemon's last heartbeat: when it was sent and what Bud answered."""
+    if record is None:
+        return "no heartbeat recorded by the daemon"
+    answer = record.get("answer") or {}
+    if record.get("ok"):
+        return f"✓ accepted by Bud at {record.get('sent_at')}"
+    return f"✗ {answer.get('message') or 'refused'} (sent {record.get('sent_at')})"
 
 
 def _load_backend_status(auth, status_payload):
@@ -1589,8 +1652,6 @@ def _load_backend_status(auth, status_payload):
             if client.health_check():
                 status_payload["backend_health"] = "ok"
                 _load_backend_version(client, status_payload)
-                if auth.runner_account and auth.token:
-                    _load_backend_runner_status(client, status_payload)
             else:
                 status_payload["backend_health"] = "unreachable"
         except Exception as e:
@@ -1610,10 +1671,12 @@ def status(
         "--output-format",
         help="Output format for this command (text or json).",
     ),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help=LOCATION_HELP),
 ):
     """
     Show runner status and connectivity.
     """
+    _use_location(location)
     auth = AuthManager(backend_url=backend_url)
     status_payload = {
         "backend_url": auth.backend_url or None,
@@ -1625,6 +1688,7 @@ def status(
         "backend_version": None,
         "daemon": {
             "configured": bool(auth.runner_account and auth.token),
+            "last_heartbeat": read_heartbeat_record(auth.runner_account),
         },
     }
 
@@ -1641,6 +1705,9 @@ def status(
     typer.echo(f"  Runner package: {status_payload['runner_package_version']}")
     if status_payload["socket_port"] is not None:
         typer.echo(f"  Socket Port: {status_payload['socket_port']}")
+    if auth.runner_account:
+        last_heartbeat = status_payload["daemon"]["last_heartbeat"]
+        typer.echo(f"  Last Heartbeat: {_heartbeat_line(last_heartbeat)}")
 
     backend_health = status_payload["backend_health"]
     if backend_health == "skipped":
@@ -1655,12 +1722,6 @@ def status(
 
     if status_payload["backend_version"] is not None:
         typer.echo(f"  Backend Version: {status_payload['backend_version']}")
-
-    runner_status = status_payload["daemon"].get("backend_runner_status")
-    if runner_status is not None:
-        typer.echo(f"  Daemon Status: {runner_status}")
-    elif "backend_runner_status_error" in status_payload["daemon"]:
-        typer.echo(f"  Daemon Status: ✗ {status_payload['daemon']['backend_runner_status_error']}")
 
 
 @app.command(name="version")

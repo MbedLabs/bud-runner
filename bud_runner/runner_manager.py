@@ -9,15 +9,57 @@ Handles:
 """
 
 import asyncio
+import json
 import logging
+import os
 import socket
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from bud_runner.api_client import BudAPIClient
-from bud_runner.auth import AuthManager
+from bud_runner.auth import AuthManager, current_location, state_dir
 
 logger = logging.getLogger(__name__)
+
+
+def heartbeat_record_path(account: str) -> Path:
+    """The file holding the station's last heartbeat result, beside its daemon pid and log."""
+    return state_dir(current_location()) / "daemons" / f"bud_{account}.heartbeat.json"
+
+
+def write_heartbeat_record(account: Optional[str], answer: Dict[str, Any]) -> None:
+    """Record when the last heartbeat was sent and what Bud answered.
+
+    The record is ``{"sent_at": <UTC ISO time>, "ok": <bool>, "answer": <Bud's answer>}``.
+    On a write error it logs a warning and keeps the previous file.
+    """
+    if not account:
+        return
+    record = {
+        "sent_at": datetime.now(timezone.utc).isoformat(),
+        "ok": answer.get("status") == "ok",
+        "answer": answer,
+    }
+    path = heartbeat_record_path(account)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_name(path.name + ".tmp")
+        partial.write_text(json.dumps(record), encoding="utf-8")
+        os.replace(partial, path)
+    except (OSError, TypeError, ValueError) as exc:
+        logger.warning("Could not record the heartbeat result in %s: %s", path, exc)
+
+
+def read_heartbeat_record(account: Optional[str]) -> Optional[Dict[str, Any]]:
+    """The station's last heartbeat record, or None when the daemon has written none."""
+    if not account:
+        return None
+    try:
+        record = json.loads(heartbeat_record_path(account).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return record if isinstance(record, dict) else None
 
 
 class RunnerManager:
@@ -65,6 +107,7 @@ class RunnerManager:
             username=username,
             password=password,
             socket_port=socket_port,
+            location=self._auth.location,
         )
 
         account = result.get("account") or username
@@ -155,8 +198,11 @@ class RunnerManager:
                 # Use to_thread since requests is synchronous
                 result = await asyncio.to_thread(self._client.heartbeat, location=location)
 
-                if result.get("status") == "ok":
+                accepted = result.get("status") == "ok"
+                if accepted:
                     self._adopt_renamed_account(result.get("account"))
+                write_heartbeat_record(self._auth.runner_account, result)
+                if accepted:
                     logger.debug("✓ Heartbeat sent")
                 else:
                     logger.warning(f"✗ Heartbeat failed: {result.get('message')}")

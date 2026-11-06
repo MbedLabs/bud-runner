@@ -38,11 +38,10 @@ def _auth(runner_token="runner-token"):
     )
 
 
-# ==================== the generated test case list ====================
 
 
 def test_written_list_loads_through_the_stock_executor(monkeypatch):
-    """The generated module is what TestExecutor.load_test_list already reads."""
+    """The generated module is what TestExecutor.load_test_list reads."""
     from bud_runner.test_executor import TestExecutor
 
     selection = ["voltage_suite.VoltageTest", "boot_suite.BootTest"]
@@ -58,7 +57,7 @@ def test_written_list_loads_through_the_stock_executor(monkeypatch):
 
 
 def test_each_run_gets_its_own_module():
-    """Two runs must not collide in the import cache."""
+    """Two runs stay apart in the import cache."""
     first = _write_custom_test_list(["a.A"], 1)
     second = _write_custom_test_list(["b.B"], 2)
 
@@ -75,7 +74,6 @@ def test_paths_are_written_as_literals():
     assert compile(body, "bud_custom_3.py", "exec")
 
 
-# ==================== handing the run to run-tests ====================
 
 
 def test_a_custom_run_executes_the_generated_list():
@@ -114,7 +112,6 @@ def test_options_are_passed_through(tmp_path):
     assert run.call_args.kwargs["cwd"] == tmp_path
 
 
-# ==================== the claim itself ====================
 
 
 def test_claim_uses_the_runner_token():
@@ -175,7 +172,6 @@ def test_completion_sends_the_claim_key_and_terminal_answer():
     }
 
 
-# ==================== the command ====================
 
 
 def _invoke(
@@ -275,7 +271,7 @@ def test_a_poller_does_not_exit_when_a_run_fails():
             ["--interval", "5"], claim_return=_claimed(), run_return=1
         )
 
-    assert result.exit_code == 130  # this test's own interrupt: still looping
+    assert result.exit_code == 130
 
     assert client.complete_claimed_run.call_count == 1
     assert run_claimed.call_count == 1
@@ -303,7 +299,7 @@ def test_polling_retries_the_answer_without_running_or_claiming_again():
             complete_side_effect=[requests.ConnectionError("refused"), {}],
         )
 
-    assert result.exit_code == 130  # this test's own interrupt: still looping
+    assert result.exit_code == 130
     assert client.claim_next_run.call_count == 1
     assert client.complete_claimed_run.call_count == 2
     assert run_claimed.call_count == 1

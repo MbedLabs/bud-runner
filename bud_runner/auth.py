@@ -5,25 +5,108 @@ Loads credentials from (in order of priority):
 1. Function arguments (highest priority)
 2. Environment variables
 3. app.properties file (non-sensitive project metadata only)
-4. ~/.bud/config.json runner identity vault (runner secrets only)
+4. ~/.bud/config.json runner identity vault (runner secrets only), or
+   ~/.bud/locations/<name>/config.json for a runner with a location
 """
 
 import configparser
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+_selected_location: Optional[str] = None
+
+
+def select_location(location: Optional[str]) -> Optional[str]:
+    """Choose the location of this process's runner and return the previous choice.
+
+    A chosen location takes precedence over the ``location`` of app.properties for every
+    AuthManager and runner folder of the process; None leaves app.properties in charge.
+    """
+    global _selected_location
+    previous, _selected_location = _selected_location, location
+    return previous
+
+
+def _project_properties_files() -> List[Path]:
+    """The app.properties files of the working directory and its four parents, outermost first."""
+    prop_files = []
+    curr = Path.cwd().resolve()
+    for _ in range(5):
+        pf = curr / "app.properties"
+        if pf.exists():
+            prop_files.append(pf)
+        if curr == curr.parent:
+            break
+        curr = curr.parent
+    return list(reversed(prop_files))
+
+
+def _read_properties(filepath: str) -> configparser.SectionProxy:
+    """The keys and values of a .properties file."""
+    with open(filepath, "r") as f:
+        content = f.read()
+
+    if "[DEFAULT]" not in content:
+        content = "[DEFAULT]\n" + content
+
+    config = configparser.ConfigParser(
+        strict=False, interpolation=None, inline_comment_prefixes=None
+    )
+    config.read_string(content)
+    return config["DEFAULT"]
+
+
+def current_location() -> Optional[str]:
+    """The location chosen with select_location, else the ``location`` of app.properties."""
+    if _selected_location:
+        return _selected_location
+    location = None
+    for pf in _project_properties_files():
+        try:
+            value = _read_properties(str(pf)).get("location")
+        except Exception:
+            continue
+        if value:
+            location = value
+    return location
+
+
+def state_dir(location: Optional[str], root: Optional[Path] = None) -> Path:
+    """The folder holding a runner's identity, daemon, spool and cache.
+
+    ``root`` (default ``~/.bud``) without a location, else ``root/locations/<name>``,
+    where ``<name>`` is the location with every character outside ``[A-Za-z0-9._-]``
+    replaced by ``-``.
+    """
+    base = root if root is not None else Path.home() / ".bud"
+    if not location:
+        return base
+    return base / "locations" / location_folder_name(location)
+
+
+def location_folder_name(location: str) -> str:
+    """The folder name of a location: every character outside ``[A-Za-z0-9._-]`` becomes ``-``."""
+    return re.sub(r"[^A-Za-z0-9._-]", "-", location)
+
 
 class IdentityVault:
     """Manages sensitive runner identities in the user's home directory."""
 
-    def __init__(self):
-        self.vault_dir = Path.home() / ".bud"
+    def __init__(self, vault_dir: Optional[Path] = None, fallback_file: Optional[Path] = None):
+        """Open the vault in ``vault_dir`` (default ``~/.bud``).
+
+        A runner account missing from it is read from ``fallback_file`` when one is given;
+        that file is only read, never written.
+        """
+        self.vault_dir = vault_dir if vault_dir is not None else Path.home() / ".bud"
         self.config_file = self.vault_dir / "config.json"
+        self.fallback_file = fallback_file
         self._ensure_dir()
 
     def _ensure_dir(self):
@@ -32,10 +115,15 @@ class IdentityVault:
             self.save_all({})
 
     def load_all(self) -> Dict[str, Any]:
+        return self._read(self.config_file)
+
+    @staticmethod
+    def _read(config_file: Path) -> Dict[str, Any]:
+        """The identities stored in ``config_file``; empty when it is missing or unreadable."""
         try:
-            if not self.config_file.exists():
+            if not config_file.exists():
                 return {}
-            with open(self.config_file, "r") as f:
+            with open(config_file, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             return {}
@@ -47,7 +135,10 @@ class IdentityVault:
         os.chmod(self.config_file, 0o600)
 
     def get_runner(self, username: str) -> Optional[Dict[str, Any]]:
-        return self.load_all().get(username)
+        identity = self.load_all().get(username)
+        if identity is None and self.fallback_file is not None:
+            identity = self._read(self.fallback_file).get(username)
+        return identity
 
     def save_runner(self, username: str, token: str, port: int, backend: str):
         data = self.load_all()
@@ -96,7 +187,6 @@ class AuthManager:
         properties_file: Optional[str] = None,
         bud_token: Optional[str] = None,
     ):
-        self.vault = IdentityVault()
         self._backend_url = self.DEFAULT_BACKEND_URL
         self._token: Optional[str] = token or bud_token
         self._username: Optional[str] = None
@@ -108,9 +198,20 @@ class AuthManager:
         self._location: Optional[str] = None
 
         self._load_project_properties(properties_file)
+        if _selected_location:
+            self._location = _selected_location
+        self.state_dir = state_dir(self._location)
+        self.vault = IdentityVault(
+            self.state_dir, state_dir(None) / "config.json" if self._location else None
+        )
         self._load_from_env()
         self._apply_arguments(
-            username, token, backend_url, runner_account, runner_token, runner_api_key
+            username,
+            token or bud_token,
+            backend_url,
+            runner_account,
+            runner_token,
+            runner_api_key,
         )
         self._load_vault_identities(backend_url)
 
@@ -119,18 +220,7 @@ class AuthManager:
         if properties_file:
             self._load_from_properties(properties_file)
         else:
-
-            prop_files = []
-            curr = Path.cwd().resolve()
-            for _ in range(5):
-                pf = curr / "app.properties"
-                if pf.exists():
-                    prop_files.append(pf)
-                if curr == curr.parent:
-                    break
-                curr = curr.parent
-
-            for pf in reversed(prop_files):
+            for pf in _project_properties_files():
                 self._load_from_properties(str(pf))
 
     def _apply_arguments(
@@ -177,19 +267,7 @@ class AuthManager:
     def _load_from_properties(self, filepath: str) -> None:
         """Load non-sensitive project metadata from a .properties file."""
         try:
-            with open(filepath, "r") as f:
-                content = f.read()
-
-            # configparser requires a section header
-            if "[DEFAULT]" not in content:
-                content = "[DEFAULT]\n" + content
-
-            # Disable interpolation and inline comments to support complex keys
-            config = configparser.ConfigParser(
-                strict=False, interpolation=None, inline_comment_prefixes=None
-            )
-            config.read_string(content)
-            props = config["DEFAULT"]
+            props = _read_properties(filepath)
 
             for prop_key, attr_name in self.PROJECT_PROPERTY_MAPPING.items():
                 if prop_key in props and props[prop_key]:

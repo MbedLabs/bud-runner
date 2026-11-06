@@ -26,7 +26,6 @@ class LargeResultTest:
         return True
 
     def get_results(self):
-        # Large payload to fill the multiprocessing queue buffer if read order is wrong.
         return [
             {
                 "method_name": "bud_huge",

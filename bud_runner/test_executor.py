@@ -11,6 +11,7 @@ import importlib
 import inspect
 import logging
 import multiprocessing
+import queue
 import sys
 import time
 import traceback
@@ -22,6 +23,31 @@ from typing import Any, Dict, List, Optional, Type
 
 DEFAULT_TEST_TIMEOUT = 300  # seconds per individual test
 DEFAULT_SUITE_TIMEOUT = 1800  # seconds for the full suite (30 min)
+
+
+def _record_setup_class_errors(test_instance: Any) -> List[str]:
+    """Wrap the instance's ``setUpClass``: an error it raises is recorded and re-raised.
+
+    The returned list receives ``"setUpClass failed: <type>: <message>"`` for each error.
+    """
+    errors: List[str] = []
+    original = getattr(test_instance, "setUpClass", None)
+    if not callable(original):
+        return errors
+
+    def setup_class(*args, **kwargs):
+        """Call the original ``setUpClass`` and record the error it raises."""
+        try:
+            return original(*args, **kwargs)
+        except Exception as exc:
+            errors.append(f"setUpClass failed: {type(exc).__name__}: {exc}")
+            raise
+
+    try:
+        test_instance.setUpClass = setup_class
+    except (AttributeError, TypeError):
+        logger.debug("Cannot wrap setUpClass of %s", type(test_instance).__name__)
+    return errors
 
 
 def _worker_run_test(test_class: Type, result_queue: multiprocessing.Queue, verbose: bool = False):
@@ -54,9 +80,14 @@ def _worker_run_test(test_class: Type, result_queue: multiprocessing.Queue, verb
         if hasattr(test_instance, "set_loglevel"):
             test_instance.set_loglevel(logging.DEBUG if verbose else logging.INFO)
 
+        setup_errors = _record_setup_class_errors(test_instance)
+
         # Run the test
         passed = test_instance.run()
         result_dict["passed"] = passed
+        if setup_errors:
+            result_dict["passed"] = False
+            result_dict["error_message"] = setup_errors[0]
 
         # Collect method results
         if hasattr(test_instance, "get_results"):
@@ -305,9 +336,9 @@ class TestExecutor:
             TestRunResult with execution details.
         """
         ctx = multiprocessing.get_context("spawn")
-        queue = ctx.Queue()
+        result_queue = ctx.Queue()
 
-        p = ctx.Process(target=_worker_run_test, args=(test_class, queue, self._verbose))
+        p = ctx.Process(target=_worker_run_test, args=(test_class, result_queue, self._verbose))
         p.start()
 
         # Read from the queue BEFORE joining to avoid deadlock.
@@ -316,9 +347,11 @@ class TestExecutor:
         result_dict = None
         error_msg = None
         try:
-            result_dict = queue.get(timeout=self._test_timeout)
+            result_dict = result_queue.get(timeout=self._test_timeout)
+        except queue.Empty:
+            error_msg = f"Test timed out after {self._test_timeout}s"
         except Exception as e:
-            error_msg = f"Failed to retrieve results: {e}"
+            error_msg = f"Failed to retrieve results: {type(e).__name__}: {e}"
 
         # Wait briefly for clean exit, then escalate
         p.join(timeout=5)

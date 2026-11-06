@@ -7,7 +7,6 @@ from pathlib import Path
 
 pytest_plugins = ["pytester"]
 
-# Ensure bud_runner package and tests.fixtures are importable in spawned workers.
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
