@@ -81,3 +81,17 @@ class CliSignals:
     PORT = 53035
     INTERVAL = 60
     LOGGER = "bud_runner.runner_manager"
+
+
+class ClaimRun:
+    """Set-up of the claim_run suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "claim_run"
+    TEMP_TARGET = "bud_runner.cli.tempfile.gettempdir"
+    SUBPROCESS_TARGET = "bud_runner.cli.subprocess.run"
+    SLEEP_TARGET = "bud_runner.cli.time.sleep"
+    BACKEND_URL = "http://localhost:8000"
+    USER_TOKEN = "user-token"
+    RUNNER_TOKEN = "runner-token"
+    ACCOUNT = "station-01"

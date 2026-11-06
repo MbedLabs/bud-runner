@@ -12,3 +12,12 @@ class CliSignals:
 
     STARTING = "Starting Bud Runner Daemon for: {account}"
     SOCKET_PORT = "Socket Port: {port}"
+
+
+class ClaimRun:
+    """Texts of the claim_run suite."""
+
+    CLAIMED = "Claimed run 7"
+    NOTHING_QUEUED = "Nothing queued"
+    COULD_NOT_CLAIM = "Could not claim a run"
+    REGISTER = "register"

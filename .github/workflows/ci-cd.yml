@@ -107,6 +107,14 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: .venv/bin/python -c "from tests.budtests.cli_signals import CliSignals; raise SystemExit(0 if CliSignals().run() else 1)"
 
+      - name: BudTestCase suite claim_run
+        env:
+          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
+          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
+          PYTHONPATH: ${{ github.workspace }}
+          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
+        run: .venv/bin/python -c "from tests.budtests.claim_run import ClaimRun; raise SystemExit(0 if ClaimRun().run() else 1)"
+
       - name: Run bandit security scan
         run: .venv/bin/bandit -r bud_runner/ -ll
 

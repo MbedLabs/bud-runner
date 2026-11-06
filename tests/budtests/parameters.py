@@ -219,3 +219,39 @@ class CliSignals:
     LOG_MESSAGE = "Heartbeat task started"
     LOG_LINE = 123
     LEVEL = "INFO"
+
+
+class ClaimRun:
+    """Values of the claim_run suite."""
+
+    CLAIM_ID = "11111111-1111-4111-8111-111111111111"
+    RUN_ID = 7
+    RUN_NAME = "Custom run"
+    DEFAULT_LIST = "Suite.CASES"
+    OWN_LIST = "Bud_Suite.HIL"
+    ALPHA = ["suite.Alpha"]
+    SELECTION = ["voltage_suite.VoltageTest", "boot_suite.BootTest"]
+    SELECTION_RUN = 42
+    LIST_NAME = "CUSTOM_TEST_LIST"
+    FIRST_PATH, FIRST_RUN = ["a.A"], 1
+    SECOND_PATH, SECOND_RUN = ["b.B"], 2
+    MODULE = "bud_custom_{run}.py"
+    QUOTED_PATH = "suite.Test'X"
+    QUOTED_RUN = 3
+    CUSTOM_LIST = "bud_custom_7.CUSTOM_TEST_LIST"
+    RUN_TESTS = ["-m", "bud_runner", "run-tests"]
+    PASSTHROUGH = ["--artifact", "*.png"]
+    COMPLETED = {"status": "Completed"}
+    EXECUTOR_ERROR = "executor crashed"
+    WRAPPED_ERROR = "RuntimeError: executor crashed"
+    INTERVAL = ["--interval", "5"]
+    OK = 200
+    EMPTY = 204
+    FORBIDDEN = 403
+    PASSED = 0
+    FAILED = 1
+    CONFIG_ERROR = 2
+    INTERRUPTED = 130
+    ONE = 1
+    TWO = 2
+    NONE = 0
