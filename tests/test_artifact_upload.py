@@ -9,7 +9,11 @@ from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 
 from bud_runner.cli import _discover_artifacts, _upload_artifacts, app
-from tests.test_flatten_results import _FakeAssertion, _FakeMethodResult, _FakeRunResult
+from tests.budtests.doubles import (
+    Assertion as _FakeAssertion,
+    MethodResult as _FakeMethodResult,
+    RunResult as _FakeRunResult,
+)
 
 
 def _uploaded(client):

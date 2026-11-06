@@ -16,7 +16,11 @@ from typer.testing import CliRunner
 
 from bud_runner.api_client import _flatten_results
 from bud_runner.cli import app
-from tests.test_flatten_results import _FakeAssertion, _FakeMethodResult, _FakeRunResult
+from tests.budtests.doubles import (
+    Assertion as _FakeAssertion,
+    MethodResult as _FakeMethodResult,
+    RunResult as _FakeRunResult,
+)
 
 
 def _one_tc_three_methods_all_pass():
