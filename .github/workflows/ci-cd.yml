@@ -78,6 +78,13 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: .venv/bin/python -c "from tests.budtests.packaging_metadata import PackagingMetadata; raise SystemExit(0 if PackagingMetadata().run() else 1)"
 
+      - name: BudTestCase suite flatten_results
+        env:
+          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
+          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
+          PYTHONPATH: ${{ github.workspace }}
+        run: .venv/bin/python -c "from tests.budtests.flatten_results import FlattenResults; raise SystemExit(0 if FlattenResults().run() else 1)"
+
       - name: Run bandit security scan
         run: .venv/bin/bandit -r bud_runner/ -ll
 

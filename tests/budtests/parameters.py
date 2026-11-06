@@ -97,3 +97,35 @@ class PackagingMetadata:
     SELF_HOSTED = "self-hosted CI"
     RELATIVE_LINK = r"\[[^]]+\]\((?!https?://|mailto:|#)[^)]+\)"
     CREATOR = "Creator: {maintainer}"
+
+
+class FlattenResults:
+    """Values of the flatten_results suite."""
+
+    VOLTAGE = "VoltageTest"
+    CELLS = "bud_check_cells"
+    PACK = "bud_check_pack"
+    RUN_ID = 42
+    OK = "ok"
+    TOO_LOW = "too low"
+    CELL_ERROR = "cell 3 out of range"
+    TRACE = "Traceback..."
+    SUMMARY = "Failed: cell 3 out of range"
+    CELL_ASSERTIONS = [{"passed": True, "message": "ok"}, {"passed": False, "message": "too low"}]
+    TWO_ROWS = 2
+    ONE_ROW = 1
+    BROKEN = "BrokenSuite"
+    BROKEN_RUN_ID = 7
+    SETUP_ERROR = "setUpClass raised"
+    PLACEHOLDER = "__class__"
+    SOLO = "bud_solo"
+    UNKNOWN_CLASS = "UnknownTestClass"
+    SMOKE_RUN_ID = 9
+    SMOKE_ROW = {
+        "test_class": "SmokeTest",
+        "test_method": "bud_hello",
+        "passed": True,
+        "duration_seconds": 0.1,
+        "assertions": [{"passed": True, "message": "ok"}],
+    }
+    HELLO = "bud_hello"
