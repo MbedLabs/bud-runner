@@ -345,3 +345,74 @@ class CucumberImporter:
     FAILED = 1
     REFUSED = 2
     ONE = 1
+
+
+class BackendUrl:
+    """Values of the backend_url suite."""
+
+    ACCEPTED = [
+        "http://localhost:8001",
+        "http://127.0.0.1:8001",
+        "http://[::1]:8001",
+        "https://bud.example.com",
+        "http://localhost:8000",
+        "http://LocalHost:8001",
+        "HTTP://127.0.0.1:8001",
+        "http://127.255.255.254",
+        "https://192.168.1.10:8001",
+    ]
+    REFUSED_URLS = [
+        "http://bud.example.com",
+        "http://192.168.1.10:8001",
+        "http://10.0.0.5",
+        "http://BUD.EXAMPLE.COM",
+        "HTTP://bud.example.com",
+        " http://bud.example.com",
+        "http://[fe80::1]:8001",
+        "http://[::ffff:127.0.0.1]:8001",
+        "http://0.0.0.0:8001",
+        "http://localhost.example.com",
+        "http://127.0.0.1.example.com",
+        "http://[::1",
+        "http://",
+    ]
+    COMMANDS = [
+        ["add-test-run", "-t", "Suite.CASES", "-n", "Nightly", "--bud-token", "user-token"],
+        ["run-tests", "-t", "Suite.CASES", "--format", "text"],
+        ["claim-run"],
+        ["register", "--username", "station-01", "--api-key", "enrolment-key", "--no-start"],
+        ["daemon", "--username", "station-01"],
+        ["run-robot", "tests/"],
+        ["run-pytest", "tests/"],
+        ["run-behave", "features/"],
+        ["import-cucumber", "--report", "{report}"],
+    ]
+    OPT_IN_URLS = ["http://bud.example.com", "http://192.168.1.10:8001", "http://bud:8000"]
+    OTHER_VALUES = ["0", "true", "yes", "false", "2", ""]
+    UNREADABLE = ["http://", "http://[::1"]
+    NOT_WEAKENED = ["https://bud.example.com", "http://localhost:8000"]
+    SECRET_URL = "http://user:password@bud.example.com?token=private"
+    SECRETS = ("password", "private")
+    PREVIOUS = [None, "0", "1"]
+    BUNDLE = "lab-ca.pem"
+    PYTEST_FILE = "test_one.py"
+    PYTEST_BODY = "def test_one():\n    assert 1 == 1\n"
+    PID = 12345
+    REGISTER = [
+        "--allow-http",
+        "register",
+        "--username",
+        "station-01",
+        "--password",
+        "test-password",
+        "--api-key",
+        "enrolment-key",
+        "--backend-url",
+        "http://bud.example.com",
+    ]
+    ON = "1"
+    OK = 0
+    REFUSED_EXIT = 2
+    ONE = 1
+    TWO = 2
+    NONE = 0

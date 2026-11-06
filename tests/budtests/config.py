@@ -110,3 +110,31 @@ class CucumberImporter:
     STATION = "station-1"
     PRODUCT_ID = 12
     UPLOADED_RUN = 42
+
+
+class BackendUrl:
+    """Set-up of the backend_url suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "backend_url"
+    REFUSED = "http://bud.example.com"
+    HTTPS = "https://bud.example.com"
+    LOOPBACK = "http://127.0.0.1:8001"
+    DEFAULT = "http://localhost:8000"
+    CUCUMBER_REPORT = Path(__file__).resolve().parents[1] / "fixtures" / "cucumber" / "cucumber-js.json"
+    BUD_SETTINGS = (
+        "BUD_BACKEND_URL",
+        "BUD_TOKEN",
+        "BUD_USERNAME",
+        "BUD_RUNNER_ACCOUNT",
+        "BUD_RUNNER_TOKEN",
+        "BUD_RUNNER_API_KEY",
+        "RUNNER_API_KEY",
+        "BUD_ALLOW_HTTP",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+    )
+    ALLOW = "BUD_ALLOW_HTTP"
+    CA_BUNDLE = "REQUESTS_CA_BUNDLE"
+    TOKEN = "station-session"
+    ACCOUNT = "station-01"

@@ -59,3 +59,19 @@ class CucumberImporter:
     EMPTY_SUMMARY = "0 features, 0 scenarios"
     NO_BACKEND = "No backend URL configured"
     BACKEND_DOWN = "backend down"
+
+
+class BackendUrl:
+    """Texts of the backend_url suite."""
+
+    REFUSING = "Refusing plain HTTP to {url}"
+    HTTPS_HINT = "https://"
+    BACKEND_LINE = "Backend URL: {url}"
+    HEALTH_REFUSED = "Backend Health: ✗ error: Refusing plain HTTP to {url}"
+    HEALTH_OK = "Backend Health: ✓ OK"
+    PYTEST_REFUSAL = "Could not report the pytest run to Bud: Refusing plain HTTP to {url}"
+    ROBOT_REFUSAL = "Could not report the Robot run to Bud: Refusing plain HTTP to {url}"
+    UNENCRYPTED = "Unencrypted HTTP"
+    CREDENTIALS = "credentials"
+    COMMAND_FAILED = "command failed"
+    CERTIFICATE = "certificate hostname mismatch"
