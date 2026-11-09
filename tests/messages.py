@@ -27,7 +27,10 @@ class CucumberImporter:
     """Texts of the cucumber_importer suite."""
 
     RUNNER_MESSAGES = [
-        ("cucumber-js.json", "AssertionError [ERR_ASSERTION]\n    + expected - actual\n\n    -2\n    +3"),
+        (
+            "cucumber-js.json",
+            "AssertionError [ERR_ASSERTION]\n    + expected - actual\n\n    -2\n    +3",
+        ),
         ("cucumber-jvm.json", "java.lang.AssertionError: expected 3"),
         ("cucumber-ruby.json", "expected 3 (RuntimeError)"),
     ]
@@ -43,11 +46,23 @@ class CucumberImporter:
         ("{not json", "not valid JSON"),
         ('{"name": "x"}', "a Cucumber JSON report is a list of features"),
         ('[{"name": "x"}]', "feature 1 has no list of elements"),
-        ('[{"name": "x", "elements": [{"steps": 3}]}]', "feature 1 has an element whose steps are not a list"),
+        (
+            '[{"name": "x", "elements": [{"steps": 3}]}]',
+            "feature 1 has an element whose steps are not a list",
+        ),
         ('[{"name": "x", "elements": [3]}]', "feature 1 has an element that is not an object"),
-        ('[{"name": "x", "elements": [{"steps": [3]}]}]', "feature 1 has steps that are not objects"),
-        ('[{"name": "x", "elements": [{"steps": [{"name": "a", "result": "passed"}]}]}]', "a steps entry whose result"),
-        ('[{"name": "x", "elements": [{"before": {"result": {}}}]}]', "whose before are not a list"),
+        (
+            '[{"name": "x", "elements": [{"steps": [3]}]}]',
+            "feature 1 has steps that are not objects",
+        ),
+        (
+            '[{"name": "x", "elements": [{"steps": [{"name": "a", "result": "passed"}]}]}]',
+            "a steps entry whose result",
+        ),
+        (
+            '[{"name": "x", "elements": [{"before": {"result": {}}}]}]',
+            "whose before are not a list",
+        ),
         ('[{"name": "x", "tags": "@a", "elements": []}]', "feature 1 has tags that are not a list"),
     ]
     NOT_UTF8 = "not UTF-8 text"

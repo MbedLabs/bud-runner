@@ -41,119 +41,78 @@ jobs:
           ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
         run: .venv/bin/python -m pytest tests/ -v
 
-      - name: BudTestCase suite station_naming
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-        run: .venv/bin/python -c "from tests.budtests.station_naming import StationNaming; raise SystemExit(0 if StationNaming().run() else 1)"
+      - name: Write the BudTestCase folder runner
+        run: |
+          echo "BUDTESTCASE_RUNNER=$RUNNER_TEMP/run_budtestcases.py" >> "$GITHUB_ENV"
+          cat > "$RUNNER_TEMP/run_budtestcases.py" <<'PY'
+          """Run every BudTestCase suite of one test folder in one process and fail when any suite fails."""
 
-      - name: BudTestCase suite reporting
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-        run: .venv/bin/python -c "from tests.budtests.reporting import Reporting; raise SystemExit(0 if Reporting().run() else 1)"
+          import importlib
+          import inspect
+          import pathlib
+          import sys
+          import traceback
 
-      - name: BudTestCase suite api_client
+          from budtestlibrary.budtestcase import BudTestCase
+
+
+          def suites_of(name):
+              """The BudTestCase classes the module itself defines."""
+              module = importlib.import_module(name)
+              return [
+                  member
+                  for _, member in inspect.getmembers(module, inspect.isclass)
+                  if member.__module__ == name and issubclass(member, BudTestCase)
+              ]
+
+
+          def main(folder, prefix):
+              """Run each suite of the folder, print the failed ones, and return the exit code."""
+              failed = []
+              ran = []
+              for path in sorted(folder.glob(f"{prefix}*.py")):
+                  name = ".".join(path.with_suffix("").parts)
+                  try:
+                      suites = suites_of(name)
+                  except Exception:
+                      traceback.print_exc()
+                      failed.append(f"{name} (import)")
+                      continue
+                  if len(suites) != 1:
+                      failed.append(f"{name} (defines {len(suites)} suites, expected 1)")
+                      continue
+                  ran.append(f"{name}.{suites[0].__name__}")
+                  try:
+                      passed = suites[0]().run()
+                  except Exception:
+                      traceback.print_exc()
+                      passed = False
+                  if not passed:
+                      failed.append(ran[-1])
+              print(f"{len(ran)} BudTestCase suite(s) ran in {folder}, {len(failed)} failed")
+              for item in failed:
+                  print(f"FAILED {item}")
+              return 1 if failed or not ran else 0
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main(pathlib.Path(sys.argv[1]), sys.argv[2]))
+          PY
+      - name: BudTestCase suites in tests/api
         env:
           PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
           ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
           PYTHONPATH: ${{ github.workspace }}
           BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
-        run: .venv/bin/python -c "from tests.budtests.api_client import ApiClient; raise SystemExit(0 if ApiClient().run() else 1)"
+        run: .venv/bin/python "$BUDTESTCASE_RUNNER" tests/api "[a-z]"
 
-      - name: BudTestCase suite verbose
+      - name: BudTestCase suites in tests/logic
         env:
           PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
           ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
           PYTHONPATH: ${{ github.workspace }}
           BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
-        run: .venv/bin/python -c "from tests.budtests.verbose import Verbose; raise SystemExit(0 if Verbose().run() else 1)"
-
-      - name: BudTestCase suite packaging_metadata
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-        run: .venv/bin/python -c "from tests.budtests.packaging_metadata import PackagingMetadata; raise SystemExit(0 if PackagingMetadata().run() else 1)"
-
-      - name: BudTestCase suite flatten_results
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-        run: .venv/bin/python -c "from tests.budtests.flatten_results import FlattenResults; raise SystemExit(0 if FlattenResults().run() else 1)"
-
-      - name: BudTestCase suite executor
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-        run: .venv/bin/python -c "from tests.budtests.executor import Executor; raise SystemExit(0 if Executor().run() else 1)"
-
-      - name: BudTestCase suite auth
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
-        run: .venv/bin/python -c "from tests.budtests.auth import Auth; raise SystemExit(0 if Auth().run() else 1)"
-
-      - name: BudTestCase suite cli_signals
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-        run: .venv/bin/python -c "from tests.budtests.cli_signals import CliSignals; raise SystemExit(0 if CliSignals().run() else 1)"
-
-      - name: BudTestCase suite claim_run
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
-        run: .venv/bin/python -c "from tests.budtests.claim_run import ClaimRun; raise SystemExit(0 if ClaimRun().run() else 1)"
-
-      - name: BudTestCase suite cucumber_importer
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
-        run: .venv/bin/python -c "from tests.budtests.cucumber_importer import CucumberImporter; raise SystemExit(0 if CucumberImporter().run() else 1)"
-
-      - name: BudTestCase suite backend_url
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
-        run: .venv/bin/python -c "from tests.budtests.backend_url import BackendUrl; raise SystemExit(0 if BackendUrl().run() else 1)"
-
-      - name: BudTestCase suite auth_and_status
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
-        run: .venv/bin/python -c "from tests.budtests.auth_and_status import AuthAndStatus; raise SystemExit(0 if AuthAndStatus().run() else 1)"
-
-      - name: BudTestCase suite behave_formatter
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
-        run: .venv/bin/python -c "from tests.budtests.behave_formatter import BehaveFormatter; raise SystemExit(0 if BehaveFormatter().run() else 1)"
-
-      - name: BudTestCase suite run_tests_upload
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-          PYTHONPATH: ${{ github.workspace }}
-          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
-        run: .venv/bin/python -c "from tests.budtests.run_tests_upload import RunTestsUpload; raise SystemExit(0 if RunTestsUpload().run() else 1)"
+        run: .venv/bin/python "$BUDTESTCASE_RUNNER" tests/logic "[a-z]"
 
       - name: Run bandit security scan
         run: .venv/bin/bandit -r bud_runner/ -ll

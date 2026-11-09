@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 
 from bud_runner.cli import _discover_artifacts, _upload_artifacts, app
-from tests.budtests.doubles import (
+from tests.doubles import (
     Assertion as _FakeAssertion,
     MethodResult as _FakeMethodResult,
     RunResult as _FakeRunResult,
@@ -159,8 +159,6 @@ def test_a_failed_artifact_does_not_fail_the_run(tmp_path):
 
     assert result.exit_code == 0
     assert "Could not upload" in result.output
-
-
 
 
 def test_discovers_logs_beside_the_run(tmp_path, monkeypatch):
@@ -462,7 +460,7 @@ def test_display_names_and_the_step_list():
     assert _display_name("", Path("/data/notes")) == "notes"
     long = _display_name("x" * 300, pcap)
     assert len(long) == 255
-    assert long.endswith('.pcap')
+    assert long.endswith(".pcap")
     steps = _step_artifacts(
         _step_results(
             (

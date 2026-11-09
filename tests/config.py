@@ -36,7 +36,7 @@ class Verbose:
 class PackagingMetadata:
     """Set-up of the packaging_metadata suite."""
 
-    ROOT = Path(__file__).resolve().parents[2]
+    ROOT = Path(__file__).resolve().parents[1]
     ORG_SETTING = "PACKAGE_ORG"
     MAINTAINER_SETTING = "ORG_MAINTAINER"
 
@@ -100,7 +100,7 @@ class ClaimRun:
 class CucumberImporter:
     """Set-up of the cucumber_importer suite."""
 
-    FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "cucumber"
+    FIXTURES = Path(__file__).resolve().parent / "fixtures" / "cucumber"
     RUNNERS = ("cucumber-js.json", "cucumber-jvm.json", "cucumber-ruby.json")
     JS, JVM, RUBY = RUNNERS
     EDGES = "cucumber-js-edges.json"
@@ -121,7 +121,7 @@ class BackendUrl:
     HTTPS = "https://bud.example.com"
     LOOPBACK = "http://127.0.0.1:8001"
     DEFAULT = "http://localhost:8000"
-    CUCUMBER_REPORT = Path(__file__).resolve().parents[1] / "fixtures" / "cucumber" / "cucumber-js.json"
+    CUCUMBER_REPORT = Path(__file__).resolve().parent / "fixtures" / "cucumber" / "cucumber-js.json"
     BUD_SETTINGS = (
         "BUD_BACKEND_URL",
         "BUD_TOKEN",
@@ -160,7 +160,7 @@ class BehaveFormatter:
 
     WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
     FOLDER = "behave_formatter"
-    CAPTURE = "tests.budtests.behave_formatter:Capture"
+    CAPTURE = "tests.logic.behave_formatter:Capture"
     BUD_FORMATTER = "bud_runner.behave_formatter:BudFormatter"
     BACKEND = "https://bud.example"
     STATION = "station-1"

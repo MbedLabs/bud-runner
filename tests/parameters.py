@@ -161,7 +161,9 @@ class Executor:
 class Auth:
     """Values of the auth suite."""
 
-    RUNNER_VAULT = '{"ci-runner": {"token": "vault-token", "port": 53035, "backend": "https://vault-backend"}}'
+    RUNNER_VAULT = (
+        '{"ci-runner": {"token": "vault-token", "port": 53035, "backend": "https://vault-backend"}}'
+    )
     STRAY_PROPERTIES = (
         "budRunnerAccount=ci-runner\nbudBackend=https://project-backend\nbudRunnerToken=project-token\n"
         "runnerApiKey=project-api-key\nbudToken=project-user-token"
@@ -175,7 +177,11 @@ class Auth:
     VAULT_BACKEND = "https://vault-backend"
     VAULT_TOKEN = "vault-token"
     USER_TOKEN = "user-token"
-    ENV = {"BUD_BACKEND_URL": "https://env-backend", "BUD_RUNNER_ACCOUNT": "env-runner", "BUD_RUNNER_TOKEN": "env-token"}
+    ENV = {
+        "BUD_BACKEND_URL": "https://env-backend",
+        "BUD_RUNNER_ACCOUNT": "env-runner",
+        "BUD_RUNNER_TOKEN": "env-token",
+    }
     ENV_BACKEND = "https://env-backend"
     ENV_RUNNER = "env-runner"
     ENV_TOKEN = "env-token"
@@ -198,7 +204,13 @@ class Auth:
         "productId=42",
         "lastUser=last-user",
     ]
-    UNSAVED = ["runnerSocketPort", "budRunnerToken", "runnerApiKey", "secret-token", "secret-api-key"]
+    UNSAVED = [
+        "runnerSocketPort",
+        "budRunnerToken",
+        "runnerApiKey",
+        "secret-token",
+        "secret-api-key",
+    ]
     BAD_PROPERTIES = "budBackend=https://bud.example"
     BAD_ERROR = "bad properties"
     LOAD_WARNING = "Error loading properties"
@@ -299,13 +311,20 @@ class CucumberImporter:
     AMBIGUOUS = "Ambiguous step"
     AFTER = "After hook fails"
     AFTER_STEPS = [("a bench", True), ("HookError", False)]
-    SKIPPED_SCENARIOS = [("Skips itself", "Skipped by the runner"), ("Nothing in it", "Scenario has no steps")]
+    SKIPPED_SCENARIOS = [
+        ("Skips itself", "Skipped by the runner"),
+        ("Nothing in it", "Scenario has no steps"),
+    ]
     SAME_NAMES = ["Same name (line 33)", "Same name (line 34)"]
     GERMAN = "Wert prüfen"
     GERMAN_FEATURE = "Prüfstand"
     EDGES_COUNTS = {"features": 2, "scenarios": 9, "passed": 5, "failed": 2, "skipped": 2}
-    HOOK_ONLY = [{"keyword": "Before", "hidden": True, "result": {"status": "passed", "duration": 1}}]
-    UNDEFINED_STEPS = [{"keyword": "When ", "name": "a", "line": 3, "result": {"status": "undefined"}}]
+    HOOK_ONLY = [
+        {"keyword": "Before", "hidden": True, "result": {"status": "passed", "duration": 1}}
+    ]
+    UNDEFINED_STEPS = [
+        {"keyword": "When ", "name": "a", "line": 3, "result": {"status": "undefined"}}
+    ]
     FAILED_AFTER = [{"result": {"status": "failed", "error_message": "Error: after broke"}}]
     PAYLOAD_OPTIONS = {"test_run_id": 7, "product_id": 4, "ref_sw_under_test": "v2.4.1"}
     PAYLOAD_EXPECTED = {
@@ -325,14 +344,20 @@ class CucumberImporter:
     NO_URI_FILE = "nightly.json"
     NO_URI_SUITE = "nightly"
     FEATURE_PATHS = [
-        ("file:src/test/resources/features/bench.feature", "src/test/resources/features/bench.feature"),
+        (
+            "file:src/test/resources/features/bench.feature",
+            "src/test/resources/features/bench.feature",
+        ),
         ("features/bench.feature", "features/bench.feature"),
         (None, None),
         ("classpath:com/acme/bench.feature", "com/acme/bench.feature"),
     ]
     ERROR_TEXTS = [
         ("Error: bad\n    at World.<anonymous> (features/steps.js:5:37)", "Error: bad"),
-        ("java.lang.AssertionError: x\n\tat probe.Steps.valueIs(Steps.java:12)", "java.lang.AssertionError: x"),
+        (
+            "java.lang.AssertionError: x\n\tat probe.Steps.valueIs(Steps.java:12)",
+            "java.lang.AssertionError: x",
+        ),
         ("x (RuntimeError)\n./features/steps.rb:5:in `block'", "x (RuntimeError)"),
     ]
     JVM_LOCATION = "src/test/resources/features/bench.feature:7"
@@ -495,7 +520,7 @@ class BehaveFormatter:
       | 1 |
       | 2 |
 """
-    STEPS = '''
+    STEPS = """
 from behave import given, when, then
 
 
@@ -522,14 +547,14 @@ def value_is(context, v):
 @then("the value is below {v:d}")
 def below(context, v):
     assert context.v < v
-'''
-    ENVIRONMENT = '''
+"""
+    ENVIRONMENT = """
 def before_scenario(context, scenario):
     if "skipme" in scenario.tags:
         scenario.skip("not on this bench")
     if "hookfail" in scenario.tags:
         raise RuntimeError("hook broke")
-'''
+"""
     SECOND_FEATURE = """@bloom:PRJ-003
 Feature: Bench clock
   Scenario: Clock runs
@@ -562,7 +587,11 @@ Feature: Bench clock
     OUTLINE = "Outline 2 -- @1.2"
     OUTLINE_STEPS = ["a bench", "I measure 2", "the value is 2"]
     WRONG = "Wrong value"
-    WRONG_STEPS = [("a bench", True, True, False), ("I measure 2", True, True, False), ("the value is 3", False, False, False)]
+    WRONG_STEPS = [
+        ("a bench", True, True, False),
+        ("I measure 2", True, True, False),
+        ("the value is 3", False, False, False),
+    ]
     RAISES = "Step raises"
     BREAK_STEP = ("I break", False, True, False)
     MISSING = "Missing step"
@@ -572,7 +601,14 @@ Feature: Bench clock
     SKIP_STEPS = [("Skip", True, False, True)]
     HOOK = "Hook fails"
     HOOK_STEPS = [("HookError", False)]
-    PAYLOAD_OPTIONS = ["-D", "bud_test_run_id=7", "-D", "bud_product_id=4", "-D", "bud_ref_sw_under_test=v2.4.1"]
+    PAYLOAD_OPTIONS = [
+        "-D",
+        "bud_test_run_id=7",
+        "-D",
+        "bud_product_id=4",
+        "-D",
+        "bud_ref_sw_under_test=v2.4.1",
+    ]
     PAYLOAD_EXPECTED = {
         "test_run_id": 7,
         "product_id": 4,
@@ -592,7 +628,16 @@ Feature: Bench clock
     BACKEND_OPTION = ["-D", "bud_backend_url=https://bud.example"]
     RUN_ID_OPTION = ["-D", "bud_test_run_id=7"]
     RUN_ID = 7
-    RUN_BEHAVE = ["run-behave", "--no-upload", "--test-run-id", "5", "--suite-name", "Bench", "features/", "--tags=@smoke"]
+    RUN_BEHAVE = [
+        "run-behave",
+        "--no-upload",
+        "--test-run-id",
+        "5",
+        "--suite-name",
+        "Bench",
+        "features/",
+        "--tags=@smoke",
+    ]
     PASSED_ON = ["bud_test_run_id=5", "bud_suite_name=Bench", "bud_upload=false"]
     BEHAVE_TAIL = ["features/", "--tags=@smoke"]
     PROGRESS = ["run-behave", "--no-upload", "-f", "progress", "features/"]
@@ -634,8 +679,16 @@ class RunTestsUpload:
         "--ref-sw-under-test",
         "fw-abc123",
     ]
-    TEST_SOFTWARE = {"url_test_software": "https://github.com/example/repo", "ref_test_software": "abc123"}
-    TEST_SOFTWARE_OPTIONS = ["--url-test-software", "https://github.com/example/repo", "--ref-test-software", "abc123"]
+    TEST_SOFTWARE = {
+        "url_test_software": "https://github.com/example/repo",
+        "ref_test_software": "abc123",
+    }
+    TEST_SOFTWARE_OPTIONS = [
+        "--url-test-software",
+        "https://github.com/example/repo",
+        "--ref-test-software",
+        "abc123",
+    ]
     PENDING = '{"results":[{"test_class":"PendingTest","test_method":"bud_pending"}]}'
     PENDING_CLASS = "PendingTest"
     UNAVAILABLE = 503
