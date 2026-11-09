@@ -35,12 +35,6 @@ jobs:
       - name: Install package with dev deps
         run: uv sync --frozen --no-build --no-build-isolation --no-binary-package bud-runner --extra dev --group build --group ci
 
-      - name: Run pytest
-        env:
-          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
-          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-        run: .venv/bin/python -m pytest tests/ -v
-
       - name: Write the BudTestCase folder runner
         run: |
           echo "BUDTESTCASE_RUNNER=$RUNNER_TEMP/run_budtestcases.py" >> "$GITHUB_ENV"

@@ -928,3 +928,228 @@ Fails in the body and the teardown
     FLUSHED = ["client"]
     OK = 0
     USAGE_ERROR = 2
+
+
+class PytestPlugin:
+    """Values of the pytest_plugin suite."""
+
+    SUITE = """
+import pytest
+
+
+@pytest.mark.bloom("PRJ-TC-001")
+def test_measures(bud_assert):
+    measured = 3
+    assert measured == 3
+    assert "b" in "abc", "contains b"
+    assert measured
+    assert measured != 4
+    assert measured < 5
+    assert measured > 1
+    assert "z" not in "abc"
+    bud_assert.assertEqual(measured, 3)
+    bud_assert.assertIn("b", "abc")
+    bud_assert.assertInRange(measured, 1, 5)
+
+
+def test_fails_a_check():
+    values = [1, 2]
+    assert values == [1, 3]
+
+
+def test_soft_failure_goes_on(bud_assert):
+    bud_assert.assertEqual(1, 2, "first")
+    bud_assert.assertTrue(True, "after")
+
+
+def test_abort_on_fail_stops(bud_assert):
+    bud_assert.assertEqual(1, 2, "stop", abort_on_fail=True)
+    bud_assert.assertTrue(True, "never")
+
+
+def test_raises():
+    raise ValueError("bad value")
+
+
+def test_skipped(bud_assert):
+    bud_assert.skipAssert("not measured here")
+    pytest.skip("not on this bench")
+
+
+@pytest.mark.xfail(reason="known issue")
+def test_expected_failure():
+    assert False
+
+
+class TestGroup:
+    @pytest.mark.bloom("PRJ-002")
+    def test_method(self):
+        assert 2 > 1
+
+
+@pytest.fixture
+def broken():
+    raise RuntimeError("fixture broke")
+
+
+def test_setup_error(broken):
+    pass
+
+
+def test_values(bud_assert):
+    name = "abc"
+    count = 0
+    items = [1, 2]
+    assert name
+    bud_assert.assertTrue(name)
+    assert items
+    bud_assert.assertTrue(items)
+    assert not count
+    bud_assert.assertTrue(not count)
+    assert count <= 1
+    bud_assert.assertTrue(count <= 1)
+
+
+def test_value_fails():
+    empty = ""
+    assert empty
+
+
+@pytest.fixture
+def checked_after(bud_assert):
+    yield
+    bud_assert.assertEqual(1, 2, "after")
+
+
+def test_teardown_check(checked_after):
+    pass
+
+
+@pytest.mark.xfail(reason="soft check expected to fail")
+def test_expected_soft_failure(bud_assert):
+    bud_assert.assertEqual(1, 2, "soft")
+
+
+@pytest.mark.xfail(reason="strict soft check", strict=True)
+def test_expected_strict_soft_failure(bud_assert):
+    bud_assert.assertEqual(1, 2, "strict soft")
+
+
+@pytest.mark.xfail(reason="aborted check expected to fail", strict=True)
+def test_expected_abort(bud_assert):
+    bud_assert.assertEqual(1, 2, "abort", abort_on_fail=True)
+"""
+    ONE_TEST = "def test_one():\n    assert 1 == 1\n"
+    NO_UPLOAD = "--bud-no-upload"
+    RESULTS = 15
+    MEASURED_CLASS = "test_bench.py::test_measures"
+    TC_ID = "PRJ-TC-001"
+    PASSED = "passed"
+    BLOOM_MARKER = "bloom"
+    MEASURED_TYPES = [
+        "AssertEqual",
+        "AssertIn",
+        "AssertTrue",
+        "AssertNotEqual",
+        "AssertLess",
+        "AssertGreater",
+        "AssertNotIn",
+        "AssertEqual",
+        "AssertIn",
+        "AssertInRange",
+    ]
+    GROUPED_CLASS = "test_bench.py::TestGroup::test_method"
+    GROUPED_TC_ID = "PRJ-TC-002"
+    CORE_KEYS = ("passed", "skipped", "assertion_type", "expected", "actual", "result")
+    PLAIN_EQUAL = {
+        "passed": True,
+        "skipped": False,
+        "assertion_type": "AssertEqual",
+        "expected": "3",
+        "actual": "3",
+        "result": "3",
+    }
+    PLAIN_IN = ("'b' in container", "abc", "contains b")
+    PLAIN_TRUE = ("True", "3")
+    SOURCE_FILE = "test_bench.py"
+    SOURCE_LINE = 7
+    SOURCE_FUNCTION = "test_measures"
+    PLAIN_CONTEXT = "assert measured == 3"
+    FIXTURE_CONTEXT = "bud_assert.assertEqual(measured, 3)"
+    LESS = ("< 5", "3")
+    GREATER = ("> 1", "3")
+    NOT_IN = "'z' NOT in container"
+    VALUE_PAIRS = 4
+    VALUES = ["abc", "[1, 2]", "True", "True"]
+    VALUE_FAILS = ("AssertTrue", False, "True", "")
+    FAILED_OUTCOME = "failed"
+    FAILED_VALUES = ("[1, 3]", "[1, 2]")
+    FAILED_MESSAGE_START = "assert [1, 2] == [1, 3]"
+    FAILED_CONTEXT = "assert values == [1, 3]"
+    SOFT_ENTRIES = [("AssertEqual", False), ("AssertTrue", True)]
+    SOFT_ERROR = "[AssertEqual] EXPECTED: 2 | ACTUAL: 1 | MESSAGE: first"
+    ABORT_ENTRIES = [("AssertEqual", False)]
+    ABORT_ERROR = "[AssertEqual] EXPECTED: 2 | ACTUAL: 1 | MESSAGE: stop"
+    ERROR_OUTCOME = "error"
+    AFTER_ERROR = "[AssertEqual] EXPECTED: 2 | ACTUAL: 1 | MESSAGE: after"
+    XFAIL_TESTS = (
+        "test_expected_soft_failure",
+        "test_expected_strict_soft_failure",
+        "test_expected_abort",
+    )
+    XFAILED = "xfailed"
+    FIRST_XFAIL_ENTRY = ("AssertEqual", False)
+    STRICT_REASON = "strict soft check"
+    OUTCOMES = {"passed": 4, "skipped": 5, "failed": 7}
+    RAISED = ("ValueError", False, "bad value")
+    RAISED_FUNCTION = "test_raises"
+    BAD_VALUE = "bad value"
+    SKIPPED_OUTCOME = "skipped"
+    SKIP_REASON = "not on this bench"
+    SKIP_ENTRIES = [("Skip", True, "not measured here"), ("Skip", True, "not on this bench")]
+    XFAIL_ENTRIES = ["Skip"]
+    SETUP_TYPE = "RuntimeError"
+    SETUP_METADATA = {"phase": "setup"}
+    SETUP_ERROR = "fixture broke"
+    SKIPPED = 5
+    PAYLOAD_OPTIONS = [
+        "--bud-test-run-id=7",
+        "--bud-product-id=4",
+        "--bud-ref-sw-under-test=v2.4.1",
+    ]
+    PAYLOAD_RUN = 7
+    PAYLOAD_PRODUCT = 4
+    STATION_RUN = 12
+    SOFTWARE_UNDER_TEST = "v2.4.1"
+    SUITE_NAME_OPTION = "--bud-suite-name=Bench"
+    SUITE_NAME = "Bench"
+    BACKEND_OPTION = "--bud-backend-url=https://bud.example"
+    SPOOL_OPTION = "--bud-test-run-id=7"
+    COMPARISONS = [
+        (("==", 1, 2), ("AssertEqual", 2, 1)),
+        (("!=", 1, 2), ("AssertNotEqual", "!= 2", 1)),
+        (("in", "a", "abc"), ("AssertIn", "'a' in container", "abc")),
+        (("not in", "a", "abc"), ("AssertNotIn", "'a' NOT in container", "abc")),
+        (("<", 1, 2), ("AssertLess", "< 2", 1)),
+        ((">", 1, 2), ("AssertGreater", "> 2", 1)),
+    ]
+    COMMAND_ARGS = [
+        "run-pytest",
+        "--no-upload",
+        "--test-run-id",
+        "5",
+        "--suite-name",
+        "Bench",
+        "tests/",
+        "-k",
+        "smoke",
+    ]
+    COMMAND_EXIT = 1
+    COMMAND_SETTINGS = ["--bud-test-run-id=5", "--bud-suite-name=Bench", "--bud-no-upload"]
+    COMMAND_TAIL = ["tests/", "-k", "smoke"]
+    PYCACHE = (".bud", "pycache")
+    SPOOL_ARGS = ["run-pytest", "--backend-url", "https://bud.example", "tests/"]
+    NO_BACKEND_ARGS = ["run-pytest", "tests/"]
+    FLUSHED = ["client"]
+    OK = 0
+    USAGE_ERROR = 2

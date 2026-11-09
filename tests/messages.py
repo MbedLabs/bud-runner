@@ -161,3 +161,13 @@ class RobotListener:
     NO_VAULT = "no vault"
     BACKEND_DOWN = "backend down"
     NO_BACKEND = "No backend URL"
+
+
+class PytestPlugin:
+    """Texts of the pytest_plugin suite."""
+
+    UPLOADED = "pytest results uploaded to Bud run 42"
+    BACKEND_DOWN = "backend down"
+    NO_CREDENTIALS = "no credentials"
+    COULD_NOT_REPORT = "Could not report the pytest run to Bud: no credentials"
+    HOOK_OFF = "enable_assertion_pass_hook is off"

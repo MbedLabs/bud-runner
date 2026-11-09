@@ -205,3 +205,16 @@ class RobotListener:
     UPLOADED_RUN = 42
     SPOOL_FILE = "spool.json"
     LISTENER_CLASS = "bud_runner.robot_listener.BudListener;"
+
+
+class PytestPlugin:
+    """Set-up of the pytest_plugin suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "pytest_plugin"
+    PLUGIN = ("-p", "bud_runner.pytest_plugin", "-o", "enable_assertion_pass_hook=true")
+    BENCH = "test_bench"
+    STATION = "station-1"
+    PRODUCT_ID = 12
+    UPLOADED_RUN = 42
+    SPOOL_FILE = "spool.json"
