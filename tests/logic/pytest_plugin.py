@@ -148,7 +148,7 @@ class PytestPlugin(BudTestCase):
         station = SimpleNamespace(runner_account=config.STATION, product_id=config.PRODUCT_ID)
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(api_client, "BudAPIClient", client))
-            stack.enter_context(patch.object(auth, "AuthManager", lambda backend_url=None: station))
+            stack.enter_context(patch.object(auth, "AuthManager", return_value=station))
             stack.enter_context(
                 patch.object(
                     cli,
@@ -514,7 +514,7 @@ class PytestPlugin(BudTestCase):
         """run-pytest replays the spool before running, and stops without a backend URL."""
         flushed: list = []
         with contextlib.ExitStack() as stack:
-            stack.enter_context(patch.object(pytest, "main", lambda args: parameters.OK))
+            stack.enter_context(patch.object(pytest, "main", return_value=parameters.OK))
             stack.enter_context(
                 patch.object(
                     cli,
@@ -523,7 +523,7 @@ class PytestPlugin(BudTestCase):
                 )
             )
             stack.enter_context(
-                patch.object(cli, "BudAPIClient", lambda manager: parameters.FLUSHED[0])
+                patch.object(cli, "BudAPIClient", return_value=parameters.FLUSHED[0])
             )
             stack.enter_context(
                 patch.object(cli, "_flush_spooled_results", lambda *args: flushed.append(args[0]))
@@ -532,9 +532,7 @@ class PytestPlugin(BudTestCase):
             self.assertEqual(result.exit_code, parameters.OK, "run-pytest exits 0")
             self.assertEqual(flushed, parameters.FLUSHED, "the spool is replayed first")
             stack.enter_context(
-                patch.object(
-                    cli, "AuthManager", lambda backend_url=None: SimpleNamespace(backend_url=None)
-                )
+                patch.object(cli, "AuthManager", return_value=SimpleNamespace(backend_url=None))
             )
             result = CliRunner().invoke(cli.app, parameters.NO_BACKEND_ARGS)
         self.assertEqual(result.exit_code, parameters.USAGE_ERROR, "without a backend it exits 2")

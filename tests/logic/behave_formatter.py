@@ -101,7 +101,7 @@ class BehaveFormatter(BudTestCase):
             patch.object(
                 auth,
                 "AuthManager",
-                lambda backend_url=None: SimpleNamespace(
+                return_value=SimpleNamespace(
                     runner_account=config.STATION, product_id=config.PRODUCT_ID
                 ),
             ),
@@ -401,13 +401,13 @@ class BehaveFormatter(BudTestCase):
 
         flushed: list = []
         with (
-            patch.object(behave_entry, "main", lambda args: parameters.OK),
+            patch.object(behave_entry, "main", return_value=parameters.OK),
             patch.object(
                 cli,
                 "AuthManager",
                 lambda backend_url=None: SimpleNamespace(backend_url=backend_url),
             ),
-            patch.object(cli, "BudAPIClient", lambda a: "client"),
+            patch.object(cli, "BudAPIClient", return_value="client"),
             patch.object(cli, "_flush_spooled_results", lambda *a: flushed.append(a[0])),
         ):
             result = CliRunner().invoke(
@@ -416,10 +416,8 @@ class BehaveFormatter(BudTestCase):
         self.assertEqual(result.exit_code, parameters.OK, f"run-behave exits 0: {result.output}")
         self.assertEqual(flushed, ["client"], "the spool is flushed")
         with (
-            patch.object(behave_entry, "main", lambda args: parameters.OK),
-            patch.object(
-                cli, "AuthManager", lambda backend_url=None: SimpleNamespace(backend_url=None)
-            ),
+            patch.object(behave_entry, "main", return_value=parameters.OK),
+            patch.object(cli, "AuthManager", return_value=SimpleNamespace(backend_url=None)),
         ):
             result = CliRunner().invoke(cli.app, ["run-behave", "features/"])
         self.assertEqual(

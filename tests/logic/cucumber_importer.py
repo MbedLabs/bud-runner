@@ -127,7 +127,7 @@ class CucumberImporter(BudTestCase):
             patch.object(
                 auth,
                 "AuthManager",
-                lambda backend_url=None: SimpleNamespace(
+                return_value=SimpleNamespace(
                     runner_account=config.STATION, product_id=config.PRODUCT_ID
                 ),
             ),
@@ -138,7 +138,7 @@ class CucumberImporter(BudTestCase):
                     backend_url=backend_url or config.BACKEND_URL
                 ),
             ),
-            patch.object(cli, "BudAPIClient", lambda a: "client"),
+            patch.object(cli, "BudAPIClient", return_value="client"),
             patch.object(cli, "_flush_spooled_results", lambda *a: flushed.append(a[0])),
             patch.object(
                 cli,
@@ -546,9 +546,7 @@ class CucumberImporter(BudTestCase):
 
     def bud_import_needs_a_backend_to_upload(self):
         """Without a backend URL import-cucumber exits 2 and says so."""
-        with patch.object(
-            cli, "AuthManager", lambda backend_url=None: SimpleNamespace(backend_url=None)
-        ):
+        with patch.object(cli, "AuthManager", return_value=SimpleNamespace(backend_url=None)):
             result = self.run_import("--report", str(config.FIXTURES / config.JS))
         self.assertEqual(result.exit_code, parameters.REFUSED, "import-cucumber exits 2")
         self.assertIn(

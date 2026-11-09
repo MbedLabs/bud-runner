@@ -82,7 +82,7 @@ class RobotListener(BudTestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.dict(os.environ, {"HOME": str(self.folder / "home")}))
             stack.enter_context(patch.object(api_client, "BudAPIClient", client))
-            stack.enter_context(patch.object(auth, "AuthManager", lambda backend_url=None: station))
+            stack.enter_context(patch.object(auth, "AuthManager", return_value=station))
             stack.enter_context(
                 patch.object(
                     cli,
@@ -264,8 +264,8 @@ class RobotListener(BudTestCase):
         errors = io.StringIO()
         with contextlib.ExitStack() as stack:
             stack.enter_context(contextlib.redirect_stderr(errors))
-            stack.enter_context(patch.object(auth, "AuthManager", lambda backend_url=None: nobody))
-            stack.enter_context(patch.object(api_client, "BudAPIClient", lambda manager: _Bud()))
+            stack.enter_context(patch.object(auth, "AuthManager", return_value=nobody))
+            stack.enter_context(patch.object(api_client, "BudAPIClient", return_value=_Bud()))
             listener.close()
         self.assertIn(
             member=messages.NOTHING_UPLOADED,
@@ -579,9 +579,7 @@ class RobotListener(BudTestCase):
         """run-robot replays the spool before running, and stops without a backend URL."""
         flushed: list = []
         with contextlib.ExitStack() as stack:
-            stack.enter_context(
-                patch.object(robot, "run_cli", lambda args, exit=True: parameters.OK)
-            )
+            stack.enter_context(patch.object(robot, "run_cli", return_value=parameters.OK))
             stack.enter_context(
                 patch.object(
                     cli,
@@ -590,7 +588,7 @@ class RobotListener(BudTestCase):
                 )
             )
             stack.enter_context(
-                patch.object(cli, "BudAPIClient", lambda manager: parameters.FLUSHED[0])
+                patch.object(cli, "BudAPIClient", return_value=parameters.FLUSHED[0])
             )
             stack.enter_context(
                 patch.object(cli, "_flush_spooled_results", lambda *args: flushed.append(args[0]))
@@ -602,9 +600,7 @@ class RobotListener(BudTestCase):
             self.assertEqual(result.exit_code, parameters.OK, "run-robot exits 0")
             self.assertEqual(flushed, parameters.FLUSHED, "the spool is replayed first")
             stack.enter_context(
-                patch.object(
-                    cli, "AuthManager", lambda backend_url=None: SimpleNamespace(backend_url=None)
-                )
+                patch.object(cli, "AuthManager", return_value=SimpleNamespace(backend_url=None))
             )
             result = CliRunner().invoke(cli.app, ["run-robot", parameters.TESTS_FOLDER])
         self.assertEqual(result.exit_code, parameters.USAGE_ERROR, "without a backend it exits 2")
