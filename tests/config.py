@@ -192,3 +192,16 @@ class ArtifactUpload:
     RUN_CLASS = "VoltageTest"
     RUN_METHOD = "test_idle"
     STEP_CLASS = "CaptureTest"
+
+
+class RobotListener:
+    """Set-up of the robot_listener suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "robot_listener"
+    BACKEND = "https://bud.example"
+    STATION = "station-1"
+    PRODUCT_ID = 12
+    UPLOADED_RUN = 42
+    SPOOL_FILE = "spool.json"
+    LISTENER_CLASS = "bud_runner.robot_listener.BudListener;"

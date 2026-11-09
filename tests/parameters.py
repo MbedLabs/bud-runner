@@ -766,3 +766,165 @@ class ArtifactUpload:
     TABBED_STEP = "bud_value[a\tb]"
     TABBED_PATH = "/data/c.log"
     TABBED_CASE = "CaptureTest.bud_value[ab]"
+
+
+class RobotListener:
+    """Values of the robot_listener suite."""
+
+    SUITE = """*** Settings ***
+Metadata    Software Under Test    fw-2.4.1
+
+*** Test Cases ***
+Measures within limit
+    [Tags]    bloom:PRJ-TC-001    bench
+    ${measured}=    Set Variable    3
+    Should Be Equal As Numbers    ${measured}    3
+    Should Be True    ${measured} < 5
+    Check Twice    abc    b
+
+Fails a check
+    Should Be Equal    1    2
+
+Is skipped
+    Skip    not on this bench
+
+*** Keywords ***
+Check Twice
+    [Arguments]    ${text}    ${part}
+    Should Contain    ${text}    ${part}
+"""
+    SHORT_TAG_SUITE = (
+        "*** Test Cases ***\nTagged\n    [Tags]    bloom:PRJ-002\n    Should Be Equal    1    1\n"
+    )
+    DEEP = """*** Settings ***
+Resource    checks.resource
+
+*** Test Cases ***
+Goes deep
+    Check Twice    abc    z
+
+Fails hard
+    Fail    broken wiring
+"""
+    CHECKS = """*** Keywords ***
+Check Twice
+    [Arguments]    ${text}    ${part}
+    Log    checking
+    Should Contain    ${text}    ${part}
+"""
+    TOLERATED = """*** Test Cases ***
+Recovers then fails
+    Run Keyword And Ignore Error    Fail    first problem
+    Fail    real problem
+"""
+    HANDLED = """*** Test Cases ***
+Expects an error
+    Run Keyword And Expect Error    *    Should Be Equal    1    2
+
+Handles with try
+    TRY
+        Should Be Equal    3    4
+    EXCEPT    *    type=glob
+        Log    handled
+    END
+
+Calls a missing keyword
+    This Keyword Does Not Exist
+
+Has an empty body
+    [Documentation]    nothing to run
+
+Propagates through a wrapper
+    Run Keyword    Should Be Equal    1    2
+
+Retries then fails
+    Wait Until Keyword Succeeds    3x    10ms    Should Be Equal    5    6
+
+Fails in the body and the teardown
+    Fail    body broke
+    [Teardown]    Fail    teardown broke
+"""
+    PRODUCT_ARGUMENT = "4"
+    PRODUCT_ID = 4
+    ROBOT_FAILED = 1
+    MEASURED_NAMES = ("Bench.Measures within limit", "Measures within limit")
+    CLASSES = 3
+    TC_ID = "PRJ-TC-001"
+    TAGS = ["bench", "bloom:PRJ-TC-001"]
+    MEASURED_TYPES = ["Set Variable", "AssertEqual", "AssertTrue", "AssertIn"]
+    NUMBERS = ("3", "3")
+    NUMBERS_LINE = 8
+    NUMBERS_FUNCTION = "Measures within limit"
+    NUMBERS_CONTEXT = "Should Be Equal As Numbers    ${measured}    3"
+    TRUTH = ("3 < 5", True)
+    CONTAINS = ("abc", "b")
+    CONTAINS_AT = ("Check Twice", 21)
+    FAILED_ERROR = "1 != 2"
+    FAILED_LINE = 13
+    FAILED_FRAMES = ["    Should Be Equal    1    2", "1 != 2"]
+    SKIP_MESSAGE = "not on this bench"
+    SKIP_ENTRY = ("Skip", True, True)
+    SKIPPED = 1
+    FILES = {"output.xml", "log.html", "report.html"}
+    SUITE_NAME = "Bench"
+    SOFTWARE_UNDER_TEST = "fw-2.4.1"
+    RUN_ID = 12
+    RESULTS = 3
+    REPORT_FILES = ["log.html", "output.xml", "report.html"]
+    SPOOL_RUN = "7"
+    SPOOL_RUN_ID = 7
+    SHORT_TC_ID = "PRJ-TC-002"
+    SHORT_TAGS = ["bloom:PRJ-002"]
+    OTHER_TYPE = "AssertPageContain"
+    NEGATIVE = ("AssertFalse", False, "${x}")
+    NEGATIVE_FAILURE = ("boom", "tb")
+    LENGTH = ("AssertLength", "2")
+    CHECKS_KEYWORDS = ["Page Should Contain", "Length Should Be"]
+    NOT_CHECKS = ["Log", "Shouldered Task"]
+    ASSERT_NAMES = {
+        "Should Be Empty": "AssertEmpty",
+        "Should Not Be Empty": "AssertNotEmpty",
+        "Should Start With": "AssertStartsWith",
+        "Should Not Match Regexp": "AssertNotRegex",
+        "Should Contain X Times": "AssertCount",
+        "Element Should Not Be Visible": "AssertNotElementVisible",
+        "Dictionary Should Contain Key": "AssertDictionaryContainKey",
+        "Lists Should Be Equal": "AssertListsEqual",
+    }
+    DEEP_LOG = ("Log", True, "Log    checking")
+    DEEP_LOG_LINE = 4
+    DEEP_CHECK_LINE = 5
+    DEEP_CALLER = 'deep.robot", line 6, in Goes deep'
+    DEEP_CALL = "    Check Twice    abc    z"
+    DEEP_CALLEE = 'checks.resource", line 5, in Check Twice'
+    DEEP_CHECK = "    Should Contain    ${text}    ${part}"
+    BROKEN = ("Fail", False, "broken wiring")
+    REAL_PROBLEM = "real problem"
+    REAL_PROBLEM_AT = "line 4, in Recovers then fails"
+    WRAPPER = ("Run Keyword And Ignore Error", True)
+    HANDLED_FAIL = ("Fail", True, True)
+    FIRST_PROBLEM = "first problem"
+    REAL_FAIL = ("Fail", False)
+    TRY_ENTRIES = [("AssertEqual", True), ("Log", True)]
+    MISSING_KEYWORD = "This Keyword Does Not Exist"
+    PROPAGATED_FAILURES = ["AssertEqual"]
+    PROPAGATED_ENTRIES = [("AssertEqual", None), ("Run Keyword", True)]
+    ATTEMPTS = [True, True, False]
+    BODY_BROKE = "body broke"
+    TEARDOWN_BROKE = "teardown broke"
+    SKIP_ENTRIES = [("Skip", True, True), ("AssertTrue", True, True)]
+    ASSERTION_CAP = 1
+    TRIES = 3
+    INFO_ENTRIES = [("Log", True)]
+    LONG_ARGUMENT = "x" * 600
+    ELLIPSIS = "..."
+    COMMAND_EXIT = 3
+    COMMAND_RUN = "9"
+    COMMAND_EXTRA = ["--exclude", "slow"]
+    LISTENER_SETTINGS = ["test_run_id=9", "upload=false", "suite_name=Bench"]
+    NO_BACKEND_SETTING = "backend="
+    SPOOL_BACKEND = "https://bud"
+    TESTS_FOLDER = "tests/"
+    FLUSHED = ["client"]
+    OK = 0
+    USAGE_ERROR = 2

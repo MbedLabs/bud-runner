@@ -151,3 +151,13 @@ class ArtifactUpload:
     STEP_NEED_RUN = "Step artifacts need a test run: 1 not uploaded."
     STEP_NOT_FOUND = "⚠ Step artifact not found: {path} (CaptureTest.bud_gone)"
     STEP_COULD_NOT = "⚠ Could not upload {path}: storage full"
+
+
+class RobotListener:
+    """Texts of the robot_listener suite."""
+
+    NOTHING_UPLOADED = "nothing uploaded"
+    COULD_NOT_REPORT = "Could not report the Robot run"
+    NO_VAULT = "no vault"
+    BACKEND_DOWN = "backend down"
+    NO_BACKEND = "No backend URL"
