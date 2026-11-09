@@ -137,3 +137,17 @@ class RunTestsUpload:
     UPLOAD_FAILED = "Result upload failed"
     UNAVAILABLE = "503 Service Unavailable"
     SERVER_ERROR = "500 Server Error"
+
+
+class ArtifactUpload:
+    """Texts of the artifact_upload suite."""
+
+    NO_MATCH = "No artifact matched"
+    NEED_RUN = "Artifacts need a test run"
+    COULD_NOT_UPLOAD = "Could not upload"
+    PAYLOAD_TOO_LARGE = "413 Payload Too Large"
+    STORAGE_FULL = "storage full"
+    STEP_UPLOADED = "✓ Uploaded step artifact: traffic capture.pcap (CaptureTest.bud_capture)"
+    STEP_NEED_RUN = "Step artifacts need a test run: 1 not uploaded."
+    STEP_NOT_FOUND = "⚠ Step artifact not found: {path} (CaptureTest.bud_gone)"
+    STEP_COULD_NOT = "⚠ Could not upload {path}: storage full"

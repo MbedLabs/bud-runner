@@ -178,3 +178,17 @@ class RunTestsUpload:
     SPOOL = ".bud/spool/results"
     STATION = "ci@example.com"
     REPORT_NAME = "report.xml"
+
+
+class ArtifactUpload:
+    """Set-up of the artifact_upload suite."""
+
+    WORK_DIR_SETTING = "BUDTEST_WORK_DIR"
+    FOLDER = "artifact_upload"
+    BACKEND = "http://localhost:8000"
+    SUITE = "dummy.suite"
+    REPORT_NAME = "report.xml"
+    ARTIFACT_DIR = "bud-artifacts"
+    RUN_CLASS = "VoltageTest"
+    RUN_METHOD = "test_idle"
+    STEP_CLASS = "CaptureTest"

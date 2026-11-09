@@ -698,3 +698,71 @@ class RunTestsUpload:
     ONE = 1
     TWO = 2
     NONE = 0
+
+
+class ArtifactUpload:
+    """Values of the artifact_upload suite."""
+
+    RUN_ID = 42
+    CREATED_RUN_ID = 77
+    CHECK_TEXT = "ok"
+    REPORT = "<testsuites/>"
+    PAYLOAD = {"results": [{"a": 1}]}
+    SHOT = "failure.png"
+    GLOB = "*.png"
+    GLOBBED = ["a.png", "b.png"]
+    NOT_GLOBBED = "notes.txt"
+    TOO_LARGE = "413"
+    SECOND_ANSWER = {"id": 2}
+    BOTH = 2
+    LOGS = ["bench.log", "stderr.err"]
+    NOT_A_LOG = "notes.md"
+    CAPTURES = ["bus.trace", "can.pcapng"]
+    DIRECTORY_FILES = ["screenshot.png", "voltage.svg"]
+    PLOTS = "plots"
+    WORKSPACE_LOG = ("node_modules", "pkg", "install.log")
+    VENDOR_TRACE = ("vendor", "debug.trace")
+    SOURCE = "voltage_suite.py"
+    LEFT_AND_REPORT = ["bench.log", "failure.png", "report.xml"]
+    REPORT_ONLY = ["report.xml"]
+    HUGE = "huge.pcap"
+    CAPTURE = "traffic.pcap"
+    CAPTURE_NAME = "traffic capture"
+    BOOT = "boot.txt"
+    BENCH_LOG = "bench.log"
+    GONE = "gone.log"
+    KEPT = "kept.log"
+    ATTACHED = [
+        ("traffic.pcap", 42, "CaptureTest.bud_capture", "traffic capture.pcap"),
+        ("boot.txt", 42, "CaptureTest.bud_boot", "boot.txt"),
+    ]
+    ATTACHED_TO_CREATED = [("traffic.pcap", 77, "CaptureTest.bud_capture", "traffic.pcap")]
+    ATTACHED_CAPTURE = [("traffic.pcap", 42, "CaptureTest.bud_capture", "traffic.pcap")]
+    ATTACHED_KEPT = [("kept.log", 42, "CaptureTest.bud_kept", "kept.log")]
+    ATTACHED_BENCH = [("bench.log", 42, "CaptureTest.bud_bench", "bench.log")]
+    ONCE = 1
+    OK = 0
+    PCAP = "/data/traffic.pcap"
+    DISPLAY_NAMES = [
+        ("traffic capture", "traffic capture.pcap"),
+        ("capture v1.2", "capture v1.2.pcap"),
+        ("traffic.PCAP", "traffic.PCAP"),
+        ("bad\nname\t", "badname.pcap"),
+        (None, "traffic.pcap"),
+    ]
+    NO_SUFFIX = "/data/notes"
+    NO_SUFFIX_NAME = "notes"
+    LONG_NAME = "x" * 300
+    NAME_LIMIT = 255
+    PCAP_SUFFIX = ".pcap"
+    STEP_LIST_INPUT = (
+        ("bud_a", [{"path": "/data/a.log", "name": "a.log"}, {"name": "no path"}, "not a dict"]),
+        ("bud_b", [{"path": "/data/a.log", "name": "again"}, {"path": "/data/b.log"}]),
+    )
+    STEP_LIST = [
+        ("a.log", "a.log", "CaptureTest.bud_a"),
+        ("b.log", "b.log", "CaptureTest.bud_b"),
+    ]
+    TABBED_STEP = "bud_value[a\tb]"
+    TABBED_PATH = "/data/c.log"
+    TABBED_CASE = "CaptureTest.bud_value[ab]"
