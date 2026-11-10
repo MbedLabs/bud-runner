@@ -176,7 +176,9 @@ class BackendUrl(BudTestCase):
         self.assertEqual(started.call_count, parameters.NONE, f"{args[0]} starts no framework")
         if args[0] == "run-tests":
             self.assertEqual(
-                executor.run_test_list.call_count, parameters.ONE, "run-tests still runs its suite"
+                executor.run_test_list.call_count,
+                parameters.NONE,
+                "run-tests refuses the backend before it starts its suite",
             )
 
     def bud_status_shows_the_refusal_as_the_backend_health(self):

@@ -74,7 +74,7 @@ class ArtifactUpload(BudTestCase):
             )
         ]
 
-    def run_tests(self, *options, results=None, answer=True, upload_effect=None):
+    def run_tests(self, *options, results=None, answer=True, upload_effect=None, created=None):
         """Invoke run-tests in the step's folder with the executor, the reporter, the identity,
         the spool flush and Bud's client mocked; return the result and the client."""
         executor = MagicMock()
@@ -90,6 +90,9 @@ class ArtifactUpload(BudTestCase):
             stack.enter_context(patch("bud_runner.cli._flush_spooled_results"))
             client = stack.enter_context(patch("bud_runner.cli.BudAPIClient")).return_value
             client.build_results_payload.return_value = dict(parameters.PAYLOAD)
+            client.create_test_run.return_value = (
+                {"id": parameters.CREATED_RUN_ID} if created is None else created
+            )
             client.upload_results_payload.return_value = answer
             client.get_test_run.return_value = {"product_id": None}
             client.update_test_run.return_value = {}
@@ -187,15 +190,20 @@ class ArtifactUpload(BudTestCase):
             self.uploaded_names(client), parameters.REPORT_ONLY, "only the report is sent"
         )
 
-    def bud_artifacts_need_a_test_run(self):
-        """Without a test run no artifact is sent, and run-tests says why."""
+    def bud_named_artifacts_use_the_run_bud_runner_created(self):
+        """Without a supplied run id, a named artifact uses Bud Runner's created run."""
         shot = self.write(parameters.SHOT)
         result, client = self.run_tests("-A", str(shot))
-        self.assertEqual(client.upload_artifact.call_count, 0, "nothing is sent")
-        self.assertIn(
-            member=messages.NEED_RUN,
-            container=result.output,
-            msg=f"it says {messages.NEED_RUN!r}",
+        self.assertEqual(result.exit_code, parameters.OK, f"run-tests exits 0: {result.output}")
+        self.assertEqual(
+            self.uploaded_names(client),
+            [config.REPORT_NAME, parameters.SHOT],
+            "the generated report and named artifact are sent to the created run",
+        )
+        self.assertEqual(
+            {sent.kwargs["run_id"] for sent in client.upload_artifact.call_args_list},
+            {parameters.CREATED_RUN_ID},
+            "every artifact uses the created run id",
         )
 
     def bud_a_failed_artifact_does_not_fail_the_run(self):
@@ -317,8 +325,8 @@ class ArtifactUpload(BudTestCase):
             msg=f"it says {messages.STEP_UPLOADED!r}",
         )
 
-    def bud_step_artifacts_go_to_the_run_bud_created(self):
-        """Without a test run id, step files go to the run Bud created and -A files wait."""
+    def bud_all_artifacts_go_to_the_run_bud_runner_created(self):
+        """Without a supplied run id, the step file and report go to Bud Runner's created run."""
         capture = self.write(parameters.CAPTURE)
         results = self.step_results(
             ("bud_capture", [{"path": str(capture), "name": parameters.CAPTURE}])
@@ -335,25 +343,27 @@ class ArtifactUpload(BudTestCase):
             parameters.ATTACHED_TO_CREATED,
             "the step's file goes to run 77",
         )
-        self.assertIn(
-            member=messages.NEED_RUN,
-            container=result.output,
-            msg=f"it says {messages.NEED_RUN!r}",
+        self.assertNotIn(
+            member=messages.NEED_RUN, container=result.output, msg="no artifact waits for a run id"
         )
-        self.assertEqual(client.upload_artifact.call_count, parameters.ONCE, "one file is sent")
+        self.assertEqual(
+            self.uploaded_names(client),
+            parameters.CREATED_ARTIFACTS,
+            "the attached file and generated report are sent once",
+        )
 
-    def bud_step_artifacts_without_any_run_are_reported(self):
-        """With no run at all, step files are not sent and run-tests says how many."""
+    def bud_a_run_creation_without_an_id_stops_before_artifact_upload(self):
+        """A create response without an id fails the command and sends no artifact."""
         capture = self.write(parameters.CAPTURE)
         results = self.step_results(
             ("bud_capture", [{"path": str(capture), "name": parameters.CAPTURE}])
         )
-        result, client = self.run_tests(results=results, answer=True)
-        self.assertEqual(result.exit_code, parameters.OK, f"run-tests exits 0: {result.output}")
+        result, client = self.run_tests(results=results, created={})
+        self.assertEqual(result.exit_code, parameters.FAILED, "run-tests exits 1")
         self.assertIn(
-            member=messages.STEP_NEED_RUN,
+            member=messages.RUN_CREATION_FAILED,
             container=result.output,
-            msg=f"it says {messages.STEP_NEED_RUN!r}",
+            msg=f"it says {messages.RUN_CREATION_FAILED!r}",
         )
         self.assertEqual(client.upload_artifact.call_count, 0, "nothing is sent")
 

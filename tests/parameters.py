@@ -49,15 +49,18 @@ class ApiClient:
     STATION = "station-session"
     STATION_KEY = "station-enrolment-key"
     RUN_ID = 7
+    PRODUCT_ID = 4
     CREATED = 201
     ANSWER = {"id": 7}
     SUITE = "suite"
     RUN_NAME = "Station run"
     TOTAL_TESTS = 3
     RESULTS = {"results": [{"test_class": "Suite", "test_method": "test_one", "passed": True}]}
-    OPERATIONS = ["create", "patch", "results"]
+    OPERATIONS = ["product", "create", "patch", "results"]
     HUMANS = [None, "human-session"]
     SUBMISSIONS = [
+        ("product", None),
+        ("product", "human-session"),
         ("create", None),
         ("create", "human-session"),
         ("patch", None),
@@ -660,6 +663,11 @@ class RunTestsUpload:
     REPORT = "<testsuites/>"
     PAYLOAD = {"results": [{"test_class": "VoltageTest", "test_method": "bud_a"}]}
     RUN_ID = 42
+    CREATED_RUN_ID = 77
+    PRODUCT_ID = 4
+    PRODUCT_NAME = "Demo"
+    CREATED_RUN_NAME = "Demo - dummy.suite"
+    LIFECYCLE = ["created", "executed", "uploaded", "completed"]
     FAILED_RUN_ID = 7
     COMPLETED = "Completed"
     COUNTERS = ("total_tests", "passed_tests", "failed_tests")
@@ -737,11 +745,13 @@ class ArtifactUpload:
         ("boot.txt", 42, "CaptureTest.bud_boot", "boot.txt"),
     ]
     ATTACHED_TO_CREATED = [("traffic.pcap", 77, "CaptureTest.bud_capture", "traffic.pcap")]
+    CREATED_ARTIFACTS = ["traffic.pcap", "report.xml"]
     ATTACHED_CAPTURE = [("traffic.pcap", 42, "CaptureTest.bud_capture", "traffic.pcap")]
     ATTACHED_KEPT = [("kept.log", 42, "CaptureTest.bud_kept", "kept.log")]
     ATTACHED_BENCH = [("bench.log", 42, "CaptureTest.bud_bench", "bench.log")]
     ONCE = 1
     OK = 0
+    FAILED = 1
     PCAP = "/data/traffic.pcap"
     DISPLAY_NAMES = [
         ("traffic capture", "traffic capture.pcap"),

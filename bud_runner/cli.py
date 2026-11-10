@@ -516,6 +516,42 @@ def _suite_product_id(client, test_run_id):
     return final_product_id
 
 
+def _suite_name(test_case_list: str) -> str:
+    """The import path's module and list name used as the run's suite name."""
+    return ".".join(test_case_list.rsplit(".", 2)[-2:])
+
+
+def _create_suite_run(
+    client: BudAPIClient,
+    auth: AuthManager,
+    test_case_list: str,
+    software: dict[str, Optional[str]],
+) -> int:
+    """Create the Running test run owned by run-tests and return its id."""
+    product_id = auth.product_id
+    suite_name = _suite_name(test_case_list)
+    run_name = suite_name
+    if product_id is not None:
+        product = client.get_product(product_id)
+        product_name = str(product.get("name") or "").strip()
+        if not product_name:
+            raise RuntimeError(f"Bud product {product_id} has no name")
+        run_name = f"{product_name} - {suite_name}"
+    create_software = {name: value for name, value in software.items() if value is not None}
+    created = client.create_test_run(
+        test_case_list=test_case_list,
+        test_suite_name=run_name,
+        product_composition_id=product_id,
+        status="Running",
+        **create_software,
+    )
+    run_id = created.get("id") if isinstance(created, dict) else None
+    if not run_id:
+        raise RuntimeError("Bud did not return the created test run id")
+    typer.echo(f"✓ Test run {run_id} started: {run_name}")
+    return int(run_id)
+
+
 def _publish_suite_artifacts(
     client, results, test_run_id, answer, format, output, artifact_dir, artifacts
 ):
@@ -558,7 +594,6 @@ def _upload_suite_results(
 ):
     """Upload suite results, complete the run and publish its artifacts."""
     client = _backend(BudAPIClient, auth)
-    _flush_spooled_results(client)
     final_product_id = _suite_product_id(client, test_run_id)
 
     payload = client.build_results_payload(
@@ -740,6 +775,26 @@ def run_tests(
 
     executor = TestExecutor(test_timeout=test_timeout, suite_timeout=suite_timeout, verbose=verbose)
     reporter = JUnitReporter()
+    software = {
+        "url_test_software": url_test_software,
+        "ref_test_software": ref_test_software,
+        "url_software_under_test": url_software_under_test,
+        "ref_software_under_test": ref_software_under_test,
+    }
+    auth = None
+    if upload_results:
+        auth = AuthManager(username=username, backend_url=backend_url, bud_token=bud_token)
+        if not auth.backend_url:
+            typer.echo(MISSING_BACKEND_URL, err=True)
+            raise typer.Exit(code=2)
+        client = _backend(BudAPIClient, auth)
+        _flush_spooled_results(client)
+        if test_run_id is None:
+            try:
+                test_run_id = _create_suite_run(client, auth, test_case_list, software)
+            except Exception as exc:
+                typer.echo(f"✗ Test run creation failed: {exc}", err=True)
+                raise typer.Exit(code=1)
 
     typer.echo(f"Running tests from: {test_case_list}")
 
@@ -761,25 +816,12 @@ def run_tests(
 
         # Upload results if requested. Requires a backend URL.
         if upload_results:
-            auth = AuthManager(username=username, backend_url=backend_url, bud_token=bud_token)
-            if not auth.backend_url:
-                typer.echo(
-                    MISSING_BACKEND_URL,
-                    err=True,
-                )
-                raise typer.Exit(code=2)
-
             _upload_suite_results(
                 results,
                 test_case_list,
                 auth,
                 test_run_id,
-                {
-                    "url_test_software": url_test_software,
-                    "ref_test_software": ref_test_software,
-                    "url_software_under_test": url_software_under_test,
-                    "ref_software_under_test": ref_software_under_test,
-                },
+                software,
                 duration,
                 format,
                 output,

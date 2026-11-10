@@ -34,3 +34,4 @@ app.properties
 report_junit.xml
 .pytest_cache/
 .coverage
+graphify-out/

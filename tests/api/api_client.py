@@ -35,8 +35,10 @@ class ApiClient(BudTestCase):
         return client
 
     def submit(self, client: BudAPIClient, operation: str):
-        """Create a run, patch it, or upload raw results."""
-        if operation == "create":
+        """Read a product, create or patch a run, or upload raw results."""
+        if operation == "product":
+            client.get_product(parameters.PRODUCT_ID)
+        elif operation == "create":
             client.create_test_run(parameters.SUITE, parameters.RUN_NAME)
         elif operation == "patch":
             client.update_test_run(parameters.RUN_ID, total_tests=parameters.TOTAL_TESTS)

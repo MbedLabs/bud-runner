@@ -151,6 +151,7 @@ class ArtifactUpload:
     STEP_NEED_RUN = "Step artifacts need a test run: 1 not uploaded."
     STEP_NOT_FOUND = "⚠ Step artifact not found: {path} (CaptureTest.bud_gone)"
     STEP_COULD_NOT = "⚠ Could not upload {path}: storage full"
+    RUN_CREATION_FAILED = "Test run creation failed: Bud did not return the created test run id"
 
 
 class RobotListener:

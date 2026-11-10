@@ -287,6 +287,16 @@ class BudAPIClient:
 
     # ==================== Test Runs ====================
 
+    def get_product(self, product_id: int) -> dict[str, Any]:
+        """Read one product with the station identity."""
+        response = self._session.get(
+            f"{self._api_url}/products/{product_id}",
+            headers=self._station_headers("read the configured product"),
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def create_test_run(
         self,
         test_case_list: str,
@@ -295,7 +305,7 @@ class BudAPIClient:
         ref_test_software: str = "main",
         url_software_under_test: Optional[str] = None,
         ref_software_under_test: Optional[str] = None,
-        product_composition_id: int = 1,
+        product_composition_id: Optional[int] = None,
         status: str = "Running",
         pipeline_software_under_test: bool = False,
     ) -> Dict[str, Any]:

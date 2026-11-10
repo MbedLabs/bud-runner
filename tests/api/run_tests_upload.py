@@ -40,16 +40,20 @@ class RunTestsUpload(BudTestCase):
         return [RunResult(test_class=test_class, method_results=rows)]
 
     @contextlib.contextmanager
-    def station(self, results: list, payload: dict, flush: bool = False, **identity):
+    def station(self, results: list, payload: dict, flush: bool = False, events=None, **identity):
         """Mock the executor, the reporter, the identity, the spool flush and Bud's client; yield the
         client."""
         executor = MagicMock()
         executor.run_test_list.return_value = results
+        if events is not None:
+            executor.run_test_list.side_effect = lambda *args, **kwargs: (
+                events.append("executed") or results
+            )
         reporter = MagicMock()
         reporter.generate.return_value = parameters.REPORT
-        station = SimpleNamespace(
-            backend_url=config.BACKEND, product_id=None, token=None, **identity
-        )
+        station_identity = {"backend_url": config.BACKEND, "product_id": None, "token": None}
+        station_identity.update(identity)
+        station = SimpleNamespace(**station_identity)
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch("bud_runner.cli.TestExecutor", return_value=executor))
             stack.enter_context(patch("bud_runner.cli.JUnitReporter", return_value=reporter))
@@ -58,6 +62,8 @@ class RunTestsUpload(BudTestCase):
                 stack.enter_context(patch("bud_runner.cli._flush_spooled_results"))
             client = stack.enter_context(patch("bud_runner.cli.BudAPIClient")).return_value
             client.build_results_payload.return_value = payload
+            client.create_test_run.return_value = {"id": parameters.CREATED_RUN_ID}
+            client.get_product.return_value = {"name": parameters.PRODUCT_NAME}
             client.upload_results_payload.return_value = True
             client.get_test_run.return_value = {"product_id": None}
             client.update_test_run.return_value = {}
@@ -100,11 +106,53 @@ class RunTestsUpload(BudTestCase):
             abort_on_fail=True,
         )
         kwargs = client.update_test_run.call_args.kwargs
+        self.assertEqual(client.create_test_run.call_count, 0, "an existing run is not recreated")
         self.assertEqual(kwargs["run_id"], parameters.RUN_ID, "run 42 is updated")
         self.assertEqual(kwargs["status"], parameters.COMPLETED, "the run is Completed")
         self.assertIn(member="duration_seconds", container=kwargs, msg="the duration is sent")
         for counter in parameters.COUNTERS:
             self.assertNotIn(member=counter, container=kwargs, msg=f"{counter} is not sent")
+
+    def bud_run_tests_owns_the_run_lifecycle(self):
+        """A run without an id is created before execution and completed after its results upload."""
+        events = []
+        results = self.run_of(parameters.PASSING_CLASS, parameters.PASSING)
+        with self.station(
+            results,
+            dict(parameters.PAYLOAD),
+            events=events,
+            product_id=parameters.PRODUCT_ID,
+        ) as client:
+            client.create_test_run.side_effect = lambda **kwargs: (
+                events.append("created") or {"id": parameters.CREATED_RUN_ID}
+            )
+            client.upload_results_payload.side_effect = lambda payload: (
+                events.append("uploaded") or {"test_run_id": parameters.CREATED_RUN_ID}
+            )
+            client.update_test_run.side_effect = lambda **kwargs: events.append("completed") or {}
+            result = self.run_tests(*parameters.SOFTWARE_OPTIONS)
+        self.assertEqual(result.exit_code, parameters.OK, f"run-tests exits 0: {result.output}")
+        self.assertEqual(
+            events,
+            parameters.LIFECYCLE,
+            "the run is created before execution results are built, uploaded and completed",
+        )
+        created = client.create_test_run.call_args.kwargs
+        self.assertEqual(
+            created["test_suite_name"],
+            parameters.CREATED_RUN_NAME,
+            "the run has the product and suite name",
+        )
+        self.assertEqual(
+            created["product_composition_id"],
+            parameters.PRODUCT_ID,
+            "the run uses app.properties productId",
+        )
+        self.assertEqual(
+            client.update_test_run.call_args.kwargs["run_id"],
+            parameters.CREATED_RUN_ID,
+            "the created run is completed",
+        )
 
     def bud_a_failed_run_still_omits_method_totals(self):
         """A failing method exits 1 and still sends no totals."""
