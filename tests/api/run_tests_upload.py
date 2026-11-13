@@ -84,6 +84,24 @@ class RunTestsUpload(BudTestCase):
         args += ["-o", str(self.folder / config.REPORT_NAME)]
         return CliRunner().invoke(app, args, env={"HOME": str(self.home)} if home else None)
 
+    def add_test_run(self, *options):
+        """Invoke add-test-run for the dummy suite."""
+        return CliRunner().invoke(
+            app,
+            [
+                "add-test-run",
+                "--test-case-list",
+                config.SUITE,
+                "--test-suite-name",
+                parameters.SUITE_NAME,
+                "--product-composition-id",
+                str(parameters.PRODUCT_ID),
+                "--backend-url",
+                config.BACKEND,
+                *options,
+            ],
+        )
+
     def http_error(self, text: str, status: int) -> requests.HTTPError:
         """An HTTP error with the given status."""
         error = requests.HTTPError(text)
@@ -112,6 +130,19 @@ class RunTestsUpload(BudTestCase):
         self.assertIn(member="duration_seconds", container=kwargs, msg="the duration is sent")
         for counter in parameters.COUNTERS:
             self.assertNotIn(member=counter, container=kwargs, msg=f"{counter} is not sent")
+
+    def bud_add_test_run_names_the_run_from_the_product_and_suite(self):
+        """add-test-run resolves the product and prefixes its name to the suite name."""
+        with self.station([], {}, token=parameters.STATION_TOKEN) as client:
+            result = self.add_test_run()
+        self.assertEqual(result.exit_code, parameters.OK, f"add-test-run exits 0: {result.output}")
+        client.get_product.assert_called_once_with(parameters.PRODUCT_ID)
+        created = client.create_test_run.call_args.kwargs
+        self.assertEqual(
+            created["test_suite_name"],
+            parameters.EXPLICIT_RUN_NAME,
+            "the product prefixes the requested suite",
+        )
 
     def bud_run_tests_owns_the_run_lifecycle(self):
         """A run without an id is created before execution and completed after its results upload."""

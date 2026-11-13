@@ -667,6 +667,9 @@ class RunTestsUpload:
     PRODUCT_ID = 4
     PRODUCT_NAME = "Demo"
     CREATED_RUN_NAME = "Demo - dummy.suite"
+    SUITE_NAME = "Robot Checks"
+    EXPLICIT_RUN_NAME = "Demo - Robot Checks"
+    STATION_TOKEN = "station-token"
     LIFECYCLE = ["created", "executed", "uploaded", "completed"]
     FAILED_RUN_ID = 7
     COMPLETED = "Completed"

@@ -472,14 +472,14 @@ def add_test_run(
 
     client = _backend(BudAPIClient, auth)
 
-    if output_format != OutputFormat.json:
-        typer.echo(f"Creating test run: {test_suite_name}")
-        typer.echo(f"Test case list: {test_case_list}")
-
     try:
+        run_name = _product_suite_name(client, product_composition_id, test_suite_name)
+        if output_format != OutputFormat.json:
+            typer.echo(f"Creating test run: {run_name}")
+            typer.echo(f"Test case list: {test_case_list}")
         result = client.create_test_run(
             test_case_list=test_case_list,
-            test_suite_name=test_suite_name,
+            test_suite_name=run_name,
             url_test_software=url_test_software,
             ref_test_software=ref_test_software,
             url_software_under_test=url_software_under_test,
@@ -521,6 +521,17 @@ def _suite_name(test_case_list: str) -> str:
     return ".".join(test_case_list.rsplit(".", 2)[-2:])
 
 
+def _product_suite_name(client: BudAPIClient, product_id: Optional[int], suite_name: str) -> str:
+    """The product name and suite name used as the run name."""
+    if product_id is None:
+        return suite_name
+    product = client.get_product(product_id)
+    product_name = str(product.get("name") or "").strip()
+    if not product_name:
+        raise RuntimeError(f"Bud product {product_id} has no name")
+    return f"{product_name} - {suite_name}"
+
+
 def _create_suite_run(
     client: BudAPIClient,
     auth: AuthManager,
@@ -530,13 +541,7 @@ def _create_suite_run(
     """Create the Running test run owned by run-tests and return its id."""
     product_id = auth.product_id
     suite_name = _suite_name(test_case_list)
-    run_name = suite_name
-    if product_id is not None:
-        product = client.get_product(product_id)
-        product_name = str(product.get("name") or "").strip()
-        if not product_name:
-            raise RuntimeError(f"Bud product {product_id} has no name")
-        run_name = f"{product_name} - {suite_name}"
+    run_name = _product_suite_name(client, product_id, suite_name)
     create_software = {name: value for name, value in software.items() if value is not None}
     created = client.create_test_run(
         test_case_list=test_case_list,
