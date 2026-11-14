@@ -79,8 +79,17 @@ def send_run(
             client.update_test_run(run_id=run_id, skipped_tests=skipped)
         except Exception as exc:
             print(f"[bud] Could not record skipped tests: {exc}", file=sys.stderr)
-    if not run_id:
-        return True
+    if run_id:
+        _upload_files(client, files, run_id)
+    return True
+
+
+def _upload_files(client, files: Iterable[Path], run_id: int) -> None:
+    """Upload the existing files to the run; a file refused for the upload allowance (429) is
+    tried once more after the others, and any file that is not taken is reported."""
+    from bud_runner.api_client import refused_for_rate
+
+    refused = []
     for path in files:
         if not path.is_file():
             continue
@@ -88,4 +97,10 @@ def send_run(
             client.upload_artifact(str(path), run_id=run_id)
         except Exception as exc:
             print(f"[bud] Could not upload {path.name}: {exc}", file=sys.stderr)
-    return True
+            if refused_for_rate(exc):
+                refused.append(path)
+    for path in refused:
+        try:
+            client.upload_artifact(str(path), run_id=run_id)
+        except Exception as exc:
+            print(f"[bud] Left out {path.name}: {exc}", file=sys.stderr)

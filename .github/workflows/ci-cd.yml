@@ -35,11 +35,21 @@ jobs:
       - name: Install package with dev deps
         run: uv sync --frozen --no-build --no-build-isolation --no-binary-package bud-runner --extra dev --group build --group ci
 
-      - name: Run pytest
+      - name: Run the tests in tests/api
         env:
           PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
           ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
-        run: .venv/bin/python -m pytest tests/ -v
+          PYTHONPATH: ${{ github.workspace }}
+          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
+        run: .venv/bin/bud-runner run-tests -t tests.api.SUITES --no-upload -o "$RUNNER_TEMP/tests-api-junit.xml"
+
+      - name: Run the tests in tests/logic
+        env:
+          PACKAGE_ORG: ${{ vars.PACKAGE_ORG }}
+          ORG_MAINTAINER: ${{ secrets.ORG_MAINTAINER }}
+          PYTHONPATH: ${{ github.workspace }}
+          BUDTEST_WORK_DIR: ${{ runner.temp }}/budtests
+        run: .venv/bin/bud-runner run-tests -t tests.logic.SUITES --no-upload -o "$RUNNER_TEMP/tests-logic-junit.xml"
 
       - name: Run bandit security scan
         run: .venv/bin/bandit -r bud_runner/ -ll
