@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
+import requests
 from budtestlibrary import BudTestCase
 from typer.testing import CliRunner
 
@@ -158,6 +159,32 @@ class ArtifactUpload(BudTestCase):
             member=messages.NO_MATCH,
             container=errors.getvalue(),
             msg=f"stderr says {messages.NO_MATCH!r}",
+        )
+
+    def rate_limited(self) -> requests.HTTPError:
+        """Bud's refusal when the station's upload allowance is used up."""
+        response = requests.Response()
+        response.status_code = parameters.RATE_LIMITED
+        return requests.HTTPError(response=response)
+
+    def bud_a_file_refused_for_the_upload_allowance_is_tried_once_more(self):
+        """A file refused with 429 is sent again after the others and taken the second time."""
+        client = MagicMock()
+        client.upload_artifact.side_effect = [self.rate_limited(), parameters.SECOND_ANSWER]
+        shot = self.write(parameters.SHOT)
+        _upload_artifacts(client, [str(shot)], parameters.RUN_ID)
+        self.assertEqual(
+            client.upload_artifact.call_count, parameters.TWO_TRIES, "the file is tried twice"
+        )
+
+    def bud_a_file_refused_twice_is_left_out_without_failing(self):
+        """A file refused with 429 twice is left out, and the upload returns."""
+        client = MagicMock()
+        client.upload_artifact.side_effect = [self.rate_limited(), self.rate_limited()]
+        shot = self.write(parameters.SHOT)
+        _upload_artifacts(client, [str(shot)], parameters.RUN_ID)
+        self.assertEqual(
+            client.upload_artifact.call_count, parameters.TWO_TRIES, "the file is tried twice only"
         )
 
     def bud_one_failed_upload_does_not_stop_the_rest(self):

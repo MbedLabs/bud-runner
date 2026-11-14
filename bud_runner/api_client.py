@@ -31,6 +31,12 @@ class InsecureBackendURLError(ValueError):
     """A remote HTTP URL without explicit opt-in, or an HTTP URL with an unreadable host."""
 
 
+def refused_for_rate(exc: BaseException) -> bool:
+    """Whether the answer is HTTP 429: the upload allowance is used up."""
+    response = getattr(exc, "response", None)
+    return isinstance(exc, requests.HTTPError) and getattr(response, "status_code", None) == 429
+
+
 def _is_loopback_host(host: Optional[str]) -> bool:
     """Whether ``host`` is ``localhost`` or an address in 127.0.0.0/8 or ::1."""
     if host == "localhost":
@@ -271,6 +277,18 @@ class BudAPIClient:
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
+        self._session.mount(
+            f"{self._api_url}/uploads",
+            HTTPAdapter(
+                max_retries=Retry(
+                    total=3,
+                    backoff_factor=1,
+                    status_forcelist=[500, 502, 503, 504],
+                    allowed_methods=["GET", "POST", "DELETE"],
+                    respect_retry_after_header=False,
+                )
+            ),
+        )
 
         if auth.token:
             self._session.headers["Authorization"] = f"Bearer {auth.token}"

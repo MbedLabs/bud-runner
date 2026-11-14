@@ -296,6 +296,19 @@ class AuthAndStatus(BudTestCase):
             member="Authorization", container=kwargs["headers"], msg="the upload is authenticated"
         )
 
+    def bud_an_artifact_upload_refused_for_its_allowance_is_not_waited_for(self):
+        """Uploads are not retried on 429 nor held by Retry-After; result uploads still retry on 429."""
+        client = self.client("runner-token")
+        uploads = client._session.get_adapter(client._api_url + "/uploads").max_retries
+        results = client._session.get_adapter(client._api_url + "/results").max_retries
+        self.assertEqual(
+            parameters.RATE_LIMITED in uploads.status_forcelist, False, "uploads skip 429"
+        )
+        self.assertEqual(uploads.respect_retry_after_header, False, "uploads ignore Retry-After")
+        self.assertEqual(
+            parameters.RATE_LIMITED in results.status_forcelist, True, "results retry 429"
+        )
+
     def bud_an_artifact_upload_is_real_multipart(self):
         """The prepared request is multipart/form-data with a boundary."""
         client = self.client("runner-token")

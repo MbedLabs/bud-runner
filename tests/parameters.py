@@ -449,6 +449,9 @@ class BackendUrl:
 class AuthAndStatus:
     """Values of the auth_and_status suite."""
 
+    RATE_LIMITED = 429
+    UPLOADS_SUFFIX = "/api/uploads"
+    RESULTS_SUFFIX = "/api/results"
     SERVER_VERSION = "1.2.3"
     RUNNER_VERSION = "0.4.6-test"
     PLAIN_VERSION = "0.4.6"
@@ -715,6 +718,8 @@ class ArtifactUpload:
     """Values of the artifact_upload suite."""
 
     RUN_ID = 42
+    RATE_LIMITED = 429
+    TWO_TRIES = 2
     CREATED_RUN_ID = 77
     CHECK_TEXT = "ok"
     REPORT = "<testsuites/>"

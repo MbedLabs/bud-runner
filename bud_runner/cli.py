@@ -20,7 +20,12 @@ from typing import Any, Iterable, List, Optional, Tuple
 import requests
 import typer
 
-from bud_runner.api_client import BudAPIClient, InsecureBackendURLError, _flatten_results
+from bud_runner.api_client import (
+    BudAPIClient,
+    InsecureBackendURLError,
+    _flatten_results,
+    refused_for_rate,
+)
 from bud_runner.auth import (
     AuthManager,
     current_location,
@@ -223,6 +228,7 @@ def _upload_artifacts(
         files.extend(matches)
 
     seen = set(exclude)
+    refused: List[Path] = []
     for path in files:
         key = path.resolve()
         if key in seen:
@@ -233,6 +239,14 @@ def _upload_artifacts(
             typer.echo(f"✓ Uploaded artifact: {path.name}")
         except Exception as exc:
             typer.echo(f"⚠ Could not upload {path}: {exc}", err=True)
+            if refused_for_rate(exc):
+                refused.append(path)
+    for path in refused:
+        try:
+            client.upload_artifact(str(path), run_id=test_run_id)
+            typer.echo(f"✓ Uploaded artifact on the second try: {path.name}")
+        except Exception as exc:
+            typer.echo(f"⚠ Left out {path}: {exc}", err=True)
 
 
 # Logs, screenshots, plots, traces and packet captures a suite may leave behind.
