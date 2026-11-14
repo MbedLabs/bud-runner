@@ -241,6 +241,11 @@ def _upload_artifacts(
             typer.echo(f"⚠ Could not upload {path}: {exc}", err=True)
             if refused_for_rate(exc):
                 refused.append(path)
+    _retry_refused(client, refused, test_run_id)
+
+
+def _retry_refused(client: BudAPIClient, refused: List[Path], test_run_id: int) -> None:
+    """Send once more the files refused for the upload allowance; one refused again is left out."""
     for path in refused:
         try:
             client.upload_artifact(str(path), run_id=test_run_id)
