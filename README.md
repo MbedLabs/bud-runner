@@ -24,6 +24,7 @@ and self-hosted CI runners.
 
 | `bud_runner` | Intended `budtestlibrary` pairing | Notes |
 |---|---|---|
+| `1.3.0` | `1.3.0` | Run created as Running before the suite starts and named after its product; `--location` for several runners on one machine; HTTPS by default; refused artifact uploads no longer hold up the run; Python 3.11+ |
 | `1.2.0` | `1.2.0` | Robot Framework, pytest, Behave and Cucumber JSON runs reported to Bud; step artifacts from `attach_artifact` uploaded; `--verbose` lifecycle logging; short Bloom ids (`bloom:PRJ-001`) |
 | `1.1.0` | `1.1.0` | Updated compatibility matrix |
 | `1.0.3` | `1.0.3` | Backend-queued runs, `--artifact` uploads, optional `addr` on `FlashEvent` |

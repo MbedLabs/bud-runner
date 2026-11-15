@@ -2,7 +2,7 @@
 
 All notable changes to `bud_runner` will be documented in this file.
 
-## [1.3.0] - unreleased
+## [1.3.0] - 2026-11-15
 
 ### Added
 - `--location` / `-l` on `register`, `daemon`, `run-tests`, `claim-run`, `status` and `import-cucumber`, and `--location` on `run-pytest`, `run-robot` and `run-behave`: a runner with a location keeps its identity, daemon pid, log and heartbeat record, result spool and bytecode cache in `~/.bud/locations/<location>/` instead of `~/.bud/`, so several runners run on one machine, each with its own `--username`, `--socket-port` and `--location`. Every character of the location outside `A-Z`, `a-z`, `0-9`, `.`, `_` and `-` becomes `-` in the folder name; a location whose folder name would be `.` or `..` is refused with exit code 2. Without `--location`, and always for `add-test-run`, the `location` key of `app.properties` applies; without either, everything stays in `~/.bud/`. A runner account missing from the location's `config.json` is read from `~/.bud/config.json`; new identities are written to the location's folder. Bud receives the location unchanged in the registration and heartbeat. `register` and `claim-run` pass the location on to the daemon and `run-tests` they start, and `register` prints the folder it used.
@@ -11,6 +11,11 @@ All notable changes to `bud_runner` will be documented in this file.
 - HTTPS is the default for a remote Bud backend; loopback HTTP and the default `http://localhost:8000` remain accepted. A global `--allow-http` flag before the command, or `BUD_ALLOW_HTTP=1`, explicitly permits remote HTTP on an isolated trusted network and warns at every client start that credentials and results travel without TLS. The flag applies only to that invocation and its children, including a daemon started during registration; direct framework adapters use the environment setting. Private addresses and service names do not automatically permit HTTP. Without opt-in, remote HTTP is refused before a request: commands exit 2 (`run-tests` after its suite runs), `status` reports the refusal as backend health, and direct adapters report a warning. HTTPS certificate verification and private-CA support through `REQUESTS_CA_BUNDLE` remain enabled; certificate failures do not trigger HTTP fallback.
 - Python 3.11 or later is required; Python 3.9 and 3.10 are no longer supported.
 - The GitHub and GitLab CI templates set `PYTHONUTF8=1`, so Python writes UTF-8 on every OS. On a Windows bench, `✓` and `─` in the job log otherwise appeared as `✓` and `─`.
+- `run-tests` creates its run in Bud, as Running, before the suite starts and uploads the results to that run when the suite ends. The run is named `<product> - <suite>` when the runner has a product (`productId`) and `<suite>` otherwise. `add-test-run` names its run `<product> - <suite>` after the product given with `--product-composition-id`.
+
+### Fixed
+- `run-tests` reported its run to Bud only once the suite had finished, so the run was missing from Bud while its tests ran and its start time was the end of the suite.
+- An artifact upload Bud refused with 429 waited for the upload allowance, up to 15 minutes per attempt, and held up the run. Artifact uploads retry on 500, 502, 503 and 504 only and ignore `Retry-After`; a file refused with 429 is tried once more after the others and is otherwise reported as left out. Result uploads keep their retry.
 
 ## [1.2.0] — 2026-10-15
 
