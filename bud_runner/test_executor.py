@@ -19,7 +19,7 @@ import traceback
 logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 DEFAULT_TEST_TIMEOUT = 300  # seconds per individual test
 DEFAULT_SUITE_TIMEOUT = 1800  # seconds for the full suite (30 min)
@@ -261,7 +261,7 @@ class TestExecutor:
         self,
         test_case_list: str,
         continue_on_error: bool = True,
-        should_stop: object = None,
+        should_stop: Optional[Callable[[], bool]] = None,
     ) -> List[TestRunResult]:
         """
         Run all tests from a test case list.
@@ -279,7 +279,6 @@ class TestExecutor:
         suite_deadline = time.time() + self._suite_timeout
 
         for test_class in test_classes:
-            # Allow external interrupt (e.g. SIGINT from CLI)
             if should_stop and callable(should_stop) and should_stop():
                 results.append(
                     TestRunResult(

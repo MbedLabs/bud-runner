@@ -50,6 +50,19 @@ def _where(location: Any, function: Optional[str], code: Optional[str]) -> Dict[
     }
 
 
+def _metadata(status: str, tags: List[str], location: Any) -> Dict[str, Any]:
+    """A scenario's result metadata: its Behave status, tags and location, and its Bloom test case when tagged."""
+    metadata: Dict[str, Any] = {
+        "behave_status": status,
+        "behave_tags": tags,
+        "location": f"{_relative(getattr(location, 'filename', None))}:{getattr(location, 'line', '')}",
+    }
+    tc_ids = [t[len(BLOOM_TAG) :].strip() for t in tags if t.lower().startswith(BLOOM_TAG)]
+    if tc_ids and tc_ids[0]:
+        metadata["tc_id"] = bloom_tc_id(tc_ids[0])
+    return metadata
+
+
 def step_message(step: Any) -> str:
     """The error of a step that did not pass: its exception, else Behave's message."""
     if _status(step.status) == "undefined":
@@ -141,6 +154,33 @@ class BudFormatter(Formatter):
         inherited = sorted(str(t) for t in (getattr(scenario, "effective_tags", None) or []))
         return tags + [t for t in inherited if t not in tags]
 
+    def _outcome(
+        self, scenario: Any, status: str, skip_reason: Any, where: Dict[str, Any], metadata: Dict[str, Any]
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Add the scenario's hook error, skip or failure entry and return its error message and traceback."""
+        if getattr(scenario, "hook_failed", False) or status == "hook_error":
+            error = (getattr(scenario, "error_message", None) or "hook error").strip()
+            return error, self._failed_entry(scenario, "HookError", error, where)
+        if self._failure is not None:
+            return self._failure
+        if status == "skipped":
+            self.skipped += 1
+            metadata["skipped"] = True
+            error = str(skip_reason)
+            self._entries.append(skip_assertion(error, where))
+            return error, None
+        if status != "passed":
+            error = (getattr(scenario, "error_message", None) or status).strip()
+            return error, self._failed_entry(scenario, "Fail", error, where)
+        return None, None
+
+    def _failed_entry(self, scenario: Any, kind: str, error: str, where: Dict[str, Any]) -> str:
+        """Add a failed entry of the given kind with the scenario's traceback and return that traceback."""
+        trace = step_traceback(scenario) or error
+        where["traceback"] = trace
+        self._entries.append(_entry(kind, False, error, where))
+        return trace
+
     def _finish(self) -> None:
         """Turn the scenario that ended into its Bud result."""
         scenario, self._scenario = self._scenario, None
@@ -150,40 +190,13 @@ class BudFormatter(Formatter):
         skip_reason = getattr(scenario, "skip_reason", None)
         if status == "skipped" and not skip_reason:
             return
-        tags = self._tags(scenario)
         location = getattr(scenario, "location", None)
-        metadata: Dict[str, Any] = {
-            "behave_status": status,
-            "behave_tags": tags,
-            "location": f"{_relative(getattr(location, 'filename', None))}:{getattr(location, 'line', '')}",
-        }
-        tc_ids = [t[len(BLOOM_TAG) :].strip() for t in tags if t.lower().startswith(BLOOM_TAG)]
-        if tc_ids and tc_ids[0]:
-            metadata["tc_id"] = bloom_tc_id(tc_ids[0])
+        metadata = _metadata(status, self._tags(scenario), location)
         name = scenario.name.strip()
         entries = self._entries
         where = _where(location, name, f"{getattr(scenario, 'keyword', 'Scenario')}: {name}")
-        error: Optional[str] = None
-        trace: Optional[str] = None
-        skipped = status == "skipped"
-        if getattr(scenario, "hook_failed", False) or status == "hook_error":
-            error = (getattr(scenario, "error_message", None) or "hook error").strip()
-            trace = step_traceback(scenario) or error
-            where["traceback"] = trace
-            entries.append(_entry("HookError", False, error, where))
-        elif self._failure is not None:
-            error, trace = self._failure
-        elif skipped:
-            self.skipped += 1
-            metadata["skipped"] = True
-            error = str(skip_reason)
-            entries.append(skip_assertion(error, where))
-        elif status != "passed":
-            error = (getattr(scenario, "error_message", None) or status).strip()
-            trace = step_traceback(scenario) or error
-            where["traceback"] = trace
-            entries.append(_entry("Fail", False, error, where))
-        passed = status == "passed" or skipped
+        error, trace = self._outcome(scenario, status, skip_reason, where, metadata)
+        passed = status in ("passed", "skipped")
         self.results.append(
             {
                 "test_class": self._feature.name if self._feature is not None else name,

@@ -41,11 +41,12 @@ BLOOM_MARKER = "bloom"
 VALUE_LIMIT = 5000
 RECORDED = "_bud_recorded"
 STRICT_XPASS = "[XPASS(strict)]"
+NOT_IN = "not in"
 OPERATORS = {
     ast.Eq: "==",
     ast.NotEq: "!=",
     ast.In: "in",
-    ast.NotIn: "not in",
+    ast.NotIn: NOT_IN,
     ast.Lt: "<",
     ast.Gt: ">",
 }
@@ -53,7 +54,7 @@ ASSERT_TYPES = {
     "==": "AssertEqual",
     "!=": "AssertNotEqual",
     "in": "AssertIn",
-    "not in": "AssertNotIn",
+    NOT_IN: "AssertNotIn",
     "<": "AssertLess",
     ">": "AssertGreater",
 }
@@ -114,7 +115,7 @@ def comparison(op: str, left: Any, right: Any) -> Tuple[str, Any, Any]:
         return "AssertNotEqual", f"!= {right}", left
     if op == "in":
         return "AssertIn", f"'{left}' in container", right
-    if op == "not in":
+    if op == NOT_IN:
         return "AssertNotIn", f"'{left}' NOT in container", right
     if op == "<":
         return "AssertLess", f"< {right}", left
@@ -248,6 +249,52 @@ class _TestState:
         self.soft_failure: Optional[str] = None
 
 
+def _xfail(when: str, report: Any, state: _TestState) -> bool:
+    """Whether the report is an expected failure; the passing call of an xfail test, or its
+    strict xpass, whose bud_assert failed becomes a skipped expected failure."""
+    xfail = hasattr(report, "wasxfail")
+    strict_pass = report.failed and str(report.longrepr or "").startswith(STRICT_XPASS)
+    if when == "call" and state.soft_failure and ((xfail and report.passed) or strict_pass):
+        report.outcome = "skipped"
+        if strict_pass:
+            report.wasxfail = str(report.longrepr)[len(STRICT_XPASS) :].strip()
+        xfail = True
+    return xfail
+
+
+def _surface_soft_failure(when: str, report: Any, state: _TestState, expected_failure: bool) -> None:
+    """Fail the passing call, or the passing teardown after no earlier failure, of a test
+    whose bud_assert failed and that is not an expected failure."""
+    earlier_failure = any(r.failed for r in state.reports)
+    surface = when == "call" or (when == "teardown" and not earlier_failure)
+    if surface and report.passed and not expected_failure and state.soft_failure:
+        report.outcome = "failed"
+        report.longrepr = f"bud_assert failed: {state.soft_failure}"
+
+
+def _outcome(reports: List[Any]) -> str:
+    """A test's pytest outcome from its reports: failed, error, xfailed, skipped, xpassed or passed."""
+    failed = [r for r in reports if r.failed]
+    xfail = any(hasattr(r, "wasxfail") for r in reports)
+    if failed:
+        return "failed" if any(r.when == "call" for r in failed) else "error"
+    if any(r.skipped for r in reports):
+        return "xfailed" if xfail else "skipped"
+    return "xpassed" if xfail else "passed"
+
+
+def _test_metadata(item: Any, outcome: str) -> Dict[str, Any]:
+    """A test's result metadata: its pytest outcome and markers, and its Bloom test case when marked."""
+    metadata: Dict[str, Any] = {
+        "pytest_outcome": outcome,
+        "pytest_markers": sorted({m.name for m in item.iter_markers()}),
+    }
+    marker = item.get_closest_marker(BLOOM_MARKER)
+    if marker is not None and marker.args and str(marker.args[0]).strip():
+        metadata["tc_id"] = bloom_tc_id(str(marker.args[0]))
+    return metadata
+
+
 class BudReporter:
     """Collects a pytest session and uploads it to Bud when the session finishes."""
 
@@ -303,7 +350,7 @@ class BudReporter:
             where["code_context"] = ast.get_source_segment(source, node) or where.get("code_context")
         return node
 
-    def pytest_runtest_logstart(self, nodeid: str, location: Any) -> None:
+    def pytest_runtest_logstart(self, nodeid: str) -> None:
         self._tests[nodeid] = _TestState()
         self._compared = None
 
@@ -363,19 +410,15 @@ class BudReporter:
         outcome = yield
         report = outcome.get_result()
         state = self.state(item.nodeid)
-        xfail = hasattr(report, "wasxfail")
-        strict_pass = report.failed and str(report.longrepr or "").startswith(STRICT_XPASS)
-        if call.when == "call" and state.soft_failure and ((xfail and report.passed) or strict_pass):
-            report.outcome = "skipped"
-            if strict_pass:
-                report.wasxfail = str(report.longrepr)[len(STRICT_XPASS) :].strip()
-            xfail = True
-        expected_failure = xfail or any(hasattr(r, "wasxfail") for r in state.reports)
-        earlier_failure = any(r.failed for r in state.reports)
-        surface = call.when == "call" or (call.when == "teardown" and not earlier_failure)
-        if surface and report.passed and not expected_failure and state.soft_failure:
-            report.outcome = "failed"
-            report.longrepr = f"bud_assert failed: {state.soft_failure}"
+        expected_failure = _xfail(call.when, report, state) or any(hasattr(r, "wasxfail") for r in state.reports)
+        _surface_soft_failure(call.when, report, state, expected_failure)
+        self._record_report(item, call, report, state)
+        state.reports.append(report)
+        if call.when == "teardown":
+            self._finish(item, state)
+
+    def _record_report(self, item: Any, call: Any, report: Any, state: _TestState) -> None:
+        """Add a failed report's exception entry, or a skipped report's Skip entry, to the test."""
         excinfo = call.excinfo
         if report.failed and excinfo is not None and not getattr(excinfo.value, RECORDED, False):
             entry = self._failure_entry(call.when, excinfo, report)
@@ -384,29 +427,14 @@ class BudReporter:
         elif report.skipped:
             reason = _skip_reason(report)
             state.assertions.append(assertion(True, "Skip", reason, where=_skip_site(item), skipped=True))
-        state.reports.append(report)
-        if call.when == "teardown":
-            self._finish(item, state)
 
     def _finish(self, item: Any, state: _TestState) -> None:
         """Turn a test's collection into its Bud result."""
         reports = state.reports
         failed = [r for r in reports if r.failed]
         skipped = not failed and any(r.skipped for r in reports)
-        xfail = any(hasattr(r, "wasxfail") for r in reports)
-        if failed:
-            outcome = "failed" if any(r.when == "call" for r in failed) else "error"
-        elif skipped:
-            outcome = "xfailed" if xfail else "skipped"
-        else:
-            outcome = "xpassed" if xfail else "passed"
-        metadata: Dict[str, Any] = {
-            "pytest_outcome": outcome,
-            "pytest_markers": sorted({m.name for m in item.iter_markers()}),
-        }
-        marker = item.get_closest_marker(BLOOM_MARKER)
-        if marker is not None and marker.args and str(marker.args[0]).strip():
-            metadata["tc_id"] = bloom_tc_id(str(marker.args[0]))
+        outcome = _outcome(reports)
+        metadata = _test_metadata(item, outcome)
         error = None
         if failed:
             error = state.error or failed[0].longreprtext or outcome
@@ -450,7 +478,7 @@ class BudReporter:
             body["product_id"] = product_id
         return body
 
-    def pytest_sessionfinish(self, session: Any, exitstatus: Any) -> None:
+    def pytest_sessionfinish(self) -> None:
         if not self.upload:
             return
         try:
