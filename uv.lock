@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -754,7 +754,7 @@ name = "importlib-metadata"
 version = "9.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "zipp", marker = "python_full_version < '3.15'" },
+    { name = "zipp" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6f/7e/1e7e8dc30634b93ebb3d58a3dea569ad146e656218d3960ab04f62047b29/importlib_metadata-9.0.1.tar.gz", hash = "sha256:ab830580bc0ef3db61ce8fae716389e5462b67e033018bab6d8f80ef17172f99", size = 59124, upload-time = "2026-08-28T15:30:34.646Z" }
 wheels = [
@@ -1345,7 +1345,7 @@ wheels = [
 
 [[package]]
 name = "pytest"
-version = "9.1.1"
+version = "9.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
@@ -1354,9 +1354,9 @@ dependencies = [
     { name = "pluggy" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/42/bb4641652e58dedeac2ec51abc1f8cae4fee4ec63899a0999016229a0f2a/pytest-9.2.0.tar.gz", hash = "sha256:97c4f3b1f3c7414aa36465e09b8220f1d03627993bd51b1282e193753c80557b", size = 1797555, upload-time = "2026-10-27T21:30:20.728Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
+    { url = "https://files.pythonhosted.org/packages/51/39/1f5d8c8877a0fa327db959c19341d4be61660de1ab6b7391f9eb805bcd67/pytest-9.2.0-py3-none-any.whl", hash = "sha256:07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588", size = 411776, upload-time = "2026-10-27T21:30:19.131Z" },
 ]
 
 [[package]]
@@ -1549,11 +1549,11 @@ wheels = [
 
 [[package]]
 name = "robotframework"
-version = "7.5"
+version = "7.5.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/66/77/5f60e5619082d387971d111c1354f1f529d2959ee742877982002d38d53d/robotframework-7.5.tar.gz", hash = "sha256:ff6233ff752a200ece4d0a6c59f6f9f7d0e96dcff0a7a3458296b997b812482e", size = 684632, upload-time = "2026-09-14T13:12:56.892Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/82/c7e3f8acb173c63e17cbdffdadf95a55520c0139cc548ce9ac963424361b/robotframework-7.5.1.tar.gz", hash = "sha256:00f63dc7b0477a137f8a9c1f2e14db8084a4d187a76f3fec6c2567875c32b932", size = 686670, upload-time = "2026-11-02T21:35:34.339Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/f1/3075460f0a0d3ac52aa607a843860a61ac578b51d80a0980ebf5e30486bc/robotframework-7.5-py3-none-any.whl", hash = "sha256:5a194db36524604fafa1da89adebc837db9a95adf15ffd746e09ce98251e6c68", size = 842522, upload-time = "2026-09-14T13:12:54.644Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/a3/6d528a8ac42a03ba4b9f6642b80ea37de2d18086d458c044bb6a6a8df5b9/robotframework-7.5.1-py3-none-any.whl", hash = "sha256:a46196098d92a30cb8b68c426d8d9a35b048d7936fc2cd9959b8c5c6f57524c8", size = 844474, upload-time = "2026-11-02T21:35:32.447Z" },
 ]
 
 [[package]]
